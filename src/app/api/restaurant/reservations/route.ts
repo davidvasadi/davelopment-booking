@@ -7,11 +7,12 @@ import { sendReservationConfirmation } from '@/lib/restaurantEmail'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
-import { computeRestaurantDepositHuf } from '@/lib/depositCalc'
+import { computeRestaurantDepositHuf, depositApplies } from '@/lib/depositCalc'
 import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
 import { isWithinBookingWindow } from '@/lib/bookingWindow'
 import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Restaurant, Reservation } from '@/payload/payload-types'
+import { isBusinessLocked, LOCKED_ERROR } from '@/lib/businessLock'
 
 const schema = z.object({
   restaurantId: z.coerce.string(),
@@ -81,6 +82,8 @@ export async function POST(request: NextRequest) {
       fallbackLocale: 'hu',
     })) as Restaurant | null
     if (!restaurant) return NextResponse.json({ error: 'Étterem nem található' }, { status: 404 })
+    // zárolt üzlet (lejárt / szünetelő előfizetés): nincs új online foglalás (design 21.13)
+    if (await isBusinessLocked(payload, restaurant.owner)) return NextResponse.json({ error: LOCKED_ERROR, locked: true }, { status: 423 })
 
     // Foglalási ablak — ugyanaz a szabály, mint a szalonnál (eddig itt egyáltalán nem volt
     // ellenőrizve, közvetlen API-hívással bármilyen távoli napra lehetett foglalni).
@@ -97,7 +100,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ez az időpont sajnos nem foglalható. Kérjük, válassz másik időpontot.' }, { status: 409 })
     }
 
-    const alloc = await validateAndAllocate({ restaurantId, date, start_time, pax })
+    const alloc = await validateAndAllocate({ restaurantId, date, start_time, pax, online: true })
     if (!alloc.ok) {
       // Ha volt már sikeres előleg-terhelés — AZONNALI visszatérítés, mint a szalon oldalon.
       let refunded = false
@@ -128,13 +131,14 @@ export async function POST(request: NextRequest) {
     // false esetén 'pending' → a tulaj a meglévő státusz-kezeléssel erősíti meg.
     // Előleges foglalás MINDIG azonnal megerősített (a vendég már fizetett — jóváhagyásra várás
     // és utólagos elutasítás itt visszatérítési zűrt okozna); a szerkesztő sem engedi kikapcsolni.
-    const depositOnForAutoConfirm = !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded && !!restaurant.stripe_connect_account_id
+    const depositOnForAutoConfirm = !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded && !!restaurant.stripe_connect_account_id && depositApplies(restaurant.deposit_settings, { date, pax })
     const reservationStatus: 'confirmed' | 'pending' =
       restaurant.booking_rules?.auto_confirm === false && !depositOnForAutoConfirm ? 'pending' : 'confirmed'
 
     // Ha az étteremnél be van kapcsolva az előleg ÉS a Stripe onboarding kész, a fizetés
     // KÖTELEZŐ — sose bízzunk kliens-oldali jelzésben.
-    const depositRequired = !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded && !!restaurant.stripe_connect_account_id
+    // „Mely foglalásoknál” (16.1): ugyanaz a szabály, mint a foglalóoldalon
+    const depositRequired = !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded && !!restaurant.stripe_connect_account_id && depositApplies(restaurant.deposit_settings, { date, pax })
     let depositHuf: number | null = null
     if (depositRequired) {
       if (!payment_intent_id) {
@@ -149,7 +153,7 @@ export async function POST(request: NextRequest) {
       const stripe = getStripe()
       if (!stripe) return NextResponse.json({ error: 'A fizetés jelenleg nincs konfigurálva.' }, { status: 503 })
       const intent = await stripe.paymentIntents.retrieve(payment_intent_id, undefined, { stripeAccount: restaurant.stripe_connect_account_id! })
-      const expectedHuf = computeRestaurantDepositHuf(restaurant.deposit_settings, pax)
+      const expectedHuf = computeRestaurantDepositHuf(restaurant.deposit_settings, pax, date)
       if (intent.status !== 'succeeded' || !expectedHuf || intent.amount !== hufToStripeMinor(expectedHuf)) {
         if (intent.status === 'succeeded') {
           await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: restaurant.stripe_connect_account_id! }).catch((e) =>
@@ -216,7 +220,7 @@ export async function POST(request: NextRequest) {
       let dEnd = alloc.end_time
       let dTableIds = alloc.tableIds
       if (d !== date) {
-        const a = await validateAndAllocate({ restaurantId, date: d, start_time, pax })
+        const a = await validateAndAllocate({ restaurantId, date: d, start_time, pax, online: true })
         if (!a.ok) {
           skipped.push(d)
           continue
@@ -297,6 +301,7 @@ export async function POST(request: NextRequest) {
         collection: 'reservations',
         id: reservation.id,
         invoiceSettings: restaurant.invoice_settings,
+        sellerTaxNumber: restaurant.tax_number,
         buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number },
         label: `Előleg — ${restaurant.name} · ${date} · ${pax} fő`,
         grossHuf: depositHuf,

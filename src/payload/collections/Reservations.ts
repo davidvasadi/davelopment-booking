@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { capabilityScoped } from '../access/capabilityAccess'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
+import { webhookOnBooking } from '../hooks/webhookOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { revalidateOnReservationChange, revalidateOnReservationDelete } from '../hooks/revalidateRestaurant'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
@@ -33,7 +34,7 @@ export const Reservations: CollectionConfig = {
       required: true,
       label: 'Étterem',
     },
-    { name: 'date', type: 'text', required: true, label: 'Dátum (YYYY-MM-DD)' },
+    { name: 'date', type: 'text', required: true, index: true, label: 'Dátum (YYYY-MM-DD)' },
     { name: 'start_time', type: 'text', required: true, label: 'Kezdés (HH:MM)' },
     { name: 'end_time', type: 'text', required: true, label: 'Vég (HH:MM)' },
     { name: 'pax', type: 'number', required: true, defaultValue: 2, label: 'Fő' },
@@ -61,6 +62,7 @@ export const Reservations: CollectionConfig = {
     { name: 'occasion_icon', type: 'text', label: 'Alkalom ikon-kulcs', admin: { description: 'A választott alkalom Lucide ikon-kulcsa (a nézetekben jelenik meg).' } },
     {
       name: 'status',
+      index: true,
       type: 'select',
       required: true,
       defaultValue: 'confirmed',
@@ -190,6 +192,7 @@ export const Reservations: CollectionConfig = {
     },
     { name: 'invoice_number', type: 'text', label: 'Számlaszám', admin: { position: 'sidebar', readOnly: true } },
     { name: 'invoice_pdf_url', type: 'text', label: 'Számla PDF', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'invoice_storno_number', type: 'text', label: 'Sztornó számla száma', admin: { position: 'sidebar', readOnly: true } },
     {
       name: 'invoice_status',
       type: 'select',
@@ -198,6 +201,7 @@ export const Reservations: CollectionConfig = {
         { label: 'Nincs', value: 'none' },
         { label: 'Kiállítva', value: 'issued' },
         { label: 'Sikertelen', value: 'failed' },
+        { label: 'Sztornózva', value: 'storno' },
       ],
       admin: { position: 'sidebar' },
     },
@@ -249,7 +253,7 @@ export const Reservations: CollectionConfig = {
         return data
       },
     ],
-    afterChange: [notifyOnBooking('restaurant'), sseAfterChange('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant'), confirmOnApproval('restaurant')],
+    afterChange: [notifyOnBooking('restaurant'), webhookOnBooking('restaurant'), sseAfterChange('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant'), confirmOnApproval('restaurant')],
     afterDelete: [sseAfterDelete('restaurant'), revalidateOnReservationDelete, auditAfterDelete('Asztalfoglalás', 'restaurant')],
   },
   timestamps: true,

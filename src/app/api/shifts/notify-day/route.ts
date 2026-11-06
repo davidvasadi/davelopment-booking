@@ -7,7 +7,7 @@ import type { Shift } from '@/payload/payload-types'
 
 /**
  * Nap véglegesítése — küldi az értesítéseket az adott napon beosztott ÖSSZES tagnak.
- * A ScheduleView DayEditor "Nap véglegesítése" gombja POST-ol ide.
+ * A Naptár nap-szerkesztőjének "Nap véglegesítése" gombja POST-ol ide.
  * Body: { date: 'YYYY-MM-DD', bizType: 'salon' | 'restaurant', bizId: string }
  * RBAC: `schedule.manage` a megadott üzletben.
  */

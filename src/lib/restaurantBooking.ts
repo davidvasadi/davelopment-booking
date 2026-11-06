@@ -46,6 +46,28 @@ function unavailableRoomIds(rooms: SeasonRoom[], date: string): Set<string> {
   return new Set(rooms.filter((r) => !isRoomAvailableOnDate(r, date)).map((r) => String(r.id)))
 }
 
+/** A vendég ONLINE foglalásának korlátai (design 16.21 / 16.22): a nem online foglalható termek asztalai kiesnek. */
+function onlineRoomTables(tables: Table[], rooms: { id: string | number; online_bookable?: boolean | null }[]): Table[] {
+  const offline = new Set(rooms.filter((r) => r.online_bookable === false).map((r) => String(r.id)))
+  if (!offline.size) return tables
+  return tables.filter((t) => { const rid = t.room ? (typeof t.room === 'object' ? t.room.id : t.room) : null; return rid == null || !offline.has(String(rid)) })
+}
+
+/** Online: a férőhelynek legfeljebb `online_capacity_pct`%-a lehet foglalt az időablakban (a többi a betérőké).
+ *  Igaz, ha még belefér `pax` fő. Az összes (online és kézi) aktív foglalás létszáma számít. */
+function withinOnlineCapacity(restaurant: Restaurant, tables: Table[], reservations: Reservation[], start: number, end: number, pax: number): boolean {
+  const pct = restaurant.online_capacity_pct ?? 100
+  if (pct >= 100) return true
+  const seats = tables.reduce((n, t) => n + (t.capacity ?? 0), 0)
+  const taken = reservations.reduce((n, r) => (start < hhmmToMinutes(r.end_time) && end > hhmmToMinutes(r.start_time) ? n + (r.pax ?? 0) : n), 0)
+  return taken + pax <= Math.floor((seats * pct) / 100)
+}
+
+/** Online: a létszám a legkisebb / legnagyobb online határon belül van-e. */
+export function onlinePaxAllowed(restaurant: Pick<Restaurant, 'min_online_pax' | 'max_online_pax'>, pax: number): boolean {
+  return pax >= (restaurant.min_online_pax ?? 1) && (restaurant.max_online_pax == null || pax <= restaurant.max_online_pax)
+}
+
 /** Egy adott nap nyitvatartási ablaka (perc), a heti rend + kivétel figyelembevételével.
  *  null = zárva. Ha az étteremhez nincs egyetlen opening-hours rekord sem (soha nem konfigurálták),
  *  alapértelmezésként nyitva kezeljük 10:00–22:00 között — a foglalható slot így megjelenik
@@ -114,20 +136,36 @@ export async function getOpeningWindow(
 }
 
 /** Egy adott napra szabad időpontokat ad vissza adott létszámra (pax). */
-export async function getRestaurantSlots(params: {
+type RestaurantSlotParams = {
   restaurantId: string | number
   date: string // YYYY-MM-DD
   pax: number
   /** Ha igaz, a múltbeli (mai elmúlt, vagy akár korábbi napi) időpontok is szerepelnek —
    *  csak a bejelentkezett tulaj saját felületén, utólagos/telefonos rögzítéshez. */
   includePast?: boolean
-}): Promise<RestaurantTimeSlot[]> {
-  const { restaurantId, date, pax, includePast = false } = params
+  /** szerkesztésnél a saját foglalás nem foglalja a saját asztalát / idejét */
+  excludeReservationId?: string
+  /** választott asztal(ok): a `tableFree` azokat a kezdéseket adja, amikor ezek mind szabadok `duration` percre */
+  tableIds?: string[]
+  duration?: number
+  /** a vendég online foglalása (publikus widget): online termek, kapacitás-%, létszám-határ — a tulaj felülete nélküle */
+  online?: boolean
+}
+
+export async function getRestaurantSlots(params: RestaurantSlotParams): Promise<RestaurantTimeSlot[]> {
+  return (await getRestaurantSlotGrid(params)).slots
+}
+
+/** A szabad időpontok ÉS a nap összes jelölt kezdése (a tulaj szerkesztőjének rácsához: ami nem szabad, az foglalt —
+ *  design 6.18). Zárt napon mindkettő üres. */
+export async function getRestaurantSlotGrid(params: RestaurantSlotParams): Promise<{ slots: RestaurantTimeSlot[]; candidates: string[]; tableFree?: string[] }> {
+  const { restaurantId, date, pax, includePast = false, excludeReservationId, tableIds, duration, online = false } = params
   const payload = await getPayloadClient()
 
   const restaurant = (await payload.findByID({
     collection: 'restaurants',
     id: restaurantId,
+    depth: 0, // csak a foglalási szabályok kellenek (a tulaj / képek kifejtése felesleges)
     overrideAccess: true,
   })) as Restaurant
 
@@ -135,10 +173,12 @@ export async function getRestaurantSlots(params: {
   const step = restaurant.slot_step_minutes ?? 30
   const leadHours = restaurant.lead_time_hours ?? 0
   const lastSeatingBuffer = restaurant.last_seating_buffer_minutes ?? 0
+  // online: a létszám-határon kívül nincs időpont (a varázsló addig engedi a léptetést)
+  if (online && !onlinePaxAllowed(restaurant, pax)) return { slots: [], candidates: [] }
 
   // 1. Nyitvatartás az adott napra (heti rend + kivétel). Zárva → nincs slot.
   const window = await getOpeningWindow(restaurantId, date)
-  if (!window) return []
+  if (!window) return { slots: [], candidates: [] }
   const { openMin, closeMin } = window
 
   // 2. Jelölt kezdési időpontok (lépésenként), úgy hogy a teljes turnus záróráig férjen
@@ -173,7 +213,7 @@ export async function getRestaurantSlots(params: {
     limit: 500,
     overrideAccess: true,
   })
-  const reservations = resRes.docs as Reservation[]
+  const reservations = (resRes.docs as Reservation[]).filter((r) => !excludeReservationId || String(r.id) !== excludeReservationId)
 
   // Kell legyen szabad, megfelelő kapacitású asztal
   const tablesRes = await payload.find({
@@ -199,10 +239,11 @@ export async function getRestaurantSlots(params: {
   // Szezonális szűrés: az adott napon szezonon kívüli termek asztalai kiesnek
   // a foglalható kapacitásból (a landing így kevesebb asztallal számol).
   const offSeason = unavailableRoomIds(roomsRes.docs as SeasonRoom[], date)
-  const tables = allActiveTables.filter((t) => {
+  const inSeason = allActiveTables.filter((t) => {
     const rid = t.room ? (typeof t.room === 'object' ? t.room.id : t.room) : null
     return rid == null || !offSeason.has(String(rid))
   })
+  const tables = online ? onlineRoomTables(inSeason, roomsRes.docs as { id: string | number; online_bookable?: boolean | null }[]) : inSeason
   const outdoorRoomIds = new Set(
     roomsRes.docs.filter((r) => (r as { is_outdoor?: boolean }).is_outdoor).map((r) => String(r.id)),
   )
@@ -213,9 +254,11 @@ export async function getRestaurantSlots(params: {
   const indoorTables = tables.filter(isIndoorTable)
   const hasOutdoor = outdoorRoomIds.size > 0 && tables.length > indoorTables.length
 
-  return candidates
-    .filter((c) => c >= earliestMin)
-    .filter((slotStart) => findAllocation(slotStart, slotStart + turn, tables, reservations, pax) !== null)
+  const open = candidates.filter((c) => c >= earliestMin)
+  const slots = open
+    // a szerkesztő ülésidejével (`duration`), ha megadták — különben az étterem alap turnusával
+    .filter((slotStart) => findAllocation(slotStart, slotStart + (duration ?? turn), tables, reservations, pax) !== null
+      && (!online || withinOnlineCapacity(restaurant, tables, reservations, slotStart, slotStart + (duration ?? turn), pax)))
     .map((s) => {
       // A turnus nem lóghat túl a záráson — a vége a zárásig vágódik.
       const slotEnd = Math.min(s + turn, closeMin)
@@ -224,6 +267,12 @@ export async function getRestaurantSlots(params: {
         hasOutdoor && findAllocation(s, slotEnd, indoorTables, reservations, pax) === null
       return { start: minutesToHHMM(s), end: minutesToHHMM(slotEnd), onlyOutdoor }
     })
+  // a választott asztal(ok) szabad kezdései (a szerkesztő rácsán a többi áthúzva — mint a szalonnál a munkatársé)
+  const picked = tableIds?.length ? allActiveTables.filter((t) => tableIds.includes(String(t.id))) : []
+  const tableFree = picked.length
+    ? open.filter((s) => freeTablesInWindow(s, s + (duration ?? turn), picked, reservations).length === picked.length).map(minutesToHHMM)
+    : undefined
+  return { slots, candidates: open.map(minutesToHHMM), tableFree }
 }
 
 /** Egy foglalás által elfoglalt asztal-ID-k (string-re normalizálva). */
@@ -462,18 +511,24 @@ export interface ComboOption {
  * a legnagyobb egyedi asztal, vagy a legnagyobb összevonható (combinable_with)
  * asztalcsoport összkapacitása, amelyik nagyobb.
  */
-export async function getMaxPax(restaurantId: string | number): Promise<number> {
+export async function getMaxPax(restaurantId: string | number, opts: { online?: boolean } = {}): Promise<number> {
   const payload = await getPayloadClient()
 
-  const tablesRes = await payload.find({
-    collection: 'tables',
-    where: { and: [{ restaurant: { equals: restaurantId } }, { is_active: { not_equals: false } }] },
-    depth: 0,
-    limit: 500,
-    overrideAccess: true,
-  })
-  const tables = tablesRes.docs as Table[]
+  const [tablesRes, roomsRes, restaurant] = await Promise.all([
+    payload.find({
+      collection: 'tables',
+      where: { and: [{ restaurant: { equals: restaurantId } }, { is_active: { not_equals: false } }] },
+      depth: 0,
+      limit: 500,
+      overrideAccess: true,
+    }),
+    opts.online ? payload.find({ collection: 'rooms', where: { restaurant: { equals: restaurantId } }, depth: 0, limit: 100, overrideAccess: true }) : null,
+    opts.online ? payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true }) as Promise<Restaurant> : null,
+  ])
+  // online: csak az online termek asztalai, és legfeljebb a beállított legnagyobb online létszám
+  const tables = roomsRes ? onlineRoomTables(tablesRes.docs as Table[], roomsRes.docs as { id: string | number; online_bookable?: boolean | null }[]) : tablesRes.docs as Table[]
   if (tables.length === 0) return 0
+  const cap = restaurant?.max_online_pax ?? Infinity
 
   const byId = new Map(tables.map((t) => [String(t.id), t]))
   const adj = buildAdjacency(tables)
@@ -501,7 +556,7 @@ export async function getMaxPax(restaurantId: string | number): Promise<number> 
     if (cap > max) max = cap
   }
 
-  return max
+  return Math.min(max, cap)
 }
 
 /**
@@ -522,6 +577,7 @@ export async function getMoveOptions(params: {
   const restaurant = (await payload.findByID({
     collection: 'restaurants',
     id: restaurantId,
+    depth: 0, // csak a foglalási szabályok kellenek (a tulaj / képek kifejtése felesleges)
     overrideAccess: true,
   })) as Restaurant
 
@@ -623,27 +679,31 @@ export async function validateAndAllocate(params: {
   date: string
   start_time: string
   pax: number
+  /** a vendég online foglalása — online termek, kapacitás-%, létszám-határ (lásd getRestaurantSlotGrid) */
+  online?: boolean
 }): Promise<
   | { ok: true; tableIds: (number | string)[]; end_time: string }
   | { ok: false; error: string }
 > {
-  const { restaurantId, date, start_time, pax } = params
+  const { restaurantId, date, start_time, pax, online = false } = params
   const payload = await getPayloadClient()
 
   const restaurant = (await payload.findByID({
     collection: 'restaurants',
     id: restaurantId,
+    depth: 0, // csak a foglalási szabályok kellenek (a tulaj / képek kifejtése felesleges)
     overrideAccess: true,
   })) as Restaurant
 
   if (restaurant.is_active === false) return { ok: false, error: 'Ez az étterem jelenleg nem fogad foglalást' }
+  if (online && !onlinePaxAllowed(restaurant, pax)) return { ok: false, error: 'Ekkora társaság online nem foglalhat — kérjük, vedd fel velünk a kapcsolatot.' }
 
   const slotStart = hhmmToMinutes(start_time)
 
   // Múlt + nyitvatartás-ellenőrzés a slot-listán keresztül (egyetlen forrás az igazságra).
   // A slot már a záráshoz vágott end-et adja — onnan vesszük az end_time-ot, hogy a
   // turnus ne lóghasson túl a záráson (pl. 21:00 + 2ó, 22:00 zárás → 22:00).
-  const slots = await getRestaurantSlots({ restaurantId, date, pax })
+  const slots = await getRestaurantSlots({ restaurantId, date, pax, online })
   const slot = slots.find((s) => s.start === start_time)
   if (!slot) {
     return { ok: false, error: 'Ez az időpont már nem foglalható' }
@@ -674,7 +734,9 @@ export async function validateAndAllocate(params: {
       overrideAccess: true,
     }),
   ])
-  const tables = tablesRes.docs as Table[]
+  // online: csak az online foglalható termek asztalaiból (a szezon a slot-listán már szűrve)
+  const rooms = online ? (await payload.find({ collection: 'rooms', where: { restaurant: { equals: restaurantId } }, depth: 0, limit: 100, overrideAccess: true })).docs as { id: string | number; online_bookable?: boolean | null }[] : []
+  const tables = online ? onlineRoomTables(tablesRes.docs as Table[], rooms) : tablesRes.docs as Table[]
   const tableIds = findAllocation(slotStart, slotEnd, tables, resRes.docs as Reservation[], pax)
   if (tableIds === null) return { ok: false, error: 'Nincs szabad asztal erre az időpontra' }
 
@@ -712,6 +774,7 @@ export async function validateManualReservation(params: {
   const restaurant = (await payload.findByID({
     collection: 'restaurants',
     id: restaurantId,
+    depth: 0, // csak a foglalási szabályok kellenek (a tulaj / képek kifejtése felesleges)
     overrideAccess: true,
   })) as Restaurant
 

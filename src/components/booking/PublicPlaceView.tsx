@@ -2,17 +2,20 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type MouseEvent, type PointerEvent } from 'react'
 import Image from 'next/image'
-import { MapPin, Tag, Users } from 'lucide-react'
-import { RatingStars } from '@/components/booking/RatingStars'
-import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
-import { LangSwitcher } from '@/components/booking/LangSwitcher'
-import { BrandLogo } from '@/components/BrandLogo'
+import { ArrowRight, Clock, MapPin, Phone } from 'lucide-react'
+import { DAYS_OF_WEEK, dayLabels } from '@/lib/restaurantTemplates'
+import { displayCloseTime } from '@/lib/utils'
+import { Button } from '@/components/ui-kit'
+import { ACCENT, BookingPausedCard, DefaultCover, GalleryStrip, GalleryViewer, GoodToKnow, InfoList, PageNav, RatingBadges, SocialIcons, VoucherPill, type HoursInfo, type InfoItem, type RatingItem } from '@/components/blocks/public'
+import { PageLangPills } from '@/components/booking/PageLangPills'
+import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import { ProfileCard, type ProfileCardProps, type EditorView } from '@/components/booking/ProfileCard'
 import { RestaurantCard, type RestaurantCardProps } from '@/components/restaurant/RestaurantCard'
 import { SalonCtaWrapper } from '@/components/booking/SalonCtaWrapper'
-import { nextImageSrc } from '@/lib/utils'
+import { cn, nextImageSrc } from '@/lib/utils'
 import { t, type Locale } from '@/lib/i18n'
 import { isEditorMessage, postToEditor, type EditorToPreview } from '@/lib/editorBridge'
+import { accentForeground, type GalleryItem, type PublicPageStyle } from '@/lib/publicPageView'
 
 /**
  * Egy üzlet külső foglalóoldala (borító, felső sáv, hős-blokk, foglaló kártya) — KÖZÖS a
@@ -50,6 +53,20 @@ type PlaceViewBase = {
   serviceCount: number
   staffCount: number
   rating: { average: number; count: number | null; source?: string } | null
+  /** a megjelenés (design 21.x): márkaszín, kártya, sötétítés, borító-elemek, gomb — `lib/publicPageView` */
+  page: PublicPageStyle
+  /** a galéria (legfeljebb 12 kép felirattal) — az első 3 a borítón */
+  gallery: GalleryItem[]
+  /** közösségi linkek (a platform a linkből) — a borítón */
+  socialLinks: string[]
+  /** „Jó tudni” pontok — a borítón az első 3, a többi a „+N” mögött */
+  goodToKnow: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[]
+  phone: string | null
+  /** az online foglalás szünetel (az üzlet előfizetése lejárt / szünetel — design 21.13): a foglaló kártya és a CTA helyén
+   *  a BookingPausedCard; az oldal többi része marad */
+  paused?: boolean
+  /** a heti nyitvatartás — a „Jó tudni” lista alján (a régi kezdő nézetből ide került) */
+  openingHours: { day_of_week: string; is_open?: boolean | null; open_time?: string | null; close_time?: string | null }[]
 }
 export type SalonCardData = Omit<ProfileCardProps, 'nextSlotNode' | 'salonName' | 'salonDescription' | 'salonAddress' | 'salonCity' | 'locale' | 'slug' | 'embed'>
 export type RestaurantCardData = Omit<RestaurantCardProps, 'restaurantName' | 'restaurantDescription' | 'restaurantAddress' | 'restaurantCity' | 'locale' | 'slug' | 'embed'>
@@ -89,8 +106,6 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
   if (staffEdits && d.kind === 'salon') d.card = { ...d.card, staff: d.card.staff.map((m) => ({ ...m, ...(staffEdits[String(m.id)] ?? {}) })) }
   const { slug, locale, available, embed } = d
   const hasCover = !!d.coverUrl
-  const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'
-  const heroSub = hasCover ? 'text-white/60' : 'text-[#86826F]'
   const coverFocal = `${d.coverFocalX}% ${d.coverFocalY}%`
   const coverFocalMobile = `${d.coverFocalMobileX ?? d.coverFocalX}% ${d.coverFocalMobileY ?? d.coverFocalY}%`
   const place = [d.address, d.city].filter(Boolean).join(', ')
@@ -115,24 +130,33 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
     setHovered(el?.getAttribute('data-edit-id') ?? null)
   }
 
-  const counts = (d.showServiceCount || d.showStaffCount) && (
-    <>
-      {d.showServiceCount && <div className="flex items-center gap-1.5 lg:gap-2">
-        <Tag className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-        <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{d.serviceCount}</span>
-        <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
-      </div>}
-      {d.showServiceCount && d.showStaffCount && <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />}
-      {d.showStaffCount && <div className="flex items-center gap-1.5 lg:gap-2">
-        <Users className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-        <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{d.staffCount}</span>
-        <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
-      </div>}
-    </>
-  )
-  const rating = (className?: string) => d.rating && (
-    <RatingStars rating={d.rating.average} count={d.rating.count} source={d.rating.source} className={className} dark={hasCover} />
-  )
+  // ── a design 21.1 elemei, élő adattal ──
+  const pg = d.page
+  const initials = d.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('') || '•'
+  const counts: [string, string][] = [
+    // szalon: szolgáltatás / munkatárs; étterem: asztal / férőhely (design 21.10)
+    ...(d.showServiceCount && d.serviceCount > 0 ? [[String(d.serviceCount), t(locale, d.kind === 'salon' ? 'booking.step.service' : 'public.tables')] as [string, string]] : []),
+    ...(d.showStaffCount && d.staffCount > 0 ? [[String(d.staffCount), t(locale, d.kind === 'salon' ? 'booking.step.staff' : 'public.seats')] as [string, string]] : []),
+  ]
+  const voucherOn = !d.paused && !!d.card.voucherEnabled
+  const openVoucher = () => window.dispatchEvent(new CustomEvent('davelopment:openVoucher'))
+  const galleryItems = d.gallery.map((g) => ({ src: g.url, t: g.caption }))
+  // „Jó tudni”: az üzlet pontjai; a telefonszám (az Elérhetőségből) a harmadik helyre kerül, hívható
+  const gtk = (d.goodToKnow ?? []).filter((x) => x?.title?.trim())
+  const info: InfoItem[] = gtk.map((x) => ({ icon: iconByKey(x.icon), t: x.title!.trim(), d: x.body?.trim() || x.title!.trim() }))
+  if (d.phone) info.splice(Math.min(2, info.length), 0, { icon: Phone, t: d.phone, d: d.phone, href: `tel:${d.phone.replace(/\s+/g, '')}` })
+  // nyitvatartás: a pillek között egy „Nyitvatartás” (a listát nyitja), a lista alján a heti rend a most-állapottal
+  const hasHours = (d.openingHours ?? []).some((h) => h.is_open)
+  const pills: InfoItem[] = hasHours ? [...info, { icon: Clock, t: t(locale, 'openingHours.title'), d: t(locale, 'openingHours.title') }] : info
+  const hours = useHoursInfo(d.openingHours ?? [], locale)
+  const ratingItems: RatingItem[] = d.rating ? [{ score: d.rating.average, source: d.rating.source ? 'Google' : 'davelopment', count: d.rating.count }] : []
+  const googleUrl = d.kind === 'salon' ? d.card.google?.mapsUrl ?? null : d.card.google?.mapsUrl ?? null
+  const ctaLabel = pg.ctaLabel ?? t(locale, d.kind === 'salon' ? 'public.bookCta' : 'public.bookTable')
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [galleryAt, setGalleryAt] = useState<number | null>(null)
+  // a borító sötétítése (Beállítások › Foglalóoldal › Borítókép): nincs / enyhe (alap) / erős — a szöveg mindig olvasható
+  const dimTop = pg.dim === 'none' ? 'from-ui-dark/45' : 'from-ui-dark/70'
+  const dimBottom = pg.dim === 'none' ? 'h-2/5 from-ui-dark/75' : 'h-3/5 from-ui-dark/90'
 
   return (
     <div
@@ -140,138 +164,111 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
       onClickCapture={editor ? onClickCapture : undefined}
       onPointerOver={editor ? onPointerOver : undefined}
       onMouseLeave={editor ? () => setHovered(null) : undefined}
-      className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh]'}`}
-      style={embed ? { background: 'transparent' } : hasCover ? { background: '#111' } : {
-        background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)',
+      className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh] bg-ui-dark'}`}
+      style={{
+        ...(embed ? { background: 'transparent' } : {}),
+        // az üzlet márkaszíne: minden kiemelés (fő gomb, kiválasztott sor, időpont) — `ui-accent`
+        ...(pg.accent || pg.buttonText !== 'auto' ? { ['--biz-accent' as string]: pg.accent ?? '#FFD85F', ['--biz-accent-fg' as string]: accentForeground(pg.accent, pg.buttonText) } : {}),
       }}
     >
       {/* A globals.css `html` elemnek van egy kemény krém háttérszíne — embed módban ez
           átütne az átlátszó oldal mögött, ezt írjuk itt felül. */}
       {embed && <style>{'html, body { background: transparent !important; }'}</style>}
 
-      {/* Cover image + overlay — embed módban nem jelenik meg (kevesebb navigáció/fejléc). */}
-      {!embed && hasCover && (
+      {/* Borító — a kép (fókuszponttal, desktop / mobil), vagy az alap arculat: semleges mély sötét, halvány fénnyel (21.5) */}
+      {!embed && (hasCover ? (
+        <Image
+          src={nextImageSrc(d.coverUrl!)}
+          alt=""
+          aria-hidden
+          fill
+          priority
+          sizes="100vw"
+          // Mobilon (lg alatt) a mobil fókuszpont, desktopon a desktop — CSS-változóval, hogy a
+          // szerver által renderelt kép is rögtön a jó kivágással jelenjen meg.
+          className="z-0 object-cover [object-position:var(--cover-focal-m)] [transform-origin:var(--cover-focal-m)] lg:[object-position:var(--cover-focal-d)] lg:[transform-origin:var(--cover-focal-d)]"
+          style={{ ['--cover-focal-d' as string]: coverFocal, ['--cover-focal-m' as string]: coverFocalMobile, transform: `scale(${d.coverZoom})` }}
+        />
+      ) : <DefaultCover />)}
+      {!embed && (
         <>
-          <Image
-            src={nextImageSrc(d.coverUrl!)}
-            alt=""
-            aria-hidden
-            fill
-            priority
-            sizes="100vw"
-            // Mobilon (lg alatt) a mobil fókuszpont, desktopon a desktop — CSS-változóval, hogy a
-            // szerver által renderelt kép is rögtön a jó kivágással jelenjen meg.
-            className="z-0 object-cover [object-position:var(--cover-focal-m)] [transform-origin:var(--cover-focal-m)] lg:[object-position:var(--cover-focal-d)] lg:[transform-origin:var(--cover-focal-d)]"
-            style={{ ['--cover-focal-d' as string]: coverFocal, ['--cover-focal-m' as string]: coverFocalMobile, transform: `scale(${d.coverZoom})` }}
-          />
-          <div
-            className="pointer-events-none absolute inset-0 z-[1]"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
-          />
-          {/* Dedikált felső árnyék — a navbar (logó, jelvények, nyelvváltó) mindig olvasható
-              maradjon, függetlenül attól, hogy a borítókép teteje éppen világos-e */}
-          <div
-            className="pointer-events-none absolute top-0 left-0 right-0 z-[2]"
-            style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
-          />
-          {/* Erős alul-gradient — fehér/világos borítóképnél is olvasható marad a cím és a
-              Google-értékelés (magasabb + sötétebb, hogy a csillagok/szám is mindig kiolvasható) */}
-          <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
-            style={{ height: '70%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
-          />
+          <div className={`pointer-events-none absolute inset-x-0 top-0 z-[1] h-1/4 bg-gradient-to-b ${dimTop} to-transparent`} />
+          <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t ${dimBottom} to-transparent`} />
+          {pg.dim === 'strong' && <div className="pointer-events-none absolute inset-0 z-[1] bg-ui-dark/35" />}
         </>
       )}
 
       {!embed && (
         <>
-          {/* Navbar — mobilon KÉT sor (logó+nyelvváltó felül, szolgáltatás/munkatárs-számláló
-              alatta középre), mert az abszolút-középre-pozicionált számláló szűk kijelzőn
-              rááfedett a logóra. Desktopon (lg+) marad az eredeti, egysoros elrendezés. */}
-          <nav className="relative z-50 flex flex-col gap-3 px-5 py-5 lg:hidden">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6" />
-                {d.logoUrl && <div className={`h-7 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
-                {d.logoUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img data-edit-id="logo" src={d.logoUrl} alt={d.name} className="h-9 w-auto max-w-[140px] rounded-[6px] object-contain" />
+          {/* Felső sáv: logó (vagy monogram), számlálók, ajándékutalvány, nyelvek — mobilon számlálók nélkül */}
+          <nav className="relative z-50 lg:hidden">
+            <PageNav mobile logo={d.logoUrl} logoAlt={d.name} letters={initials} counts={counts}
+              voucher={voucherOn ? <VoucherPill mobile label={t(locale, 'public.voucher')} onClick={openVoucher} /> : null}
+              langs={<PageLangPills mobile current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs' }} />
+          </nav>
+          <nav className="relative z-50 hidden lg:block">
+            <PageNav logo={d.logoUrl} logoAlt={d.name} letters={initials} counts={counts}
+              voucher={voucherOn ? <VoucherPill label={t(locale, 'public.voucher')} onClick={openVoucher} /> : null}
+              langs={<PageLangPills current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs' }} />
+          </nav>
+
+          {/* Az üzlet — EGY H1 (mobil és desktop közös): galéria-képsor, név, cím, értékelés + közösségi, leírás, jó tudni,
+              desktopon a fő gomb és a legközelebbi szabad időpont (mobilon a gomb a foglaló kártyáé, alul tapad) */}
+          <div className="absolute inset-x-5 bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] z-20 text-white lg:inset-x-auto lg:bottom-10 lg:left-8 lg:max-w-[46%]">
+            {galleryItems.length > 0 && <div data-edit-id="gallery" className="mb-4 w-fit"><GalleryStrip items={galleryItems} onOpen={(i) => setGalleryAt(Math.min(i, galleryItems.length - 1))} /></div>}
+            <h1 data-edit-id="name" className="line-clamp-2 break-words text-ui-num font-light leading-none lg:text-ui-page">{d.name}</h1>
+            {place && <p data-edit-id="address" className="mt-2 flex items-center gap-1.5 text-ui-meta text-white/65"><MapPin className="h-3.5 w-3.5 shrink-0" />{place}</p>}
+            {((pg.showRating && ratingItems.length > 0) || (pg.showSocial && d.socialLinks.length > 0)) && (
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                {pg.showRating && ratingItems.length > 0 && <span data-edit-id="rating"><RatingBadges dark items={ratingItems} onOpen={pg.ratingOpens && googleUrl ? () => window.open(googleUrl, '_blank', 'noopener') : undefined} /></span>}
+                {pg.showRating && ratingItems.length > 0 && pg.showSocial && d.socialLinks.length > 0 && <span className="h-4 w-px bg-white/20" />}
+                {pg.showSocial && d.socialLinks.length > 0 && <span data-edit-id="social"><SocialIcons links={d.socialLinks} /></span>}
+              </div>
+            )}
+            {(d.description || info.length > 0) && (
+              <div className="mt-3">
+                {d.description && <p data-edit-id="desc" className="mb-3 line-clamp-2 max-w-[460px] text-ui-body text-white/70 lg:line-clamp-none">{d.kind === 'restaurant' ? d.description.slice(0, 220) : d.description}</p>}
+                {info.length > 0 && (
+                  <div data-edit-id="gtk" className="relative">
+                    <GoodToKnow items={pills} onMore={() => setInfoOpen(true)} />
+                    {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:block" />}
+                  </div>
                 )}
               </div>
-              {available.length > 1 && <div data-edit-id="langs"><LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} /></div>}
-            </div>
-            {counts && <div data-edit-id="counts" className="flex items-center justify-center gap-3">{counts}</div>}
-          </nav>
-
-          {/* Desktop navbar — eredeti egysoros elrendezés, abszolút-középre pozicionált számlálóval. */}
-          <nav className="relative z-50 hidden items-center justify-between px-8 py-6 lg:flex">
-            <div className="flex items-center gap-3">
-              <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-7" />
-              {d.logoUrl && <div className={`h-8 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
-              {d.logoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img data-edit-id="logo" src={d.logoUrl} alt={d.name} className="h-10 w-auto max-w-[150px] rounded-[6px] object-contain" />
-              )}
-            </div>
-            {counts && (
-              <div data-edit-id="counts" className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-5">{counts}</div>
             )}
-            {available.length > 1 && <div data-edit-id="langs"><LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} /></div>}
-          </nav>
-
-          {/* Szalon neve + cím — mobil hero (kártya megnyitása előtt) */}
-          <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-            <h1 data-edit-id="name" className={`line-clamp-2 break-words text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
-              {d.name}
-            </h1>
-            {place && (
-              <p data-edit-id="address" className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
-                <MapPin className="h-3.5 w-3.5 shrink-0" />
-                {place}
-              </p>
-            )}
-            {d.rating && <div className="mt-2">{rating()}</div>}
-            {d.description && (
-              <p data-edit-id="desc" className={`mt-2 line-clamp-2 text-[13px] leading-relaxed ${heroSub}`}>{d.description.slice(0, 160)}</p>
-            )}
-          </div>
-
-          {/* Szalon neve + CTA — desktop, bal alul */}
-          <div className="absolute bottom-10 left-8 z-20 hidden max-w-[50%] lg:block">
-            <h1 data-edit-id="name" className={`line-clamp-2 break-words text-[3rem] font-light leading-tight tracking-[-0.02em] mb-2 ${heroText}`}>
-              {d.name}
-            </h1>
-            {place && (
-              <p data-edit-id="address" className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
-                <MapPin className="h-3.5 w-3.5" />
-                {place}
-              </p>
-            )}
-            {rating('mb-5')}
-            {d.kind === 'salon' ? (
-              <div className="flex flex-wrap items-center gap-3">
+            {!d.paused && <div data-edit-id="cta" className="mt-5 hidden w-fit flex-wrap items-center gap-2 lg:flex">
+              {d.kind === 'salon' ? (
                 <SalonCtaWrapper>
                   <span data-edit-step="datetime" className="contents">
-                    <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
+                    <Button size="lg" href={`/${slug}/book`} className={cn('px-6', ACCENT)}>{ctaLabel}<ArrowRight className="h-4 w-4" /></Button>
                   </span>
                 </SalonCtaWrapper>
-                {nextSlotNode && (
-                  <SalonCtaWrapper>
-                    {nextSlotNode}
-                  </SalonCtaWrapper>
-                )}
-              </div>
-            ) : (
-              <span data-edit-step="datetime" className="contents">
-                <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
-              </span>
-            )}
+              ) : (
+                <span data-edit-step="datetime" className="contents">
+                  <Button size="lg" href={`/${slug}?book=1`} className={cn('px-6', ACCENT)}>{ctaLabel}<ArrowRight className="h-4 w-4" /></Button>
+                </span>
+              )}
+              {pg.ctaNextFree && nextSlotNode && (d.kind === 'salon' ? <SalonCtaWrapper>{nextSlotNode}</SalonCtaWrapper> : nextSlotNode)}
+            </div>}
           </div>
+
+          {/* „Jó tudni” mobilon: felcsúszó lap */}
+          {infoOpen && (
+            <div className="fixed inset-0 z-[120] lg:hidden" onClick={() => setInfoOpen(false)}>
+              <div className="absolute inset-0 bg-ui-dark/40" />
+              <div className="absolute inset-x-0 bottom-0" onClick={(e) => e.stopPropagation()}><InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="rounded-b-none pb-[max(1.25rem,env(safe-area-inset-bottom))]" /></div>
+            </div>
+          )}
+          {galleryAt !== null && <GalleryViewer fixed mobile={false} items={galleryItems} active={galleryAt} onPick={setGalleryAt} onClose={() => setGalleryAt(null)} />}
         </>
       )}
 
       {/* Interaktív foglaló kártya — szalonnál a ProfileCard, étteremnél a RestaurantCard */}
-      {d.kind === 'salon' ? (
+      {d.paused ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:absolute lg:inset-x-auto lg:bottom-auto lg:right-8 lg:top-1/2 lg:w-[420px] lg:-translate-y-1/2 lg:p-0">
+          <BookingPausedCard restaurant={d.kind === 'restaurant'} phone={d.phone} l={{ title: t(locale, d.kind === 'restaurant' ? 'public.paused.titleRestaurant' : 'public.paused.title'), text: t(locale, d.kind === 'restaurant' ? 'public.paused.textRestaurant' : 'public.paused.text') }} />
+        </div>
+      ) : d.kind === 'salon' ? (
         <ProfileCard
           {...d.card}
           slug={slug}
@@ -283,6 +280,9 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
           salonCity={d.city}
           nextSlotNode={nextSlotNode}
           editorView={editor ? editorView : null}
+          cardStyle={pg.card}
+          ctaLabel={ctaLabel}
+          servicesDisplay={{ filter: pg.servicesFilter, images: pg.servicesImages, price: pg.servicesPrice }}
         />
       ) : (
         <RestaurantCard
@@ -295,6 +295,8 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
           restaurantAddress={d.address}
           restaurantCity={d.city}
           editorView={editor ? editorView : null}
+          cardStyle={pg.card}
+          ctaLabel={ctaLabel}
         />
       )}
 
@@ -344,4 +346,33 @@ function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean
       }}
     />
   )
+}
+
+/** A „Jó tudni” nyitvatartása: a heti rend hétfőtől, a mai kiemelve, felül a most-állapot (percenként frissül). A „most”
+ *  csak a böngészőben számolódik (a szerver-render más időzónában lehet). Nincs megadva: null. */
+const JS_DAY = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+const toMin = (x?: string | null) => { if (!x) return null; const [h, m] = x.split(':').map(Number); return Number.isNaN(h) ? null : h * 60 + (m || 0) }
+function useHoursInfo(rows: PlaceViewBase['openingHours'], locale: Locale): HoursInfo | null {
+  const [now, setNow] = useState<Date | null>(null)
+  useEffect(() => { setNow(new Date()); const id = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(id) }, [])
+  if (!rows.some((h) => h.is_open)) return null
+  const byDay = new Map(rows.map((h) => [h.day_of_week, h]))
+  const lbl = dayLabels(locale)
+  const todayKey = now ? JS_DAY[now.getDay()] : null
+  const range = (h?: { open_time?: string | null; close_time?: string | null }) => `${h?.open_time ?? ''} – ${h?.close_time ? displayCloseTime(h.close_time) : ''}`
+  let status = t(locale, 'openingHours.title'), open = false
+  const today = todayKey ? byDay.get(todayKey) : undefined
+  if (now) {
+    const cur = now.getHours() * 60 + now.getMinutes()
+    const o = toMin(today?.open_time); let c = toMin(today?.close_time)
+    if (today?.is_open && o != null && c != null) {
+      if (c <= o) c += 24 * 60 // „00:00” záróra = éjfélig
+      open = cur >= o && cur < c
+      status = open ? t(locale, 'openingHours.closeAt', { time: displayCloseTime(today.close_time!) }) : cur < o ? t(locale, 'openingHours.openAt', { time: today.open_time! }) : t(locale, 'openingHours.nowClosed')
+    } else status = t(locale, 'openingHours.nowClosed')
+  }
+  return {
+    status, open, todayLabel: t(locale, 'openingHours.today'),
+    rows: DAYS_OF_WEEK.map((k) => { const h = byDay.get(k); return { day: lbl[k], time: h?.is_open ? range(h) : t(locale, 'openingHours.closed'), closed: !h?.is_open, today: k === todayKey } }),
+  }
 }

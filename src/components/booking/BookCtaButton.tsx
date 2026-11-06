@@ -42,8 +42,8 @@ export function BookCtaButton({ label = 'Időpontfoglalás', href, onClick, disa
 
   const palette =
     variant === 'light'
-      ? 'bg-white text-ink hover:bg-paper'
-      : 'bg-ink-dark text-white hover:opacity-90'
+      ? 'bg-white text-ui-text hover:bg-ui-cell'
+      : 'bg-ui-dark text-white hover:opacity-90'
   const cls =
     `group flex h-14 w-full items-center justify-center gap-2 rounded-full text-[14px] font-semibold transition-all disabled:opacity-40 ` +
     `shadow-[0_16px_38px_-22px_rgba(30,28,25,.7)] ${palette} ${className}`

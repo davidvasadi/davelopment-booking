@@ -4,53 +4,17 @@ import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getDayName, hhmmToMinutes, fixMediaUrl } from '@/lib/utils'
 import { parseISO } from 'date-fns'
-import DateFilter, { type BookingsRange } from '@/components/dashboard/DateFilter'
+import { BookingsDateNav, type BookingsRange } from '@/components/shared/BookingsDateNav'
 import { SalonDailyView } from '@/components/dashboard/SalonDailyView'
 import { SalonScheduleView } from '@/components/dashboard/SalonScheduleView'
-import { PrintDayButton } from '@/components/dashboard/PrintDayButton'
+import { BookingsMoreMenu } from '@/components/shared/BookingsMoreMenu'
 import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 import type { Booking, Service, StaffMember, Availability } from '@/payload/payload-types'
 import { findMyStaffId } from '@/lib/myStaffLink'
-
-/** Fallback-avatar EMAIL alapján (lásd `dashboard/schedule/page.tsx` azonos komment) — ha a
- *  tulaj sosem töltött fel külön staff-avatart, de a személy a SAJÁT profiljában igen, a
- *  Foglalások fejléce (StaffColumnsTimeline) enélkül sosem tudta megjeleníteni a fotót. */
-async function withAvatarFallback(
-  payload: Awaited<ReturnType<typeof getPayloadClient>>,
-  staff: StaffMember[],
-): Promise<StaffMember[]> {
-  const emails = staff.map((s) => s.email).filter((e): e is string => !!e)
-  if (emails.length === 0) return staff
-  const usersRes = await payload.find({
-    collection: 'users',
-    where: { email: { in: emails } },
-    depth: 0, limit: 500, overrideAccess: true,
-  })
-  const avatarByEmail: Record<string, string> = {}
-  for (const u of usersRes.docs as { email?: string | null; avatar_url?: string | null }[]) {
-    const fixed = fixMediaUrl(u.avatar_url)
-    if (u.email && fixed) avatarByEmail[u.email.toLowerCase()] = fixed
-  }
-  return staff.map((s) => {
-    if (s.avatar || !s.email) return s
-    const fallback = avatarByEmail[s.email.toLowerCase()]
-    return fallback ? { ...s, avatar: { url: fallback } as unknown as StaffMember['avatar'] } : s
-  })
-}
-
-/** A foglalási kártyák a `booking.staff`-ból veszik az avatart — ez viszont a nyers staff-rekord,
- *  a fenti email-alapú fallback nélkül. Ezért a kártyán nem jelent meg az a fotó, ami a fejlécben
- *  igen. A kifejtett `booking.staff` avatarját a (fallbackkel dúsított) staff-listából pótoljuk. */
-function withBookingStaffAvatars(bookings: Booking[], staff: StaffMember[]): Booking[] {
-  const avatarById = new Map<string, StaffMember['avatar']>()
-  for (const s of staff) if (s.avatar && typeof s.avatar === 'object') avatarById.set(String(s.id), s.avatar)
-  return bookings.map((b) => {
-    const st = b.staff
-    if (!st || typeof st !== 'object' || (st.avatar && typeof st.avatar === 'object')) return b
-    const avatar = avatarById.get(String(st.id))
-    return avatar ? { ...b, staff: { ...st, avatar } } : b
-  })
-}
+import { APP_URL } from '@/lib/brand'
+import { getClosedDays } from '@/lib/closedDays'
+import { withAvatarFallback, withBookingStaffAvatars } from '@/lib/staffAvatars'
+import { onsiteSettingsOf } from '@/lib/onsiteSettings'
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -114,23 +78,8 @@ export default async function BookingsPage({
   })
   const invitedEmails = new Set((invitedRes.docs as { email?: string | null }[]).map((m) => (m.email ?? '').toLowerCase()).filter(Boolean))
 
-  // Zárva-napok (heti/havi nézethez) — ugyanaz a két lekérdezés, mint a Naptár oldalon
-  // (dashboard/schedule/page.tsx): egyszeri kivétel-zárás + heti visszatérő zárvatartás.
-  const [closedExceptionsRes, closedWeeklyRes] = await Promise.all([
-    payload.find({
-      collection: 'availability',
-      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { exception_date: { exists: true } }, { is_available: { equals: false } }] },
-      depth: 0, limit: 500, overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'availability',
-      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { recurring: { equals: true } }, { is_available: { equals: false } }] },
-      depth: 0, limit: 20, overrideAccess: true,
-    }),
-  ])
-  const closedDates = (closedExceptionsRes.docs as Availability[]).map((e) => e.exception_date).filter((d): d is string => !!d)
-  const DOW_NUM: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 }
-  const closedWeekdays = Array.from(new Set((closedWeeklyRes.docs as Availability[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
+  // Zárva-napok — ugyanaz a forrás, mint a Naptár oldalon és a dátumválasztón (lib/closedDays).
+  const { closedDates, closedWeekdays } = await getClosedDays(payload, 'salon', salon.id)
 
   // Értesítésből érkezve (?booking=) a foglalás napjára ugrunk, hogy a sheet a megfelelő
   // napon nyíljon ki — a kliens a query alapján nyitja meg a szerkesztőt.
@@ -144,7 +93,7 @@ export default async function BookingsPage({
 
   const canManage = can(capabilities, 'bookings.manage')
   const dateFilterEl = (
-    <DateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile />
+    <BookingsDateNav key="date-filter" base="/dashboard" currentDate={selectedDate} range={range} loadEndpoint="/api/salon/day-load" />
   )
 
   if (range === 'day') {
@@ -172,7 +121,9 @@ export default async function BookingsPage({
         where: { and: [{ salon: { equals: salon.id } }, { date: { equals: selectedDate } }, ...scopeWhere] },
         sort: 'start_time',
         limit: 300,
-        depth: 2, // service + staff kifejtve, a staff.avatar médiával
+        // service + staff kifejtve (depth 1); a munkatárs fotóját a withBookingStaffAvatars pótolja a staff-listából.
+        // A szalonból csak a név — korábban depth 2: foglalásonként a szalon teljes adatlapja (sebesség, docs/sebesseg)
+        depth: 1, populate: { salons: { name: true } },
         overrideAccess: true,
       }),
       payload.find({
@@ -200,6 +151,13 @@ export default async function BookingsPage({
     const staff = await withAvatarFallback(payload, staffRes.docs as StaffMember[])
     const services = servicesRes.docs as Service[]
     const bookings = withBookingStaffAvatars(bookingsRes.docs as Booking[], staff)
+    // Üres napon (design 6.3) a következő foglalás — egy kattintással odaugrik.
+    const nextRaw = bookings.some((b) => b.status !== 'cancelled') ? null : (await payload.find({
+      collection: 'bookings',
+      where: { and: [{ salon: { equals: salon.id } }, { date: { greater_than: selectedDate } }, { status: { not_in: ['cancelled', 'no_show'] } }, ...scopeWhere] },
+      sort: ['date', 'start_time'], limit: 1, depth: 1, overrideAccess: true,
+    })).docs[0] as Booking | undefined
+    const nextBooking = nextRaw ? { date: String(nextRaw.date).slice(0, 10), time: nextRaw.start_time, title: [nextRaw.customer_name, typeof nextRaw.service === 'object' && nextRaw.service ? nextRaw.service.name : null].filter(Boolean).join(', ') } : null
     const rule = availRes.docs[0] as Availability | undefined
     // staffId → napi szünet (Shifts.breaks) — vizuálisan a "zárva" stílussal jelenik meg. Egy nap
     // TÖBB szünetet is tarthat, de ez a timeline-nézet (egyelőre) csak az ELSŐT jeleníti meg —
@@ -258,14 +216,17 @@ export default async function BookingsPage({
           openBookingId={bookingParam}
           dateFilter={dateFilterEl}
           printButton={
-            <PrintDayButton key="print-btn" days={[selectedDate]} salonName={salon.name} bookings={bookings} />
+            <BookingsMoreMenu key="print-btn" days={[selectedDate]} />
           }
           canManage={canManage}
           consentEnabled={!!salon.consent_settings?.enabled}
+          onsite={onsiteSettingsOf(salon)}
           staffBreaks={staffBreaks}
           staffOffType={staffOffType}
           viewerStaffId={viewerStaffId}
           isClosedToday={isClosedToday}
+          nextBooking={nextBooking}
+          publicUrl={salon.slug ? `${APP_URL}/${salon.slug}` : null}
         />
         <WaitlistPanel salonId={salon.id} />
       </div>
@@ -310,7 +271,8 @@ export default async function BookingsPage({
       },
       sort: 'start_time',
       limit: range === 'month' ? 5000 : 2000,
-      depth: 2,
+      // depth 1 + a szalonból csak a név (lásd a napi nézetet) — havi nézetben akár több ezer foglalás
+      depth: 1, populate: { salons: { name: true } },
       overrideAccess: true,
     }),
     payload.find({
@@ -359,11 +321,10 @@ export default async function BookingsPage({
   return (
     <div className="p-5 lg:p-0 space-y-5">
       <SalonScheduleView
+        onsite={onsiteSettingsOf(salon)}
         days={days}
         range={range}
         date={selectedDate}
-        title="Foglalások"
-        subtitle={range === 'week' ? 'Heti áttekintés' : 'Havi áttekintés'}
         salonId={String(salon.id)}
         bookings={bookings}
         staff={staff}
@@ -376,7 +337,7 @@ export default async function BookingsPage({
         closedWeekdays={closedWeekdays}
         dateFilter={dateFilterEl}
         printButton={
-          <PrintDayButton key="print-btn" days={days} salonName={salon.name} bookings={bookings} />
+          <BookingsMoreMenu key="print-btn" days={days} />
         }
         canManage={canManage}
       />

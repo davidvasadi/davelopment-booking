@@ -19,7 +19,8 @@ import { t, type Locale } from '@/lib/i18n'
 type DepositStepProps = {
   requestBody: Record<string, unknown>
   /** A wizard hívja, ha a fizetés sikeresen megtörtént — a payment_intent_id-t a submit()-nak kell átadnia. */
-  onPaid: (paymentIntentId: string, depositAmountHuf: number) => void
+  /** `staffId`: a szerver által feloldott szakember („bárki” esetén is) — a foglalás erre menjen (a pénz az övé lehet) */
+  onPaid: (paymentIntentId: string, depositAmountHuf: number, staffId?: string | null) => void
   dark?: boolean
   /** Melyik intent-létrehozó endpointot hívja — előleg-fizetésnél a default marad, ajándék-
    *  utalvány TELJES összegű vásárlásánál `/api/payments/voucher-intent`-re állítható. */
@@ -32,7 +33,7 @@ type DepositStepProps = {
   locale?: Locale
 }
 
-function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel, locale }: { depositAmountHuf: number; onPaid: DepositStepProps['onPaid']; paymentIntentId: string } & Pick<DepositStepProps, 'onPaid' | 'dark' | 'payLabel' | 'locale'>) {
+function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel, locale, staffId }: { depositAmountHuf: number; onPaid: DepositStepProps['onPaid']; paymentIntentId: string; staffId?: string | null } & Pick<DepositStepProps, 'onPaid' | 'dark' | 'payLabel' | 'locale'>) {
   const stripe = useStripe()
   const elements = useElements()
   const [submitting, setSubmitting] = useState(false)
@@ -48,7 +49,7 @@ function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel, locale }: { dep
       return
     }
     if (paymentIntent?.status === 'succeeded') {
-      onPaid(paymentIntent.id, depositAmountHuf)
+      onPaid(paymentIntent.id, depositAmountHuf, staffId)
     } else {
       toast.error(t(lc, 'public.payment.errorProcessing'))
     }
@@ -61,8 +62,8 @@ function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel, locale }: { dep
         type="button"
         disabled={submitting || !stripe}
         onClick={handleConfirm}
-        className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-dav-pill font-semibold text-sm transition-colors disabled:opacity-60 ${
-          dark ? 'bg-gold text-ink-dark hover:opacity-90' : 'bg-ink-dark text-white hover:opacity-90'
+        className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-full font-semibold text-sm transition-colors disabled:opacity-60 ${
+          dark ? 'bg-ui-yellow text-ui-dark hover:opacity-90' : 'bg-ui-dark text-white hover:opacity-90'
         }`}
       >
         {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `${payLabel ?? t(lc, 'public.deposit.payLabel')} — ${formatPrice(depositAmountHuf, 'HUF')}`}
@@ -79,6 +80,7 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
   const [connectedAccountId, setConnectedAccountId] = useState<string | null>(null)
   const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
+  const [resolvedStaffId, setResolvedStaffId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -99,6 +101,7 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
         // mindkettőt elfogadjuk, hogy a komponens változatlanul megosztható maradjon.
         setDepositAmountHuf(json.depositAmountHuf ?? json.amountHuf)
         setPaymentIntentId(json.paymentIntentId)
+        setResolvedStaffId(json.staffId != null ? String(json.staffId) : null)
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message)
@@ -122,14 +125,14 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
   if (loading) {
     return (
       <div className="flex h-32 items-center justify-center">
-        <Loader2 className={`h-5 w-5 animate-spin ${dark ? 'text-white' : 'text-ink'}`} />
+        <Loader2 className={`h-5 w-5 animate-spin ${dark ? 'text-white' : 'text-ui-text'}`} />
       </div>
     )
   }
 
   if (error || !clientSecret || !stripePromise || !paymentIntentId || !depositAmountHuf) {
     return (
-      <div className={`rounded-2xl border px-4 py-3 text-sm ${dark ? 'border-white/15 text-white/80' : 'border-line text-ink-soft'}`}>
+      <div className={`rounded-2xl border px-4 py-3 text-sm ${dark ? 'border-white/15 text-white/80' : 'border-ui-divider text-ui-muted'}`}>
         {error ?? t(lc, 'public.payment.unavailable')}
       </div>
     )
@@ -137,12 +140,12 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
 
   return (
     <div className="space-y-3">
-      <div className={`flex items-center gap-2 text-xs ${dark ? 'text-white/60' : 'text-ink-soft'}`}>
+      <div className={`flex items-center gap-2 text-xs ${dark ? 'text-white/60' : 'text-ui-muted'}`}>
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
         <span>{infoText ?? t(lc, 'public.deposit.payInfo')}</span>
       </div>
       <Elements stripe={stripePromise} options={{ clientSecret, locale: lc, appearance: { theme: dark ? 'night' : 'stripe' } }}>
-        <ConfirmForm depositAmountHuf={depositAmountHuf} onPaid={onPaid} dark={dark} paymentIntentId={paymentIntentId} payLabel={payLabel} locale={locale} />
+        <ConfirmForm depositAmountHuf={depositAmountHuf} staffId={resolvedStaffId} onPaid={onPaid} dark={dark} paymentIntentId={paymentIntentId} payLabel={payLabel} locale={locale} />
       </Elements>
     </div>
   )

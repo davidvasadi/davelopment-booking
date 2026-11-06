@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
+import { webhookOnBooking } from '../hooks/webhookOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { capabilityScoped } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
@@ -106,6 +107,7 @@ export const Bookings: CollectionConfig = {
     },
     {
       name: 'date',
+      index: true, // gyakori szűrő (sebesség — docs/audit/2026-11-05_1921)
       type: 'text',
       required: true,
       label: 'Foglalás dátuma',
@@ -140,6 +142,7 @@ export const Bookings: CollectionConfig = {
     },
     {
       name: 'status',
+      index: true, // gyakori szűrő (sebesség — docs/audit/2026-11-05_1921)
       type: 'select',
       options: [
         { label: 'Függőben', value: 'pending' },
@@ -150,6 +153,19 @@ export const Bookings: CollectionConfig = {
       ],
       defaultValue: 'pending',
       required: true,
+    },
+    {
+      // Honnan jött a foglalás — ugyanaz, mint az éttermi foglalásnál (Reservations.source).
+      name: 'source',
+      type: 'select',
+      required: true,
+      defaultValue: 'online',
+      label: 'Forrás',
+      options: [
+        { label: 'Online', value: 'online' },
+        { label: 'Beeső (walk-in)', value: 'walk_in' },
+        { label: 'Telefon', value: 'phone' },
+      ],
     },
     {
       name: 'notes',
@@ -268,6 +284,7 @@ export const Bookings: CollectionConfig = {
     },
     { name: 'invoice_number', type: 'text', label: 'Számlaszám', admin: { position: 'sidebar', readOnly: true } },
     { name: 'invoice_pdf_url', type: 'text', label: 'Számla PDF', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'invoice_storno_number', type: 'text', label: 'Sztornó számla száma', admin: { position: 'sidebar', readOnly: true } },
     {
       name: 'invoice_status',
       type: 'select',
@@ -276,11 +293,22 @@ export const Bookings: CollectionConfig = {
         { label: 'Nincs', value: 'none' },
         { label: 'Kiállítva', value: 'issued' },
         { label: 'Sikertelen', value: 'failed' },
+        { label: 'Sztornózva', value: 'storno' },
       ],
       admin: { position: 'sidebar' },
     },
     { name: 'voucher_code', type: 'text', label: 'Beváltott utalvány-kód', admin: { position: 'sidebar', readOnly: true } },
     { name: 'voucher_discount_huf', type: 'number', label: 'Utalvánnyal fedezett összeg (Ft)', admin: { position: 'sidebar', readOnly: true } },
+    // helyszíni fizetés (design 6.7.1) — a lezáráskor rögzítve (/api/salon/booking-checkout)
+    { name: 'paid_amount_huf', type: 'number', label: 'Helyben fizetett (Ft)', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'pay_method', type: 'select', label: 'Fizetési mód', options: [{ label: 'Készpénz', value: 'cash' }, { label: 'Bankkártya', value: 'card' }, { label: 'Átutalás', value: 'transfer' }, { label: 'Fizetési link', value: 'link' }], admin: { position: 'sidebar', readOnly: true } },
+    { name: 'pay_receipt', type: 'select', label: 'Bizonylat', options: [{ label: 'Számla (a rendszer)', value: 'invoice' }, { label: 'Pénztárgép', value: 'register' }, { label: 'Nem kért', value: 'none' }, { label: 'Kézzel kell kiállítani', value: 'manual' }], admin: { position: 'sidebar', readOnly: true } },
+    { name: 'paid_lines', type: 'json', label: 'Tételek', admin: { readOnly: true } },
+    { name: 'paid_at', type: 'date', label: 'Fizetve', admin: { position: 'sidebar', readOnly: true } },
+    // fizetési link (Stripe Checkout a fizetés fogadójánál — lib/payee): a kifizetés után a webhook zárja le
+    { name: 'pay_link_url', type: 'text', label: 'Fizetési link', admin: { readOnly: true } },
+    { name: 'pay_link_session', type: 'text', label: 'Fizetési link munkamenet', admin: { readOnly: true } },
+    { name: 'pay_pending', type: 'json', label: 'Fizetési link — lezárás adatai', admin: { readOnly: true } },
     // Digitális beleegyező nyilatkozat elfogadása — per-foglalás (nem a Customers-en, mert
     // ez per-látogatás dolog, nem tartós preferencia). A szöveg-snapshot és az IP a szervertől
     // jön (a kliens sose adja meg közvetlenül), hogy ne legyen manipulálható bizonyíték.
@@ -300,7 +328,7 @@ export const Bookings: CollectionConfig = {
     { name: 'custom_answers', type: 'json', label: 'Egyedi kérdések válaszai', admin: { position: 'sidebar', readOnly: true } },
   ],
   hooks: {
-    afterChange: [notifyOnBooking('salon'), sseAfterChange('salon'), auditAfterChange('Foglalás', 'salon'), confirmOnApproval('salon')],
+    afterChange: [notifyOnBooking('salon'), webhookOnBooking('salon'), sseAfterChange('salon'), auditAfterChange('Foglalás', 'salon'), confirmOnApproval('salon')],
     afterDelete: [sseAfterDelete('salon'), auditAfterDelete('Foglalás', 'salon')],
   },
   timestamps: true,

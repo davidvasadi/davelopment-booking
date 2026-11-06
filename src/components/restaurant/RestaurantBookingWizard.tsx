@@ -8,16 +8,20 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Button, FIELD, IconButton } from '@/components/ui-kit'
+import { ACCENT, CardDayPicker, CardSlotGrid, cardTone, GLASS_FIELD, type LiveCard } from '@/components/blocks/public'
+import { useDayStrip } from '@/components/booking/useDayStrip'
 import { Minus, Plus, Loader2, Trees, ArrowLeft, ChevronRight, HandCoins } from 'lucide-react'
 import { restaurantDepositLabel, type DepositInfo } from '@/lib/depositSummary'
+import { depositApplies } from '@/lib/depositCalc'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
-import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
+import { PhoneCountryInput } from '@/components/booking/PhoneInputs'
+import { COUNTRIES } from '@/components/booking/phoneCountries'
 import { HoverArrow } from '@/components/ui/HoverArrow'
-import { DateStrip } from '@/components/booking/DateStrip'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { Switch } from '@/components/ui/toggle-switch'
 import { trackBookingConversion } from '@/lib/marketingTracking'
-import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
+import { stepSlide, stepSlideTransition } from '@/lib/motion'
 import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 
@@ -31,6 +35,8 @@ export function RestaurantBookingWizard({
   slug,
   requirePhone,
   maxPax,
+  minPax = 1,
+  largeParty = null,
   bookingWindowDays = 60,
   eventTypes = [],
   termsSections,
@@ -42,7 +48,8 @@ export function RestaurantBookingWizard({
   initialDateProp,
   initialTimeProp,
   initialPaxProp,
-  depositEnabled = false,
+  depositEnabled: depositOn = false,
+  card,
   depositInfo = null,
   invoicingEnabled = false,
   addressRequired = false,
@@ -64,6 +71,10 @@ export function RestaurantBookingWizard({
   slug: string
   requirePhone: boolean
   maxPax: number
+  /** a legkisebb online létszám */
+  minPax?: number
+  /** a legnagyobb online létszámnál: hogyan érheti el a nagyobb társaság az éttermet (null = nincs külön határ) */
+  largeParty?: { phone: string | null; email: string | null } | null
   bookingWindowDays?: number
   eventTypes?: EventTypeOption[]
   termsSections?: { title?: string | null; body?: string | null }[] | null
@@ -98,6 +109,8 @@ export function RestaurantBookingWizard({
   /** „Jó tudni” pontok — az Összegzés lépésen, ugyanúgy, mint a szalon foglalóján. */
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   /** Szerkesztő-előnézet: erre a lépésre ugrik mintaadatokkal (null = normál működés). */
+  /** a foglaló kártya stílusa (design 21.2) — a sötét / világos változat ebből jön */
+  card?: LiveCard
   editorStep?: 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | null
   customQuestions?: {
     id?: string | null
@@ -107,23 +120,14 @@ export function RestaurantBookingWizard({
     required?: boolean | null
   }[] | null
 }) {
-  const dk = variant === 'dark'
+  // a kártya stílusa (design 21.2): sötét üveg / fekete / világos üveg → sötét változat, fehér → világos
+  const c = cardTone(card ?? (variant === 'dark' ? 'dark' : 'white'))
+  const dk = c.dark
   const router = useRouter()
   const tt = makeT(locale)
   const formFieldOrder: FormFieldId[] = [
     ...(fieldOrder ?? []).filter((id): id is FormFieldId => (FORM_FIELD_IDS as readonly string[]).includes(id)),
     ...FORM_FIELD_IDS.filter((id) => !(fieldOrder ?? []).includes(id)),
-  ]
-  // A review-lépés indexe: nincs előleg/nyilatkozat → MARAD 2 (mai viselkedés, változatlan).
-  // Van előleg és/vagy nyilatkozat → 1-2 új lépés ékelődik a details ÉS a review közé.
-  const DEPOSIT_STEP = depositEnabled ? 2 : null
-  const CONSENT_STEP = consentEnabled ? 2 + (depositEnabled ? 1 : 0) : null
-  const REVIEW_STEP = 2 + (depositEnabled ? 1 : 0) + (consentEnabled ? 1 : 0)
-  const STEPS = [
-    tt('rbooking.step.datetime'), tt('rbooking.step.details'),
-    ...(depositEnabled ? [tt('public.deposit.title')] : []),
-    ...(consentEnabled ? [consentTitle?.trim() || tt('public.consent.title')] : []),
-    tt('rbooking.step.review'),
   ]
   const searchParams = useSearchParams()
   const initialDate = initialDateProp ?? searchParams.get('date')
@@ -151,10 +155,24 @@ export function RestaurantBookingWizard({
     setStep(target)
   }, [editorStep]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [pax, setPax] = useState(initialPax >= 1 && initialPax <= maxPax ? initialPax : 2)
+  const [pax, setPax] = useState(initialPax >= minPax && initialPax <= maxPax ? initialPax : Math.min(maxPax, Math.max(minPax, 2)))
   const [date, setDate] = useState(() =>
     initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : format(new Date(), 'yyyy-MM-dd'),
   )
+  // „Mely foglalásoknál” (16.1): az előleg-lépés csak akkor van, ha a választott nap és létszám mellett kell előleg —
+  // ugyanaz a szabály, mint a szerveren (`depositApplies`). A szerkesztő-előnézetben mindig látszik.
+  const depositEnabled = depositOn && (!!editorStep || !depositInfo || depositApplies(depositInfo.settings, { date, pax }))
+  // A review-lépés indexe: nincs előleg/nyilatkozat → MARAD 2 (mai viselkedés, változatlan).
+  // Van előleg és/vagy nyilatkozat → 1-2 új lépés ékelődik a details ÉS a review közé.
+  const DEPOSIT_STEP = depositEnabled ? 2 : null
+  const CONSENT_STEP = consentEnabled ? 2 + (depositEnabled ? 1 : 0) : null
+  const REVIEW_STEP = 2 + (depositEnabled ? 1 : 0) + (consentEnabled ? 1 : 0)
+  const STEPS = [
+    tt('rbooking.step.datetime'), tt('rbooking.step.details'),
+    ...(depositEnabled ? [tt('public.deposit.title')] : []),
+    ...(consentEnabled ? [consentTitle?.trim() || tt('public.consent.title')] : []),
+    tt('rbooking.step.review'),
+  ]
   const [slots, setSlots] = useState<{ start: string; end: string; onlyOutdoor?: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [slotsError, setSlotsError] = useState(false)
@@ -347,57 +365,33 @@ export function RestaurantBookingWizard({
     }
   }
 
-  const cardClass = dk
-    ? 'rounded-[20px] border border-white/10 p-5'
-    : 'rounded-[20px] bg-white shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_38px_-30px_rgba(80,70,30,0.22)] p-5'
-  const cardStyle = dk ? { background: 'rgba(255,255,255,0.07)' } : undefined
-  const inputClass = dk
-    ? 'w-full h-11 rounded-[12px] border border-white/[0.15] px-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold bg-transparent'
-    : 'w-full h-11 rounded-[12px] bg-paper/50 border-0 px-4 text-sm text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold'
-  const phoneInputClass = dk
-    ? 'h-11 rounded-[12px] border border-white/[0.15] px-4 text-sm text-white placeholder:text-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold bg-transparent'
-    : 'h-11 rounded-[12px] bg-paper/50 border-0 px-4 text-sm text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold'
-  const labelCls = dk ? 'text-white/50' : 'text-ink-soft'
-  const textCls = dk ? 'text-white' : 'text-ink'
-  const btnBackCls = dk
-    ? 'h-10 w-10 rounded-full border border-white/15 flex items-center justify-center text-white/60 hover:bg-white/10 transition-colors shrink-0'
-    : 'h-10 w-10 rounded-full bg-white shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_38px_-30px_rgba(80,70,30,0.22)] flex items-center justify-center text-ink-soft hover:bg-paper/50 transition-colors shrink-0'
+  // design 21.10: a lépések laposak (nincs belső doboz), a mezők a design mezői, a címek a kit címei
+  const cardClass = ''
+  const cardStyle = undefined
+  const inputClass = dk ? `${GLASS_FIELD} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
+  const phoneInputClass = inputClass
+  const labelCls = c.meta
+  const textCls = ''
 
   const selectedDateObj = new Date(date + 'T00:00:00')
+  // a napok sora: görgethető, mától a foglalási ablak végéig; ahol a létszámnak nincs online asztal, sötétebb (mint a szalonnál)
+  const { days: pickDays, stripRef } = useDayStrip({
+    daysUrl: `/api/restaurant/slots/days?${new URLSearchParams({ restaurantId: String(restaurantId), pax: String(pax) })}`,
+    windowDays: bookingWindowDays, selected: date, onAutoPick: setDate,
+    dfLocale: dfLocale(locale), todayLabel: tt('nextSlots.today'),
+  })
 
   return (
     <div>
-      {/* Fejléc: vissza + lépés-cím + lépés-indikátor */}
-      <div className="flex items-center gap-3 mb-5">
-        {step > 0 ? (
-          <button onClick={() => goStep(step - 1)} className={btnBackCls}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        ) : onBack ? (
-          <button onClick={onBack} className={btnBackCls}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-        ) : (
-          <div className="h-10 w-10 shrink-0" />
-        )}
-        <div className="flex-1 text-center">
-          <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt("rbooking.header")}</p>
-          <p className={`text-sm font-semibold ${textCls}`}>{STEPS[step]}</p>
-        </div>
-        <div className="flex items-center gap-1 shrink-0 w-10 justify-end">
-          {STEPS.map((_, i) => (
-            <span
-              key={i}
-              className={
-                i < step
-                  ? `h-1.5 w-1.5 rounded-full ${dk ? 'bg-white/50' : 'bg-ink-dark'}`
-                  : i === step
-                    ? `h-1.5 w-5 rounded-full ${dk ? 'bg-white' : 'bg-ink-dark'}`
-                    : `h-1.5 w-1.5 rounded-full ${dk ? 'bg-white/15' : 'bg-black/[0.06]'}`
-              }
-            />
-          ))}
-        </div>
+      {/* Fejléc (design 21.10): vissza, pötty-haladás, „1/3” — az első lépésen a vissza mobilon a lapot zárja */}
+      <div className="mb-5 flex items-center justify-between">
+        {step > 0
+          ? <IconButton icon={ArrowLeft} label={tt('public.back')} size="sm" variant={dk ? 'onDark' : 'cell'} onClick={() => goStep(step - 1)} />
+          : onBack ? <span className="lg:invisible"><IconButton icon={ArrowLeft} label={tt('public.back')} size="sm" variant={dk ? 'onDark' : 'cell'} onClick={onBack} /></span> : <span className="h-9 w-9" />}
+        <span className="flex items-center gap-1.5">
+          {STEPS.map((_, i) => <span key={i} className={`block h-2 shrink-0 rounded-full transition-all duration-300 ${i === step ? `w-7 ${dk ? 'bg-white' : 'bg-ui-dark'}` : `w-2 ${dk ? 'bg-white/30' : 'bg-ui-dark/20'}`}`} />)}
+        </span>
+        <span className={`text-ui-meta tabular-nums ${c.meta}`}>{step + 1}/{STEPS.length}</span>
       </div>
 
       <AnimatePresence mode="wait" custom={dir} initial={false}>
@@ -411,100 +405,57 @@ export function RestaurantBookingWizard({
           transition={stepSlideTransition}
           className="space-y-5"
         >
-          {/* Step 0: Létszám + dátum + időpont (egy lapon, mint a szalon) */}
+          {/* 1. lépés (design 21.10): Hányan jöttök? · Mikor? — napok (a naptár-gombbal a távolabbiak) és a szabad időpontok;
+              a választott a márkaszínben, választás után rögtön az Adatok jön */}
           {step === 0 && (
             <>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0 }}
-              >
-              <div data-edit-id="pax" className={cardClass} style={cardStyle}>
-                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt("rbooking.partySize")}</p>
-                <div className="flex items-center justify-center gap-6">
-                  <button
-                    onClick={() => setPax((p) => Math.max(1, p - 1))}
-                    className={`h-11 w-11 rounded-full flex items-center justify-center transition-colors ${dk ? 'border border-white/15 text-white/60 hover:border-gold hover:text-white' : 'border border-line text-ink-soft hover:border-gold'}`}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <span className={`text-3xl font-semibold tabular-nums w-16 text-center ${textCls}`}>{pax}</span>
-                  <button
-                    onClick={() => setPax((p) => Math.min(maxPax, p + 1))}
-                    className={`h-11 w-11 rounded-full flex items-center justify-center transition-colors ${dk ? 'border border-white/15 text-white/60 hover:border-gold hover:text-white' : 'border border-line text-ink-soft hover:border-gold'}`}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
+              <div data-edit-id="pax">
+                <p className="text-ui-title font-light">{tt('rbooking.partySize')}</p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <IconButton icon={Minus} label="−" size="md" variant={dk ? 'onDark' : 'cell'} disabled={pax <= minPax} onClick={() => setPax((p) => Math.max(minPax, p - 1))} />
+                  <span className="text-ui-num font-light tabular-nums">{pax} <span className={`text-ui-body ${c.meta}`}>{tt('rbooking.paxUnit')}</span></span>
+                  <IconButton icon={Plus} label="+" size="md" variant={dk ? 'onDark' : 'cell'} disabled={pax >= maxPax} onClick={() => setPax((p) => Math.min(maxPax, p + 1))} />
                 </div>
-              </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.07 }}
-              >
-              <div data-edit-id="rules" className={cardClass} style={cardStyle}>
-                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt("rbooking.when")}</p>
-                <DateStrip selected={date} onChange={setDate} dayCount={bookingWindowDays} locale={locale} dark={dk} />
-              </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.14 }}
-                className={bookingWindowDays > 0 ? undefined : 'hidden'}
-              >
-              <div data-edit-id="rules" className={cardClass} style={cardStyle}>
-                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-4 ${labelCls}`}>{tt("rbooking.time")}</p>
-                {loadingSlots ? (
-                  <div className="flex justify-center py-6"><Loader2 className={`h-5 w-5 animate-spin ${labelCls}`} /></div>
-                ) : slotsError ? (
-                  <div className="py-6 text-center" role="alert">
-                    <p className={`text-sm ${labelCls}`}>{tt('rbooking.err.slots')}</p>
-                    <button
-                      onClick={() => setSlotsReloadKey((k) => k + 1)}
-                      className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold transition-opacity hover:opacity-90 ${dk ? 'bg-white/15 text-white border border-white/20' : 'bg-ink-dark text-white'}`}
-                    >
-                      {tt('rbooking.retry')}
-                    </button>
-                  </div>
-                ) : slots.length === 0 ? (
-                  <p className={`text-sm text-center py-6 ${labelCls}`}>{tt("rbooking.noSlots")}</p>
-                ) : (
-                  <motion.div
-                    key={`${date}-${slots.length}`}
-                    variants={staggerContainer}
-                    initial="hidden"
-                    animate="show"
-                    className="grid grid-cols-4 sm:grid-cols-5 gap-2"
-                  >
-                    {slots.map((s) => (
-                      <motion.button
-                        key={s.start}
-                        variants={fadeUp}
-                        onClick={() => { setTime(s.start); goStep(1) }}
-                        title={s.onlyOutdoor ? 'Erre az időpontra már csak teraszra (kültéri) foglalható' : undefined}
-                        className={`relative h-10 rounded-[12px] border text-sm font-medium tabular-nums transition-colors ${
-                          time === s.start
-                            ? 'bg-gold text-ink-dark border-gold'
-                            : dk
-                              ? 'border-white/15 text-white/70 hover:border-gold hover:text-white'
-                              : 'bg-paper/50 border-line text-ink-soft hover:border-gold'
-                        }`}
-                        style={dk && time !== s.start ? { background: 'rgba(255,255,255,0.08)' } : undefined}
-                      >
-                        {s.start}
-                        {s.onlyOutdoor && (
-                          <Trees className={`absolute right-1 top-1 h-2.5 w-2.5 ${time === s.start ? 'text-ink-dark/70' : 'text-emerald-400'}`} />
-                        )}
-                      </motion.button>
-                    ))}
-                  </motion.div>
+                {/* a legnagyobb online létszámnál: nagyobb társaság üzenetet küld / telefonál, nem foglal online */}
+                {largeParty && pax >= maxPax && (largeParty.phone || largeParty.email) && (
+                  <p className={`mt-2 text-center text-ui-label ${c.meta}`}>
+                    {tt('rbooking.largeParty')}{' '}
+                    {largeParty.phone && <a href={`tel:${largeParty.phone.replace(/\s+/g, '')}`} className="underline underline-offset-2">{largeParty.phone}</a>}
+                    {largeParty.phone && largeParty.email && ' · '}
+                    {largeParty.email && <a href={`mailto:${largeParty.email}`} className="underline underline-offset-2">{largeParty.email}</a>}
+                  </p>
                 )}
               </div>
-              </motion.div>
+
+              <div data-edit-id="rules">
+                <p className="text-ui-title font-light">{tt('rbooking.when')}</p>
+                {bookingWindowDays <= 0 ? (
+                  <p className={`mt-2 text-ui-meta ${c.meta}`}>{tt('dateStrip.closed')}</p>
+                ) : (
+                  <>
+                    <div ref={stripRef}><CardDayPicker c={c} className="mt-2" days={pickDays} onPick={setDate} /></div>
+                    <div className={`mt-3 text-ui-label ${c.meta}`}>{format(new Date(`${date}T12:00:00`), 'EEEE, MMMM d.', { locale: dfLocale(locale) })}</div>
+                    {loadingSlots ? (
+                      <div className="flex justify-center py-6"><Loader2 className={`h-5 w-5 animate-spin ${c.meta}`} /></div>
+                    ) : slotsError ? (
+                      <div className="py-6 text-center" role="alert">
+                        <p className={`text-ui-meta ${c.meta}`}>{tt('rbooking.err.slots')}</p>
+                        <Button size="sm" variant={dk ? 'onDark' : 'cell'} className="mt-3" onClick={() => setSlotsReloadKey((k) => k + 1)}>{tt('rbooking.retry')}</Button>
+                      </div>
+                    ) : slots.length === 0 ? (
+                      <p className={`py-6 text-center text-ui-meta ${c.meta}`}>{tt('rbooking.noSlots')}</p>
+                    ) : (
+                      <>
+                        <CardSlotGrid c={c} className="mt-2" slots={slots.map((x) => x.start)} on={time || undefined} onPick={(t) => { setTime(t); goStep(1) }} />
+                        {/* ahol a beltér megtelt: csak teraszon (kültéren) foglalható */}
+                        {slots.some((x) => x.onlyOutdoor) && (
+                          <p className={`mt-2 flex items-center gap-1.5 text-ui-label ${c.meta}`}><Trees className="h-3.5 w-3.5 shrink-0" />{tt('rbooking.onlyOutdoor')}: {slots.filter((x) => x.onlyOutdoor).map((x) => x.start).join(', ')}</p>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </>
           )}
 
@@ -512,10 +463,10 @@ export function RestaurantBookingWizard({
           {step === 1 && (
             <>
               {/* Összegző kártya */}
-              <div className="bg-ink-dark rounded-[20px] p-5 flex items-center justify-between gap-3">
+              <div className="bg-ui-dark rounded-[20px] p-5 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-white/60 text-xs font-medium mb-1">{tt("rbooking.summary")}</p>
-                  <p className="text-gold font-semibold text-base">{tt('rbooking.guests', { n: pax })}</p>
+                  <p className="text-ui-yellow font-semibold text-base">{tt('rbooking.guests', { n: pax })}</p>
                   <p className="text-white/60 text-xs mt-1">{format(selectedDateObj, 'MMM d.', { locale: dfLocale(locale) })} · {time}</p>
                 </div>
                 {time && slots.find((s) => s.start === time)?.onlyOutdoor && (
@@ -528,15 +479,15 @@ export function RestaurantBookingWizard({
               {/* Előleg-tájékoztató MÁR az adatoknál — a vendég előre tudja, mennyi, mikor és visszajár-e */}
               {depositEnabled && depositInfo && (
                 <div data-edit-id="deposit" className="flex gap-3 rounded-[20px] p-4" style={{ background: 'rgba(241,206,69,0.12)', border: '1px solid rgba(241,206,69,0.35)' }}>
-                  <HandCoins className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.7} />
-                  <div className={`text-[13px] leading-relaxed ${dk ? 'text-white/70' : 'text-ink-soft'}`}>
+                  <HandCoins className="mt-0.5 h-5 w-5 shrink-0 text-ui-yellow" strokeWidth={1.7} />
+                  <div className={`text-[13px] leading-relaxed ${dk ? 'text-white/70' : 'text-ui-muted'}`}>
                     <p className={`font-semibold ${textCls}`}>{tt('public.deposit.notice', { amount: restaurantDepositLabel(depositInfo, pax) })}</p>
                     <p>{tt('public.deposit.noticeHow')} {depositInfo.refundHours > 0 ? tt('public.deposit.noticeRefund', { hours: depositInfo.refundHours }) : tt('public.deposit.noticeRefundAny')}</p>
                   </div>
                 </div>
               )}
               <div className={`${cardClass} space-y-3`} style={cardStyle}>
-                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt("rbooking.details")}</p>
+                <p className={`text-ui-title font-light`}>{tt("rbooking.details")}</p>
                 {/* Az űrlap mezői a beállított sorrendben (`booking_rules.form_field_order`) — ugyanaz a
                     blokk-felosztás, mint a szalon foglalóján. */}
                 {(() => {
@@ -599,8 +550,8 @@ export function RestaurantBookingWizard({
                   {/* Előlegnél a cím a SZÁMLÁHOZ kell — egyszer, fejlécként mondjuk el (nem mezőnként) */}
                   {depositEnabled && (
                     <div className="pt-1">
-                      <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt('booking.details.billing')}</p>
-                      <p className={`text-[12px] ${dk ? 'text-white/45' : 'text-ink-soft2'}`}>{tt('booking.details.billingWhy')}</p>
+                      <p className={`text-ui-title font-light`}>{tt('booking.details.billing')}</p>
+                      <p className={`text-[12px] ${dk ? 'text-white/45' : 'text-ui-muted'}`}>{tt('booking.details.billingWhy')}</p>
                     </div>
                   )}
                   <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
@@ -637,7 +588,7 @@ export function RestaurantBookingWizard({
                   )}
                   {depositEnabled && invoicingEnabled && (
                     <>
-                      <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-paper')}>
+                      <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-ui-cell')}>
                         <span className={`text-[13px] ${textCls}`}>{tt('public.voucher.companyToggle')}</span>
                         <Switch checked={isCompany} onChange={setIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
@@ -731,7 +682,7 @@ export function RestaurantBookingWizard({
                       <button
                         type="button"
                         onClick={() => setRedeemOpen(true)}
-                        className={`text-[12px] font-medium underline underline-offset-2 transition-colors ${dk ? 'text-white/45 hover:text-white/70' : 'text-ink-soft hover:text-ink'}`}
+                        className={`text-[12px] font-medium underline underline-offset-2 transition-colors ${dk ? 'text-white/45 hover:text-white/70' : 'text-ui-muted hover:text-ui-text'}`}
                       >
                         Van ajándékutalványod?
                       </button>
@@ -754,11 +705,11 @@ export function RestaurantBookingWizard({
                 {(marketingVisible || (editorStep && newsletterEnabled)) && (
                   <div data-edit-id="newsletter" className={cn('space-y-1.5', editorStep && !marketingVisible && 'opacity-35 pointer-events-none')}>
                     <div className="flex items-center justify-between gap-3 py-1">
-                      <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ink'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                      <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ui-text'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
                       <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
                     </div>
-                    <p className={`text-[11px] ${dk ? 'text-white/40' : 'text-ink-soft2'}`}>
-                      Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${dk ? 'hover:text-white/70' : 'hover:text-ink'}`}>Adatvédelmi tájékoztató</a>.
+                    <p className={`text-[11px] ${dk ? 'text-white/40' : 'text-ui-muted'}`}>
+                      Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${dk ? 'hover:text-white/70' : 'hover:text-ui-text'}`}>Adatvédelmi tájékoztató</a>.
                     </p>
                   </div>
                 )}
@@ -768,8 +719,8 @@ export function RestaurantBookingWizard({
               {eventTypes.length > 0 && (
                 <div data-edit-id="occasions" className={`${cardClass} space-y-3`} style={cardStyle}>
                   <div>
-                    <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt('rbooking.occasion')}</p>
-                    <p className={`mt-0.5 text-[12px] ${dk ? 'text-white/40' : 'text-ink-soft2'}`}>{tt('rbooking.occasionHint')}</p>
+                    <p className={`text-ui-title font-light`}>{tt('rbooking.occasion')}</p>
+                    <p className={`mt-0.5 text-[12px] ${dk ? 'text-white/40' : 'text-ui-muted'}`}>{tt('rbooking.occasionHint')}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -777,10 +728,10 @@ export function RestaurantBookingWizard({
                       onClick={() => setOccasionIdx(null)}
                       className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
                         occasionIdx === null
-                          ? 'bg-gold text-ink-dark border-gold'
+                          ? 'bg-ui-yellow text-ui-dark border-ui-yellow'
                           : dk
-                            ? 'border-white/15 text-white/60 hover:border-gold hover:text-white'
-                            : 'bg-paper/50 border-line text-ink-soft hover:border-gold'
+                            ? 'border-white/15 text-white/60 hover:border-ui-yellow hover:text-white'
+                            : ' border-ui-divider text-ui-muted hover:border-ui-yellow'
                       }`}
                       style={dk && occasionIdx !== null ? { background: 'rgba(255,255,255,0.08)' } : undefined}
                     >
@@ -796,14 +747,14 @@ export function RestaurantBookingWizard({
                           onClick={() => setOccasionIdx(active ? null : i)}
                           className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
                             active
-                              ? 'bg-gold text-ink-dark border-gold'
+                              ? 'bg-ui-yellow text-ui-dark border-ui-yellow'
                               : dk
-                                ? 'border-white/15 text-white/60 hover:border-gold hover:text-white'
-                                : 'bg-paper/50 border-line text-ink-soft hover:border-gold'
+                                ? 'border-white/15 text-white/60 hover:border-ui-yellow hover:text-white'
+                            : ' border-ui-divider text-ui-muted hover:border-ui-yellow'
                           }`}
                           style={dk && !active ? { background: 'rgba(255,255,255,0.08)' } : undefined}
                         >
-                          <Icon className={`h-4 w-4 ${active ? 'text-ink-dark' : dk ? 'text-white/50' : 'text-ink-soft'}`} strokeWidth={1.8} />
+                          <Icon className={`h-4 w-4 ${active ? 'text-ui-dark' : dk ? 'text-white/50' : 'text-ui-muted'}`} strokeWidth={1.8} />
                           {et.label}
                         </button>
                       )
@@ -812,22 +763,20 @@ export function RestaurantBookingWizard({
                 </div>
               )}
 
-              <button
+              <Button
                 onClick={() => { if (validateDetails()) goStep(DEPOSIT_STEP ?? CONSENT_STEP ?? REVIEW_STEP) }}
-                className={`group w-full h-14 rounded-[16px] font-semibold text-sm hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 ${
-                  dk ? 'bg-gold text-ink-dark' : 'bg-ink-dark text-white'
-                }`}
+                className={cn('w-full', ACCENT)}
               >
                 {tt('booking.next')}
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
             </>
           )}
 
           {/* Step 2 (ha van előleg): Előleg-fizetés */}
           {step === DEPOSIT_STEP && depositEnabled && (
             <div data-edit-id="deposit" className={cardClass} style={cardStyle}>
-              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt('public.deposit.title')}</p>
+              <p className={`text-ui-title font-light mb-3`}>{tt('public.deposit.title')}</p>
               {editorStep ? (
                 <p className={`text-[13px] leading-relaxed ${labelCls}`}>Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.</p>
               ) : time && (
@@ -847,9 +796,9 @@ export function RestaurantBookingWizard({
           {/* Beleegyező nyilatkozat */}
           {step === CONSENT_STEP && consentEnabled && (
             <div data-edit-id="consent" className={cardClass} style={cardStyle}>
-              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{consentTitle?.trim() || tt('public.consent.title')}</p>
+              <p className={`text-ui-title font-light mb-3`}>{consentTitle?.trim() || tt('public.consent.title')}</p>
               <div
-                className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed ${dk ? 'text-white/75' : 'text-ink-soft'}`}
+                className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed ${dk ? 'text-white/75' : 'text-ui-muted'}`}
                 style={{ background: dk ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', border: dk ? '1.5px solid rgba(255,255,255,0.10)' : '1.5px solid rgba(0,0,0,0.06)' }}
               >
                 {consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'}
@@ -858,16 +807,14 @@ export function RestaurantBookingWizard({
                 <span className={`text-[13px] ${textCls}`}>Elolvastam és elfogadom a fenti nyilatkozatot</span>
                 <Switch checked={consentGiven} onChange={setConsentGiven} ariaLabel="Nyilatkozat elfogadása" />
               </div>
-              <button
+              <Button
                 onClick={() => { if (consentGiven) goStep(REVIEW_STEP) }}
                 disabled={!consentGiven}
-                className={`group mt-4 w-full h-14 rounded-[16px] font-semibold text-sm hover:opacity-90 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2 ${
-                  dk ? 'bg-gold text-ink-dark' : 'bg-ink-dark text-white'
-                }`}
+                className={cn('w-full', ACCENT)}
               >
                 {tt('booking.next')}
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           )}
 
@@ -876,7 +823,7 @@ export function RestaurantBookingWizard({
             <>
               {/* Összegzés — egy kártyában, ugyanabban a sorrendben, mint a szalon foglalóján
                   (foglalás → vendég adatai → előleg / utalvány). A hosszú értékek törnek. */}
-              <h2 className={`text-[22px] font-light tracking-[-0.02em] ${textCls}`}>{tt('booking.summary.title')}</h2>
+              <h2 className="text-ui-title font-light">{tt('booking.summary.title')}</h2>
               <div data-edit-id="summary" className={cn(cardClass, 'py-1')} style={cardStyle}>
                 {[
                   { label: tt('rbooking.label.guests'), value: tt('rbooking.guests', { n: pax }) },
@@ -890,7 +837,7 @@ export function RestaurantBookingWizard({
                   ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: `${depositAmountHuf.toLocaleString('hu-HU')} Ft` }] : []),
                   ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: `${redeemValid.amount_huf.toLocaleString('hu-HU')} Ft` }] : []),
                 ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
-                  <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && (dk ? 'border-b border-white/[0.08]' : 'border-b border-line/60'))}>
+                  <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && (dk ? 'border-b border-white/[0.08]' : 'border-b'))}>
                     <span className={`shrink-0 pt-0.5 text-xs ${labelCls}`}>{label.replace(/\s*\*$/, '')}</span>
                     <span className={`min-w-0 text-right text-sm font-semibold [overflow-wrap:anywhere] ${textCls}`}>{value}</span>
                   </div>
@@ -900,23 +847,22 @@ export function RestaurantBookingWizard({
               {dk && <GoodToKnowCompact items={goodToKnow} locale={locale} />}
 
               {/* Megerősítés gomb */}
-              <button
+              <Button
                 onClick={submit}
                 disabled={submitting}
-                className={`group w-full h-14 rounded-[16px] font-semibold text-sm hover:opacity-90 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2 ${
-                  dk ? 'bg-gold text-ink-dark' : 'bg-ink-dark text-white'
-                }`}
+                className={cn('w-full', ACCENT)}
               >
                 {submitting ? (
                   <><Loader2 className="h-4 w-4 animate-spin" />{tt('rbooking.submitting')}</>
                 ) : (
                   <>{tt('rbooking.confirm')}<HoverArrow className="h-4 w-4" /></>
                 )}
-              </button>
+              </Button>
               {((termsSections && termsSections.length > 0) || company) && (
-                <div data-edit-id="terms" className={`text-center text-xs ${dk ? 'text-white/40' : 'text-ink-soft'}`}>
+                <div data-edit-id="terms" className={`text-center text-xs ${dk ? 'text-white/40' : 'text-ui-muted'}`}>
                   {tt('rbooking.termsPrefix')}{' '}
                   <TermsModal sections={termsSections} company={company} locale={locale} />
+                  {company?.privacy_url && <>. {tt('rbooking.privacyPrefix')}{' '}<a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{tt('rbooking.privacyLink')}</a></>}
                 </div>
               )}
             </>

@@ -10,6 +10,8 @@ export type CompanyInfo = {
   registered_seat?: string | null
   email?: string | null
   phone?: string | null
+  /** a vállalkozó saját adatkezelési tájékoztatója (már biztonságos http(s) link) */
+  privacy_url?: string | null
 }
 
 export function providerSection(c: CompanyInfo | null | undefined, locale: Locale = 'hu'): Section | null {
@@ -36,44 +38,30 @@ export function buildTermsItems(
   return provider ? [provider, ...userItems] : userItems
 }
 
-export function TermsContent({ items }: { items: Section[] }) {
+/** A feltételek szövege: elöl a szolgáltató adatai, utána a számozott pontok. `light`: fehér kártyán (a feltételek
+ *  oldala, design 21.12), különben a foglaló sötét kártyáján. */
+export function TermsContent({ items, light = false }: { items: Section[]; light?: boolean }) {
   return (
     <>
       {items.map((s, i) => {
         if (s.isProvider) {
           return (
-            <section
-              key={i}
-              className="mb-5 rounded-xl px-4 py-3.5"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
-            >
-              <h4 className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-2">
-                {s.title}
-              </h4>
-              {s.body?.trim() && (
-                <p className="text-[13px] leading-relaxed text-white/60 whitespace-pre-wrap">{s.body}</p>
-              )}
+            <section key={i} className={`mb-5 rounded-ui-inner px-4 py-3.5 ${light ? 'bg-ui-cell' : 'border border-white/10 bg-white/[0.06]'}`}>{/* ui-allow: a foglaló sötét kártyáján */}
+              <h4 className={`mb-2 text-ui-label uppercase tracking-widest ${light ? 'text-ui-muted' : 'text-white/40'}`}>{s.title}</h4>
+              {s.body?.trim() && <p className={`whitespace-pre-wrap text-ui-meta leading-relaxed ${light ? 'text-ui-text' : 'text-white/60'}`}>{s.body}</p>}
             </section>
           )
         }
         const sectionNo = items.slice(0, i).filter((x) => !x.isProvider).length + 1
         return (
-          <section
-            key={i}
-            className="py-4 first:pt-0 border-t first:border-t-0"
-            style={{ borderColor: 'rgba(255,255,255,0.07)' }}
-          >
+          <section key={i} className={`border-t py-4 first:border-t-0 first:pt-0 ${light ? 'border-dashed border-ui-divider' : 'border-white/[0.07]'}`}>{/* ui-allow: a foglaló sötét kártyáján */}
             {s.title?.trim() && (
-              <h4 className="flex items-center gap-2.5 font-bold text-[15px] text-white mb-2">
-                <span className="shrink-0 h-6 w-6 rounded-full bg-white/15 text-white/70 text-[11px] font-bold flex items-center justify-center">
-                  {sectionNo}
-                </span>
+              <h4 className={`mb-2 flex items-center gap-2.5 text-ui-row ${light ? 'text-ui-text' : 'text-white'}`}>
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ui-label ${light ? 'bg-ui-cell text-ui-text' : 'bg-white/15 text-white/70'}`}>{sectionNo}</span>
                 {s.title}
               </h4>
             )}
-            {s.body?.trim() && (
-              <p className="text-sm leading-relaxed text-white/55 whitespace-pre-wrap pl-[34px]">{s.body}</p>
-            )}
+            {s.body?.trim() && <p className={`whitespace-pre-wrap pl-[34px] text-ui-body leading-relaxed ${light ? 'text-ui-muted' : 'text-white/55'}`}>{s.body}</p>}
           </section>
         )
       })}

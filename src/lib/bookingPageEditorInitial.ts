@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import { resolveAvailableLocales } from '@/lib/i18n'
+import { pageStyleOf } from '@/lib/publicPageView'
 import { hasActivePackage } from '@/lib/newsletterLimits'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import type { BookingPageEditorInitial, EditorStaff } from '@/components/settings/booking-page/BookingPageEditor'
@@ -28,7 +29,7 @@ function hasFilledTerms(sections: Salon['terms_sections'] | Restaurant['terms_se
 export function buildBookingPageEditorInitial(
   kind: 'salon' | 'restaurant',
   doc: Salon | Restaurant,
-  extra: { staff?: EditorStaff[]; maxPax?: number } = {},
+  extra: { staff?: EditorStaff[]; maxPax?: number; services?: { id: string; name: string; visible: boolean }[]; hours?: [string, string][] } = {},
 ): BookingPageEditorInitial {
   const isSalon = kind === 'salon'
   const salon = doc as Salon
@@ -39,6 +40,7 @@ export function buildBookingPageEditorInitial(
   const logo = mediaOf(doc.logo)
   return {
     variant: kind,
+    hours: extra.hours ?? [],
     slug: doc.slug,
     supportedLocales: resolveAvailableLocales(doc.supported_locales),
     name: doc.name,
@@ -135,5 +137,13 @@ export function buildBookingPageEditorInitial(
       ? restaurant.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled !== false }))
       : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label, enabled: true }))),
     maxPax: extra.maxPax ?? 0,
+    // ── a foglalóoldal megjelenése (design 21.6: Arculat, Borítókép, Galéria, Értékelések, Közösségi, Foglalás gomb,
+    //    Szolgáltatások) — `lib/publicPageView` ugyanebből számol az élő oldalon ──
+    page: pageStyleOf(doc),
+    gallery: (doc.gallery ?? []).flatMap((g) => {
+      const m = mediaOf(g.image)
+      return m.id ? [{ key: g.id ?? randomUUID(), imageId: m.id, url: m.url, caption: g.caption ?? '' }] : []
+    }),
+    services: extra.services ?? [],
   }
 }

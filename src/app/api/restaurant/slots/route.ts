@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getRestaurantSlots, getOpeningWindow } from '@/lib/restaurantBooking'
+import { getRestaurantSlotGrid, getOpeningWindow } from '@/lib/restaurantBooking'
 import { getCurrentUser } from '@/lib/auth'
 
 const schema = z.object({
@@ -8,6 +8,9 @@ const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   pax: z.coerce.number().int().min(1).max(50),
   includePast: z.coerce.boolean().optional(),
+  excludeReservationId: z.string().optional(),
+  tableIds: z.string().optional(),
+  duration: z.coerce.number().int().min(15).max(600).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -23,11 +26,12 @@ export async function GET(request: NextRequest) {
     // A slots mellett a nyitvatartási ablakot is lekérjük: ha `window === null`, a nap
     // TELJESEN zárva van (pl. heti pihenőnap) — ezt a kliens külön, pontosabb üzenettel
     // jelzi, nem az általános "nincs szabad időpont"-tal (ami tele napra utalna).
-    const [slots, window] = await Promise.all([
-      getRestaurantSlots({ ...parsed.data, includePast: !!user }),
+    const [grid, window] = await Promise.all([
+      getRestaurantSlotGrid({ ...parsed.data, online: !user, includePast: !!user, excludeReservationId: user ? parsed.data.excludeReservationId : undefined, tableIds: user && parsed.data.tableIds ? parsed.data.tableIds.split(',') : undefined }),
       getOpeningWindow(parsed.data.restaurantId, parsed.data.date),
     ])
-    return NextResponse.json({ slots, closed: window === null })
+    // a tulaj (bejelentkezve) a nap összes jelölt kezdését is megkapja — a szerkesztő rácsán a nem szabad foglalt
+    return NextResponse.json(user ? { ...grid, closed: window === null } : { slots: grid.slots, closed: window === null })
   } catch (err) {
     console.error('[Restaurant Slots API]', err)
     return NextResponse.json({ error: 'Szerver hiba' }, { status: 500 })

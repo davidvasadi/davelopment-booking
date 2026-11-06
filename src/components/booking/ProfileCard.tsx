@@ -2,18 +2,26 @@
 
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { loadGuest, saveGuest, forgetGuest } from '@/lib/guestMemory'
-import { GoogleReviewsBlock, type GoogleReviewsData } from '@/components/booking/GoogleReviewsBlock'
+import type { GoogleReviewsData } from '@/components/booking/GoogleReviewsBlock'
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
-import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, ChevronDown, Loader2, Tag, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X, HandCoins } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronRight, Loader2, Users, Gift, HandCoins } from 'lucide-react'
+import { Avatar, Button, FIELD, IconButton, IconCircle, Pill } from '@/components/ui-kit'
+import { useDayStrip } from './useDayStrip'
+import { ACCENT, CardDayPicker, CardPills, CardRow, CardSlotGrid, CardThumb, cardTone, GLASS_FIELD, type LiveCard } from '@/components/blocks/public'
+import { PoweredBy } from '@/components/blocks/brand'
+import { CookieFooterLink } from '@/components/blocks/consent'
+import { openCookieSettings } from '@/components/booking/MarketingTrackingScripts'
+import { VoucherCard } from '@/components/blocks/money'
 import { salonDepositNotice, type DepositInfo } from '@/lib/depositSummary'
+import { depositApplies } from '@/lib/depositCalc'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
 import { APP_URL } from '@/lib/brand'
-import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
+import { stepSlide, stepSlideTransition } from '@/lib/motion'
 import { trackBookingConversion } from '@/lib/marketingTracking'
 import type { Service, StaffMember, ServiceCategory, Media, GiftVoucherType } from '@/payload/payload-types'
 import { t as tl, makeT, dfLocale, type Locale } from '@/lib/i18n'
@@ -21,21 +29,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Textarea } from '@/components/ui/textarea'
-import { DateStrip } from '@/components/booking/DateStrip'
-import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
-import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
+import { PhoneCountryInput } from '@/components/booking/PhoneInputs'
+import { COUNTRIES } from '@/components/booking/phoneCountries'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import type { Section } from '@/components/booking/TermsContent'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { BookingSuccess } from '@/components/booking/BookingSuccess'
 import { GoodToKnowCompact } from '@/components/booking/GoodToKnowSection'
-import { iconByKey } from '@/components/settings/goodToKnowIcons'
-import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c => [c.code, c.dial]))
 
 type Slot = { start: string; end: string }
-type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
+type View = 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
 type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address' | 'taxNumber'
 
 export type ProfileCardProps = Props
@@ -62,6 +67,8 @@ interface Props {
   company?: CompanyInfo | null
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   depositEnabled?: boolean
+  /** szakemberenkénti számlázásnál: akinél van online fizetés (saját Stripe) — „bárki” esetén csak ha mindenkinél van; null: az üzleté */
+  depositStaffIds?: string[] | null
   /** előleg-összefoglaló a vendégnek (összeg + díjmentes lemondás) — az Adatok lépés tetején */
   depositInfo?: DepositInfo | null
   invoicingEnabled?: boolean
@@ -110,6 +117,12 @@ interface Props {
   fieldOrder?: string[] | null
   /** Szerkesztő-előnézet: ezt a lépést mutassa mintaadatokkal (null = normál működés). */
   editorView?: EditorView | null
+  /** a foglaló kártya stílusa (Beállítások › Foglalóoldal › Arculat) — design 21.2 */
+  cardStyle?: LiveCard
+  /** a foglalás gomb felirata (saját, vagy az alap) */
+  ctaLabel?: string
+  /** a szolgáltatások megjelenése (Foglalóoldal › Szolgáltatások): kategória-szűrő, képek, ár · időtartam */
+  servicesDisplay?: { filter: boolean; images: boolean; price: boolean }
   /** Szerkesztő-előnézet: automatikus megerősítés (a Visszaigazolás lépés szövegéhez). */
   editorAutoConfirm?: boolean
 }
@@ -118,7 +131,7 @@ interface Props {
 export const FORM_FIELD_IDS = ['name', 'email', 'phone', 'address', 'questions', 'notes'] as const
 export type FormFieldId = (typeof FORM_FIELD_IDS)[number]
 
-export type EditorView = 'main' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher'
+export type EditorView = 'main' | 'start' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher'
 
 function getCategoryId(cat: Service['category']): string | null {
   if (!cat) return null
@@ -131,43 +144,38 @@ export function ProfileCard({
   services, staff, serviceCategories,
   phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
-  termsSections, company, goodToKnow, depositEnabled = false, depositInfo = null, invoicingEnabled = false, voucherCompanyEnabled = true, google = null,
+  termsSections, company, goodToKnow, depositEnabled: depositOn = false, depositStaffIds = null, depositInfo = null, invoicingEnabled = false, voucherCompanyEnabled = true, google = null,
   addressRequired = false, addressRequiredNote = null, hiddenFields = [], addressDetailLevel = 'full',
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false, showMarketingConsent = true,
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false, servicesExpandedOnMain = false,
-  confirmEmailEnabled = true, reminderHours = [], editorView = null, editorAutoConfirm = true,
+  confirmEmailEnabled = true, reminderHours = [], editorView = null, editorAutoConfirm = true, cardStyle = 'dark', ctaLabel, servicesDisplay = { filter: true, images: true, price: true },
   sectionOrder = null, hiddenSections = null, fieldOrder = null,
 }: Props) {
   const formFieldOrder: FormFieldId[] = [
     ...(fieldOrder ?? []).filter((id): id is FormFieldId => (FORM_FIELD_IDS as readonly string[]).includes(id)),
     ...FORM_FIELD_IDS.filter((id) => !(fieldOrder ?? []).includes(id)),
   ]
-  // A főnézet szakaszai a beállított sorrendben (CSS `order`), a rejtettek nélkül — a
-  // szerkesztő-előnézetben a rejtett szakasz halványan látszik, hogy vissza lehessen kapcsolni.
-  const SECTION_IDS = ['services', 'voucher', 'staff', 'reviews']
-  const order = [...(sectionOrder ?? []).filter((id) => SECTION_IDS.includes(id)), ...SECTION_IDS.filter((id) => !(sectionOrder ?? []).includes(id))]
-  const sectionShown = (id: string) => !!editorView || !(hiddenSections ?? []).includes(id)
-  const sectionProps = (id: string) => ({
-    'data-edit-id': `sec:${id}`,
-    style: { order: order.indexOf(id) },
-    className: editorView && (hiddenSections ?? []).includes(id) ? 'opacity-35' : undefined,
-  })
   const tt = makeT(locale)
+  // a kártya stílusa (design 21.2) — sötét üveg / fekete / világos üveg / fehér
+  const c = cardTone(cardStyle)
+  // a mezők a kártyán: sötét kártyán a design üveg-mezője, fehéren a kit mezője (design 21.7 — CardField)
+  const inputCls = c.dark ? `${GLASS_FIELD} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
 
   // Browse navigation state
-  const [view, setView] = useState<View>('main')
+  // design 21.1: a kártya rögtön a foglalás 1. lépésével (szolgáltatások) indul — a régi kezdő nézet tartalma a borítón van
+  const [view, setView] = useState<View>('services')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
   // Ha a főnézeten előbb egy konkrét munkatársat választ a vendég, ezt tároljuk — a
   // szolgáltatás-listát rá szűrjük, és a serviceDetail nézeten már nem kérdezünk rá újra.
   const [preStaffId, setPreStaffId] = useState<string | null>(null)
-  const [staffStripOpen, setStaffStripOpen] = useState(false)
   const [dir, setDir] = useState(1)
 
   // Booking flow state
   const [bookingStaffId, setBookingStaffId] = useState<string | null>(null)
   const [bookingDate, setBookingDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  // a napok sorának első napja (a naptárból választva ide ugrik)
   const [bookingSlot, setBookingSlot] = useState<Slot | null>(null)
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
@@ -237,7 +245,7 @@ export function ProfileCard({
   const [detailsShakeKey, setDetailsShakeKey] = useState(0)
   const [voucherPaymentStep, setVoucherPaymentStep] = useState(false)
   const [voucherCreating, setVoucherCreating] = useState(false)
-  const [voucherResult, setVoucherResult] = useState<{ code: string; amountHuf: number; qrCodeDataUrl: string } | null>(null)
+  const [voucherResult, setVoucherResult] = useState<{ code: string; amountHuf: number; qrCodeDataUrl: string; expiresAt?: string } | null>(null)
 
   // Ajándékutalvány-beváltás állapota — a `details` lépés opcionális mezője.
   const [redeemOpen, setRedeemOpen] = useState(false)
@@ -305,7 +313,6 @@ export function ProfileCard({
   // "Egyéb" kategória-csempébe tesszük (az felesleges plusz kattintás lenne), hanem közvetlenül,
   // a saját nevükkel listázzuk a kategória-választó nézeten, a kategória-csempék alatt.
   const hasCategories = serviceCategories.length > 0
-  const uncategorizedServices = visibleServices.filter(s => getCategoryId(s.category) === null)
   const categoryGroups = hasCategories
     ? serviceCategories
         .map(cat => ({
@@ -318,8 +325,10 @@ export function ProfileCard({
   const selectedCategory = categoryGroups.find(g => g.id === selectedCategoryId)
   const servicesInView = selectedCategory?.services ?? visibleServices
   const selectedService = services.find(s => String(s.id) === selectedServiceId) ?? null
-  const serviceImgUrl = selectedService?.image && typeof selectedService.image === 'object'
-    ? (selectedService.image as Media).url ?? null : null
+  // „Mely foglalásoknál” (16.1): az előleg-lépés csak akkor van, ha a választott szolgáltatás ára és a nap mellett kell
+  // előleg — ugyanaz a szabály, mint a szerveren (`depositApplies`). A szerkesztő-előnézetben mindig látszik.
+  const depositForStaff = !depositStaffIds || (bookingStaffId ? depositStaffIds.includes(bookingStaffId) : staff.length > 0 && staff.every((m) => depositStaffIds.includes(String(m.id))))
+  const depositEnabled = depositOn && (!!editorView || depositForStaff) && (!!editorView || !depositInfo || depositApplies(depositInfo.settings, { date: bookingDate, priceHuf: selectedService && (selectedService.currency ?? 'HUF') === 'HUF' ? selectedService.price : 0 }))
 
   // Always resolve from the full staff array (depth-1, avatar populated)
   const serviceStaff = (selectedService?.staff ?? [])
@@ -335,19 +344,15 @@ export function ProfileCard({
   const bookingStaff = bookingStaffId ? (staff.find(m => String(m.id) === String(bookingStaffId)) ?? null) : null
   const bookingDateParsed = new Date(bookingDate + 'T00:00:00')
 
-  // A lépés-fejlécben mindvégig látható "kiválasztott szakember" csík forrása: a főnézeten SOHA
-  // nem jelenik meg (ott a Munkatársak-rács mutatja a szakembert/szakembereket, 1 fő esetén is —
-  // konzisztens a több szakemberes nézettel), a szolgáltatás-választás lépésein
-  // (services/serviceDetail) a preStaff, utána (datetime-tól) a végleges bookingStaff —
-  // "Bármelyik szakember" esetén nincs konkrét személy, a csík nem jelenik meg.
-  const displayStaff = view === 'main' ? null : (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
 
   // Szerkesztő-előnézet: a kért lépésre ugrunk, mintaadatokkal (első foglalható szolgáltatás,
   // annak első szakembere, holnap 14:00) — így minden lépés valódi formájában szerkeszthető.
   useEffect(() => {
     if (!editorView) return
     setDir(1)
-    if (editorView === 'main') { setView('main'); setSheetOpen(false); return }
+    if (editorView === 'main') { setView('services'); setSelectedCategoryId(null); setSheetOpen(false); return }
+    // a szerkesztő telefon-nézetének második kijelzője: a felcsúszó lap nyitva, az 1. lépéssel (design 16.10)
+    if (editorView === 'start') { setView('services'); setSelectedCategoryId(null); setSheetOpen(true); return }
     const svc = bookableServices[0] ?? null
     const member = svc ? staff.find((m) => staffIdsOf(svc).includes(String(m.id))) ?? null : null
     const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
@@ -376,10 +381,10 @@ export function ProfileCard({
     svcId: string | null = null,
     d?: number,
   ) => {
-    setDir(d ?? (newView !== 'main' ? 1 : -1))
+    setDir(d ?? 1)
     setSelectedCategoryId(catId)
     setSelectedServiceId(svcId)
-    if (newView === 'main') setPreStaffId(null)
+    if (newView === 'services' && catId === null && svcId === null && d === -1) setPreStaffId(null)
     setView(newView)
   }
 
@@ -396,14 +401,14 @@ export function ProfileCard({
     else if (view === 'details') { setDir(-1); setView('datetime') }
     else if (view === 'datetime') { setDir(-1); setView('serviceDetail') }
     else if (view === 'serviceDetail') goTo('services', selectedCategoryId, null, -1)
-    else if (view === 'services' && selectedCategoryId !== null) goTo('services', null, null, -1)
-    else if (view === 'services') goTo('main', null, null, -1)
-    else goTo('main', null, null, -1)
+    // az első lépésen: mobilon a lap bezárul (desktopon ott nincs vissza gomb)
+    else if (view === 'services') setSheetOpen(false)
+    else goTo('services', null, null, -1)
   }
 
   const handleCloseSuccess = () => {
     setDir(-1)
-    setView('main')
+    setView('services')
     setSuccessDetails(null)
     setSelectedCategoryId(null)
     setSelectedServiceId(null)
@@ -429,7 +434,6 @@ export function ProfileCard({
 
   // A kiválasztott-szakember csík ne maradjon nyitva, ha másik szakemberre váltanak, vagy
   // elhagyják a lépést, ahol egyáltalán megjelenik.
-  useEffect(() => { setStaffStripOpen(false) }, [displayStaff?.id])
 
   // Desktop CTA — BookCtaMorph / nextSlotNode open services view
   useEffect(() => {
@@ -440,7 +444,10 @@ export function ProfileCard({
       setView('services')
     }
     window.addEventListener('davelopment:openServices', handler)
-    return () => window.removeEventListener('davelopment:openServices', handler)
+    // a borító „Ajándékutalvány” gombja (design 21.1): a kártya az utalvány-vásárlásra vált (mobilon a lap is felnyílik)
+    const voucher = () => { setDir(1); setView('voucher'); setSheetOpen(true) }
+    window.addEventListener('davelopment:openVoucher', voucher)
+    return () => { window.removeEventListener('davelopment:openServices', handler); window.removeEventListener('davelopment:openVoucher', voucher) }
   }, [])
 
   // Ajándékutalvány QR-kódjából/linkjéből érkező vendég — a `?voucher=KÓD` paramot előtöltjük
@@ -454,6 +461,31 @@ export function ProfileCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // „Kihez szeretnél menni?”: munkatársanként a legközelebbi szabad időpont (14 napon belül) — a sor jobb oldalán
+  const [nextFree, setNextFree] = useState<{ any: { date: string; time: string } | null; staff: Record<string, { date: string; time: string } | null> } | null>(null)
+  useEffect(() => {
+    if (view !== 'serviceDetail' || !selectedServiceId) return
+    setNextFree(null)
+    const ids = (selectedService?.staff ?? []).map((m) => String(typeof m === 'object' ? m.id : m)).join(',')
+    let off = false
+    fetch(`/api/slots/next?${new URLSearchParams({ salonId, serviceId: selectedServiceId, staffIds: ids })}`)
+      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (!off && j && !j.error) setNextFree(j) }).catch(() => {})
+    return () => { off = true }
+  }, [view, selectedServiceId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const nextLabel = (x: { date: string; time: string } | null | undefined) => {
+    if (x === undefined) return null
+    if (x === null) return tt('booking.staff.noneSoon')
+    const d = new Date(`${x.date}T12:00:00`); const today = format(new Date(), 'yyyy-MM-dd')
+    const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
+    return `${x.date === today ? tt('nextSlots.today') : x.date === tomorrow ? tt('nextSlots.tomorrow') : format(d, 'MMM d.', { locale: dfLocale(locale) })} ${x.time}`
+  }
+  // a választott munkatárs (vagy Bárki) legközelebbi szabad napjára ugrik a napválasztó — ne üres napot lásson a vendég
+  const pickStaff = (id: string | null) => {
+    const nf = id ? nextFree?.staff[id] : nextFree?.any
+    if (nf) setBookingDate(nf.date)
+    startBooking(id)
+  }
 
   const loadSlots = () => {
     if (!selectedServiceId) return
@@ -661,7 +693,7 @@ export function ProfileCard({
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Nem sikerült létrehozni az utalványt.')
-      setVoucherResult({ code: json.code, amountHuf: json.amountHuf, qrCodeDataUrl: json.qrCodeDataUrl })
+      setVoucherResult({ code: json.code, amountHuf: json.amountHuf, qrCodeDataUrl: json.qrCodeDataUrl, expiresAt: json.expiresAt })
       setDir(1)
       setView('voucherSuccess')
     } catch (e: unknown) {
@@ -673,7 +705,7 @@ export function ProfileCard({
 
   const handleCloseVoucherSuccess = () => {
     setDir(-1)
-    setView('main')
+    setView('services')
     setSelectedVoucherTypeId(null)
     setVoucherPurchaserName('')
     setVoucherPurchaserEmail('')
@@ -691,10 +723,6 @@ export function ProfileCard({
     setSheetOpen(false)
   }
 
-  // 1 szakembernél is 2-oszlopos rács — így a kártya csak félszélességű (nem tölti ki az egész
-  // kártyát egy irreálisan nagy csempeként), a szabad oldal egyszerűen üresen marad mellette.
-  const staffCols = staff.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'
-
   // 0 Ft-os szolgáltatásnál nem árat írunk ki, hanem hogy "Ingyenes" — a "0 Ft" hiányzó
   // adatnak/hibának tűnne, holott szándékosan díjmentes szolgáltatásról van szó.
   const priceLabel = (price: number, currency?: string | null) => (price === 0 ? tt('public.free') : formatPrice(price, currency ?? undefined))
@@ -702,31 +730,25 @@ export function ProfileCard({
   // Egy szolgáltatás-sor közös megjelenítése — a kategória-nélküli szolgáltatások közvetlen
   // listázásánál ÉS a "belül vagyunk egy kategóriában / nincs is kategória" nézetnél is
   // ugyanezt használjuk, hogy a két hely sose csússzon szét.
+  // a választott eddig egy sorban, Módosít — a 3. lépéstől (design 21.7)
+  const Picked = ({ title, meta, onChange }: { title: string; meta: string; onChange: () => void }) => {
+    const av = bookingStaff?.avatar && typeof bookingStaff.avatar === 'object' ? (bookingStaff.avatar as Media).url ?? null : null
+    return <CardRow c={c} onClick={onChange} leading={bookingStaff ? <Avatar size="sm" src={av} name={bookingStaff.name} /> : <IconCircle tone={c.dark ? 'onDark' : 'cell'} size="sm" icon={Users} />}
+      title={title} meta={meta} trailing={<Pill size="sm" tone={c.dark ? 'white' : 'cell'}>{tt('public.change')}</Pill>} />
+  }
+  // a napok sora: görgethető, mától a foglalási ablak végéig; ahol a választott szolgáltatásra / munkatársra nincs hely, sötétebb
+  const { days: pickDays, stripRef } = useDayStrip({
+    daysUrl: view === 'datetime' && selectedServiceId ? `/api/slots/days?${new URLSearchParams({ salonId, serviceId: selectedServiceId, ...(bookingStaffId ? { staffId: bookingStaffId } : {}) })}` : null,
+    windowDays: bookingWindowDays, selected: bookingDate, onAutoPick: (d) => { setBookingDate(d); setBookingSlot(null) },
+    dfLocale: dfLocale(locale), todayLabel: tt('nextSlots.today'),
+  })
+
   const renderServiceRow = (s: Service, onClick: () => void) => {
-    const sImgUrl = s.image && typeof s.image === 'object' ? (s.image as Media).url ?? null : null
+    const sImgUrl = servicesDisplay.images && s.image && typeof s.image === 'object' ? (s.image as Media).url ?? null : null
     return (
-      <button
-        key={s.id}
-        onClick={onClick}
-        className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
-        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-      >
-        {sImgUrl && (
-          <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
-            <img src={sImgUrl} alt={s.name} className="h-full w-full object-cover" />
-          </div>
-        )}
-        <div className={cn('min-w-0 flex-1', sImgUrl ? 'px-3 py-3' : 'py-3 pl-3')}>
-          <p className="text-[13px] font-semibold text-white">{s.name}</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/45">
-            <Clock className="h-2.5 w-2.5" />{s.duration_minutes} {tt('booking.minutes')}
-          </p>
-        </div>
-        <div className="mr-3 flex shrink-0 items-center gap-2">
-          <p className="text-[13px] font-bold text-white">{priceLabel(s.price, s.currency)}</p>
-          <ChevronRight className="h-3.5 w-3.5 text-white/35" />
-        </div>
-      </button>
+      <CardRow key={s.id} c={c} onClick={onClick} leading={sImgUrl ? <CardThumb src={sImgUrl} alt={s.name} /> : undefined}
+        title={s.name} meta={servicesDisplay.price ? `${s.duration_minutes} ${tt('booking.minutes')}` : undefined}
+        trailing={servicesDisplay.price ? <span className="shrink-0 text-ui-body">{priceLabel(s.price, s.currency)}</span> : <ChevronRight className={`h-4 w-4 shrink-0 ${c.meta}`} />} />
     )
   }
 
@@ -763,15 +785,13 @@ export function ProfileCard({
             exit={{ opacity: 0, y: 16 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
           >
-            <button
-              data-edit-pass
-              onClick={() => setSheetOpen(true)}
-              className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
-              style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
-            >
-              {tl(locale, 'public.bookCta')}
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            {/* design 21.8: a fő gomb a márkaszínben, a saját felirattal — a kit gombja, mint a borítón */}
+            <span data-edit-pass className="block">
+              <Button onClick={() => setSheetOpen(true)} className={cn('w-full shadow-ui-float', ACCENT)}>
+                {ctaLabel ?? tl(locale, 'public.bookCta')}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -780,7 +800,7 @@ export function ProfileCard({
     <div
       className={embed
         ? 'relative w-full p-3 sm:p-4'
-        : 'fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2'}
+        : 'fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[420px] lg:-translate-y-1/2'}
       style={embed ? undefined : { pointerEvents: isMobile && !sheetOpen ? 'none' : undefined }}
     >
       <motion.div
@@ -796,19 +816,12 @@ export function ProfileCard({
         onDragEnd={(_e, info) => {
           if (info.offset.y > 120 || info.velocity.y > 500) setSheetOpen(false)
         }}
-        className={embed ? 'flex flex-col overflow-hidden rounded-[24px]' : 'flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]'}
+        // a kártya stílusa (design 21.2): sötét üveg (alap) · fekete · világos üveg · fehér — a `cardTone` adja a felületet
+        className={cn('flex flex-col overflow-hidden', c.box, embed ? 'rounded-ui-card' : 'rounded-t-ui-card shadow-ui-popup lg:rounded-ui-card')}
         style={{
-          // Embed módban a kártya a TERMÉSZETES tartalom-magasságára nő (nincs korlát) — a
-          // fenti ResizeObserver ezt küldi el postMessage-ben a beágyazó oldalnak. Ha valaki a
-          // sima, fix-magasságú iframe-snippetet használja (nem az automatikus loadert), a
-          // böngésző NATÍV iframe-görgetése lép életbe, ha a tartalom nagyobb a megadott
-          // magasságnál — nincs szükség egyedi belső görgetésre.
+          // Embed módban a kártya a TERMÉSZETES tartalom-magasságára nő (nincs korlát) — a ResizeObserver ezt küldi el a
+          // beágyazó oldalnak; különben legfeljebb a képernyő magassága, belül görget.
           ...(embed ? { height: 'auto' } : { height: 'min(82dvh, calc(100dvh - 48px))' }),
-          background: embed ? '#16161A' : 'rgba(22,22,26,0.52)',
-          border: '1px solid rgba(255,255,255,0.10)',
-          boxShadow: embed ? '0 4px 24px rgba(0,0,0,0.25)' : '0 -2px 40px rgba(0,0,0,0.35), 0 24px 56px -12px rgba(0,0,0,0.4)',
-          backdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
-          WebkitBackdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
         }}
       >
         {/* Drag handle — mobilon lehúzható (embed módban nincs húzható sheet) */}
@@ -823,7 +836,7 @@ export function ProfileCard({
         )}
 
         {/* Step indicator row — minden nem-main, nem-success nézeten */}
-        {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && (() => {
+        {view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && (() => {
           const stepCount = 4 + (depositEnabled ? 1 : 0) + (consentEnabled ? 1 : 0)
           const stepIndex = view === 'services' || view === 'serviceDetail' ? 0
             : view === 'datetime' ? 1 : view === 'details' ? 2
@@ -831,157 +844,22 @@ export function ProfileCard({
             : view === 'consent' ? 3 + (depositEnabled ? 1 : 0)
             : stepCount - 1
           return (
-            <div className="shrink-0 flex items-center justify-between px-5 pb-2 pt-4 lg:px-6 lg:pt-5">
-              <button
-                onClick={handleBack}
-                className="flex h-9 w-9 items-center justify-center rounded-full transition-all hover:bg-white/10"
-                style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.55)' }}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <div className="flex items-center gap-1.5">
-                {Array.from({ length: stepCount }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-1.5 rounded-full transition-all duration-300"
-                    style={{
-                      width: i === stepIndex ? '20px' : '7px',
-                      background: i === stepIndex ? 'rgba(255,255,255,0.9)' : i < stepIndex ? 'rgba(255,255,255,0.40)' : 'rgba(255,255,255,0.15)',
-                    }}
-                  />
-                ))}
-              </div>
-              <span className="text-xs font-medium text-white/35 tabular-nums">{stepIndex + 1}/{stepCount}</span>
-            </div>
-          )
-        })()}
-
-        {/* Kiválasztott szakember csík — a szolgáltatás-választástól az összegzésig mindvégig
-            látható, hogy a bizalmi infó (bemutatkozás + social) ne vesszen el a folyamat közben.
-            Kattintásra HELYBEN kinyílik (nem navigál el), hogy egy hosszabb bemutatkozás is
-            elférjen — a szakember-váltás külön, explicit gombbal történik a kinyílt panelben,
-            nem a kártya egészének (nem egyértelmű) kattintásával. "Bármelyik szakember"
-            esetén nincs kit mutatni. A főnézeten SOHA nem jelenik meg (1 szakembernél is a lenti
-            Munkatársak-rács mutatja, konzisztensen a több szakemberes esettel). */}
-        {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && displayStaff && (() => {
-          const avatarUrl = displayStaff.avatar && typeof displayStaff.avatar === 'object' ? (displayStaff.avatar as Media).url ?? null : null
-          const links = (displayStaff.social_links ?? []).map((s) => s.url).filter(Boolean)
-          return (
-            <div data-edit-id={`staff:${displayStaff.id}`} className="mx-5 mb-2 shrink-0 overflow-hidden rounded-2xl lg:mx-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <button
-                type="button"
-                onClick={() => setStaffStripOpen(o => !o)}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
-              >
-                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white/10">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={displayStaff.name} className="h-full w-full object-cover object-top" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold text-white/40">{displayStaff.name[0]}</div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] font-semibold leading-tight text-white">{displayStaff.name}</p>
-                  {displayStaff.bio && <p className="mt-0.5 truncate text-[11px] text-white/45">{displayStaff.bio}</p>}
-                </div>
-                <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-white/35 transition-transform ${staffStripOpen ? 'rotate-180' : ''}`} />
-              </button>
-              <AnimatePresence initial={false}>
-                {staffStripOpen && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                    className="overflow-hidden"
-                  >
-                    <div className="border-t px-3 pb-3 pt-2.5" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-                      {displayStaff.bio && <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-white/60">{displayStaff.bio}</p>}
-                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                        {links.map((url) => {
-                          const platform = detectPlatform(url)
-                          return (
-                            <a
-                              key={url}
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] transition-colors hover:bg-white/[0.14]"
-                              aria-label={SOCIAL_LABELS[platform]}
-                            >
-                              <img src={socialIconDataUri(platform)} alt="" className="h-5 w-5 rounded-full" />
-                            </a>
-                          )
-                        })}
-                        {staff.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => { setStaffStripOpen(false); goTo('main', null, null, -1) }}
-                            className="ml-auto text-[12px] font-medium text-white/45 underline-offset-2 transition-colors hover:text-white hover:underline"
-                          >
-                            Szakember váltása
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            // design 21.7: vissza, pötty-haladás, „2/4” — az első lépésen desktopon nincs hová visszalépni
+            <div className="flex shrink-0 items-center justify-between px-6 pb-2 pt-5">
+              {view === 'services' && !isMobile
+                ? <span className="h-9 w-9" />
+                : <IconButton icon={ArrowLeft} label={tt('public.back')} size="sm" variant={c.dark ? 'onDark' : 'cell'} onClick={handleBack} />}
+              <span className="flex items-center gap-1.5">
+                {Array.from({ length: stepCount }).map((_, i) => <span key={i} className={`block h-2 shrink-0 rounded-full transition-all duration-300 ${i === stepIndex ? `w-7 ${c.dark ? 'bg-white' : 'bg-ui-dark'}` : `w-2 ${c.dark ? 'bg-white/30' : 'bg-ui-dark/20'}`}`} />)}
+              </span>
+              <span className={`text-ui-meta tabular-nums ${c.meta}`}>{stepIndex + 1}/{stepCount}</span>
             </div>
           )
         })()}
 
         {/* Scrollable content — header + tartalom együtt scrollozik */}
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6" data-lenis-prevent style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          <div className={view === 'main' ? 'pb-4 pt-5 lg:pt-6' : 'pb-4 pt-2'}>
-            {view === 'main' ? (
-              <>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/35">{tl(locale, 'public.eyebrow')}</p>
-                <h2 data-edit-id="name" className="mt-0.5 text-[20px] font-light leading-tight tracking-[-0.02em] text-white">{salonName}</h2>
-                {(salonDescription || salonAddress || salonCity) && (
-                  <div className="mt-4 space-y-2.5">
-                    {salonDescription && (
-                      <p data-edit-id="desc" className="line-clamp-2 text-[12px] leading-relaxed text-white/50">{salonDescription}</p>
-                    )}
-                    {(salonAddress || salonCity) && (
-                      <p data-edit-id="address" className="flex items-center gap-1.5 text-[12px] text-white/55">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        {[salonAddress, salonCity].filter(Boolean).join(', ')}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {(phone || email || website || (socialLinks ?? []).some(Boolean)) && (
-                  <div data-edit-id="contact" className="mt-3 flex flex-wrap gap-2">
-                    {phone && (
-                      <a href={`tel:${phone}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                        <Phone className="h-3.5 w-3.5 shrink-0" />{phone}
-                      </a>
-                    )}
-                    {email && (
-                      <a href={`mailto:${email}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                        <Mail className="h-3.5 w-3.5 shrink-0" />{email}
-                      </a>
-                    )}
-                    {website && (
-                      <a href={website} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                        <Globe className="h-3.5 w-3.5 shrink-0" />{tl(locale, 'public.website')}
-                      </a>
-                    )}
-                    {(socialLinks ?? []).filter(Boolean).map((url) => {
-                      const platform = detectPlatform(url)
-                      return (
-                        <a key={url} href={url} target="_blank" rel="noopener noreferrer" aria-label={SOCIAL_LABELS[platform]} className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-white/[0.06] transition-colors hover:bg-white/[0.12] active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                          <img src={socialIconDataUri(platform)} alt="" className="h-6 w-6 rounded-full" />
-                        </a>
-                      )
-                    })}
-                  </div>
-                )}
-              </>
-            ) : null}
-            <div className="mt-4 h-px bg-white/[0.08]" />
-          </div>
+          <div className="pb-4 pt-2"><div className="mt-4 h-px bg-white/[0.08]" /></div>
           {/* overflow-x-clip: a lépésváltó ±40px-es csúszása és a hibás mezőre fókuszálás ne
               tudja vízszintesen elgörgetni a tartalmat (a hidden ezt programból még engedné). */}
           <div className="overflow-x-clip pt-0">
@@ -998,414 +876,106 @@ export function ProfileCard({
               transition={stepSlideTransition}
             >
 
-              {/* MAIN */}
-              {view === 'main' && (
-                <div className="flex flex-col gap-5 pb-2">
-                  {sectionShown('services') && bookableServices.length > 0 && (
-                    <div {...sectionProps('services')}>
-                      <div className="mb-3 flex items-center gap-2">
-                        <Tag className="h-3.5 w-3.5 text-white/40" />
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.services')}</p>
-                      </div>
-                      {servicesExpandedOnMain ? (
-                        // `booking_rules.services_expanded_on_main` — a katalógus rögtön kibontva,
-                        // a "Válassz szolgáltatást" gomb nélkül. Kategóriánál a csempe még mindig
-                        // a `services` nézetbe navigál (a konkrét szolgáltatás kiválasztásához úgyis
-                        // kell egy további lépés), de a kezdő plusz-kattintás megspórolódik.
-                        <div className="space-y-1.5">
-                          {categoryGroups.length > 0 ? (
-                            <>
-                              {categoryGroups.map(group => {
-                                const catImgUrl = group.image && typeof group.image === 'object'
-                                  ? (group.image as Media).url ?? null : null
-                                return (
-                                  <button
-                                    key={group.id}
-                                    onClick={() => { setPreStaffId(null); goTo('services', group.id) }}
-                                    className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
-                                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-                                  >
-                                    {catImgUrl && (
-                                      <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
-                                        <img src={catImgUrl} alt={group.name} className="h-full w-full object-cover" />
-                                      </div>
-                                    )}
-                                    <div className="min-w-0 flex-1 px-3 py-3">
-                                      <p className="text-[13px] font-semibold text-white">{group.name}</p>
-                                      <p className="mt-0.5 text-[11px] text-white/45">{tt('public.serviceCount', { n: group.services.length })}</p>
-                                    </div>
-                                    <ChevronRight className="mr-3 h-3.5 w-3.5 shrink-0 text-white/35" />
-                                  </button>
-                                )
-                              })}
-                              {uncategorizedServices.map(s => renderServiceRow(s, () => { setPreStaffId(null); goTo('serviceDetail', null, String(s.id)) }))}
-                            </>
-                          ) : (
-                            bookableServices.map(s => renderServiceRow(s, () => { setPreStaffId(null); goTo('serviceDetail', null, String(s.id)) }))
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setPreStaffId(null); goTo('services', null) }}
-                          className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
-                          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-                        >
-                          <div>
-                            <p className="text-[13px] font-semibold text-white">{tt('public.chooseService')}</p>
-                            <p className="text-[11px] text-white/45">{tt('public.serviceCount', { n: bookableServices.length })}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
-                        </button>
-                      )}
-                    </div>
+              {/* 1. lépés — Mit szeretnél? (design 21.1): kategória-pillek (szűrő, nem lépés) és a szolgáltatások képpel,
+                  időtartammal, árral — a megjelenésük a Foglalóoldal › Szolgáltatások beállítása szerint */}
+              {view === 'services' && (
+                <div data-edit-id="sec:services" className="pb-2">
+                  <div className="text-ui-title font-light">{tt('public.whatWouldYouLike')}</div>
+                  {preStaff && <div className={`mt-1 text-ui-meta ${c.meta}`}>{tt('public.staffServices', { name: preStaff.name })}</div>}
+                  {servicesDisplay.filter && categoryGroups.length > 0 && (
+                    <CardPills c={c} className="mt-3" options={[tt('public.all'), ...categoryGroups.map((g) => g.name)]}
+                      active={selectedCategoryId === null ? 0 : categoryGroups.findIndex((g) => g.id === selectedCategoryId) + 1}
+                      onSelect={(i) => setSelectedCategoryId(i === 0 ? null : categoryGroups[i - 1].id)} />
                   )}
-                  {sectionShown('voucher') && voucherEnabled && (
-                    <div {...sectionProps('voucher')}>
-                      <div className="mb-3 flex items-center gap-2">
-                        <Gift className="h-3.5 w-3.5 text-white/40" />
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('public.voucher')}</p>
-                      </div>
-                      <button
-                        onClick={() => goTo('voucher', null)}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
-                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-                      >
-                        <div>
-                          <p className="text-[13px] font-semibold text-white">{tt('public.voucher.buy')}</p>
-                          <p className="text-[11px] text-white/45">{tt('public.voucher.buySubtitle')}</p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
-                      </button>
-                    </div>
-                  )}
-                  {/* 1 szakembernél is mutatjuk (egyetlen csempeként) — konzisztens elrendezés
-                      a több szakemberes nézettel, nem külön kompakt fejléc-csíkkal. */}
-                  {sectionShown('staff') && staff.length > 0 && (
-                    <div {...sectionProps('staff')}>
-                      <div className="mb-3 flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 text-white/40" />
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.staff')}</p>
-                      </div>
-                      <div className={`grid ${staffCols} gap-2`}>
-                        {staff.map(m => {
-                          const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
-                          const links = (m.social_links ?? []).map((s) => s.url).filter(Boolean)
-                          return (
-                            <div
-                              key={m.id}
-                              data-edit-id={`staff:${m.id}`}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => { setPreStaffId(String(m.id)); goTo('services', null) }}
-                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreStaffId(String(m.id)); goTo('services', null) } }}
-                              className="relative cursor-pointer transition-opacity hover:opacity-90"
-                              style={{ aspectRatio: '3/4', clipPath: 'inset(0 round 12px)' }}
-                            >
-                              <div className="absolute inset-0 bg-ink/[0.07]">
-                                {avatarUrl ? (
-                                  <img src={avatarUrl} alt={m.name} className="absolute inset-0 h-full w-full object-cover object-top" />
-                                ) : (
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <span className="text-[32px] font-semibold text-white/25">{m.name[0]}</span>
-                                  </div>
-                                )}
-                                {links.length > 0 && (
-                                  <div className="absolute right-1.5 top-1.5 flex gap-1">
-                                    {links.slice(0, 2).map((url) => {
-                                      const platform = detectPlatform(url)
-                                      return (
-                                        <a
-                                          key={url}
-                                          href={url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          onClick={(e) => e.stopPropagation()}
-                                          aria-label={SOCIAL_LABELS[platform]}
-                                          className="flex h-5 w-5 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-colors hover:bg-black/60"
-                                        >
-                                          <img src={socialIconDataUri(platform)} alt="" className="h-3.5 w-3.5 rounded-full" />
-                                        </a>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                                <div
-                                  className="absolute inset-x-0 bottom-0 flex min-h-[52px] flex-col justify-center px-2.5 py-2.5"
-                                  style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
-                                >
-                                  <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
-                                  {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/65">{m.bio}</p>}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {sectionShown('reviews') && google && (
-                    <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} openLabel={tt('public.googleReviewOpen')} /></div>
-                  )}
+                  <div className="mt-3 space-y-1">
+                    {(servicesDisplay.filter ? servicesInView : visibleServices).map((s) => renderServiceRow(s, () => goTo('serviceDetail', selectedCategoryId, String(s.id))))}
+                  </div>
                 </div>
               )}
 
-              {/* SERVICES — category list */}
-              {view === 'services' && categoryGroups.length > 0 && selectedCategoryId === null && (
+              {/* 2. lépés — Kihez szeretnél menni? (design 21.7): „Bárki” (a legkorábbi szabad időponttal) vagy aki ezt végzi —
+                  fotóval, szerepkörrel / bemutatkozással és a közösségi linkjeivel. A választás rögtön az időpontra visz. */}
+              {view === 'serviceDetail' && selectedService && (
                 <div className="pb-2">
-                  <h3 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tl(locale, 'public.services')}</h3>
-                  <div className="space-y-1.5">
-                    {categoryGroups.map(group => {
-                      const catImgUrl = group.image && typeof group.image === 'object'
-                        ? (group.image as Media).url ?? null : null
+                  <div className="text-ui-title font-light">{tt('booking.whoTitle')}</div>
+                  <div className={`mt-1 text-ui-meta ${c.meta}`}>{selectedService.name} · {selectedService.duration_minutes} {tt('booking.minutes')} · {priceLabel(selectedService.price, selectedService.currency)}</div>
+                  {selectedService.description && <p className={`mt-2 text-ui-meta leading-relaxed ${c.meta}`}>{selectedService.description}</p>}
+                  <div className="mt-3 space-y-1">
+                    {!preStaff && serviceStaff.length > 1 && (
+                      <CardRow c={c} onClick={() => pickStaff(null)} leading={<IconCircle tone={c.dark ? 'onDark' : 'cell'} size="md" icon={Users} />}
+                        title={tt('booking.staff.any')} meta={tt('booking.staff.bestSlot')} trailing={nextFree && <span className={`shrink-0 text-ui-meta ${nextFree.any ? '' : c.meta}`}>{nextLabel(nextFree.any)}</span>} />
+                    )}
+                    {(preStaff ? [preStaff] : serviceStaff).map((m) => {
+                      const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
+                      const about = (m as { role_title?: string | null }).role_title?.trim() || m.bio?.trim() || null
+                      const nf = nextFree?.staff[String(m.id)]
                       return (
-                        <button
-                          key={group.id}
-                          onClick={() => goTo('services', group.id)}
-                          className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
-                          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-                        >
-                          {catImgUrl && (
-                            <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
-                              <img src={catImgUrl} alt={group.name} className="h-full w-full object-cover" />
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1 px-3 py-3">
-                            <p className="text-[13px] font-semibold text-white">{group.name}</p>
-                            <p className="mt-0.5 text-[11px] text-white/45">{tt('public.serviceCount', { n: group.services.length })}</p>
-                          </div>
-                          <ChevronRight className="mr-3 h-3.5 w-3.5 shrink-0 text-white/35" />
-                        </button>
+                        <div key={m.id} data-edit-id={`staff:${m.id}`}>
+                          <CardRow c={c} onClick={() => pickStaff(String(m.id))} leading={<Avatar size="md" src={avatarUrl} name={m.name} />}
+                            title={m.name} meta={about ?? undefined}
+                            trailing={nextFree ? <span className={`shrink-0 text-ui-meta ${nf ? '' : c.meta}`}>{nextLabel(nf ?? null)}</span> : <ChevronRight className={`h-4 w-4 shrink-0 ${c.meta}`} />} />
+                        </div>
                       )
                     })}
                   </div>
-                  {/* Kategória nélküli szolgáltatások — közvetlenül, a saját nevükkel, a
-                      kategória-csempék alatt, mesterséges "Egyéb" csoport nélkül. */}
-                  {uncategorizedServices.length > 0 && (
-                    <div className="mt-1.5 space-y-1.5">
-                      {uncategorizedServices.map(s => renderServiceRow(s, () => goTo('serviceDetail', null, String(s.id))))}
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* SERVICES — service list */}
-              {view === 'services' && (categoryGroups.length === 0 || selectedCategoryId !== null) && (
-                <div className="pb-2">
-                  <h3 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{selectedCategory?.name ?? tl(locale, 'public.services')}</h3>
-                  {preStaff && (
-                    <p className="mb-4 text-[12px] text-white/45">{preStaff.name} szolgáltatásai</p>
-                  )}
-                  <div className={cn('space-y-1.5', !preStaff && 'mt-4')}>
-                    {servicesInView.map(s => renderServiceRow(s, () => goTo('serviceDetail', selectedCategoryId, String(s.id))))}
-                  </div>
-                </div>
-              )}
-
-              {/* SERVICE DETAIL */}
-              {view === 'serviceDetail' && selectedService && (
-                <div className="pb-2">
-                  {serviceImgUrl && (
-                    <div className="mb-4 h-[160px] w-full overflow-hidden rounded-2xl">
-                      <img src={serviceImgUrl} alt={selectedService.name} className="h-full w-full object-cover" />
-                    </div>
-                  )}
-                  <h3 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{selectedService.name}</h3>
-                  <p className="flex items-center gap-1 text-[12px] text-white/45">
-                    <Clock className="h-3 w-3" />{selectedService.duration_minutes} {tt('booking.minutes')} · {priceLabel(selectedService.price, selectedService.currency)}
-                  </p>
-                  {selectedService.description && (
-                    <p className="mt-3 text-[13px] leading-relaxed text-white/60">{selectedService.description}</p>
-                  )}
-                  {preStaff ? (
-                    <button
-                      onClick={() => startBooking(preStaffId)}
-                      className="mt-5 flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-all active:scale-[0.98]"
-                      style={{ background: 'rgba(255,255,255,0.08)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)' }}
-                    >
-                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-white/10">
-                        {preStaff.avatar && typeof preStaff.avatar === 'object' && (preStaff.avatar as Media).url ? (
-                          <img src={(preStaff.avatar as Media).url ?? undefined} alt={preStaff.name} className="absolute inset-0 h-full w-full object-cover object-top" />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center"><User className="h-6 w-6 text-white/40" /></div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] text-white/45">Munkatárs</p>
-                        <p className="truncate text-[14px] font-semibold text-white">{preStaff.name}</p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
-                    </button>
-                  ) : serviceStaff.length > 0 && (
-                    <div className="mt-5 grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => startBooking(null)}
-                        className="relative transition-all active:scale-[0.97]"
-                        style={{
-                          aspectRatio: '3/4',
-                          background: 'rgba(255,255,255,0.08)',
-                          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)',
-                          clipPath: 'inset(0 round 16px)',
-                        }}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Users className="h-10 w-10 text-white/25" />
-                        </div>
-                        <div
-                          className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left"
-                          style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
-                        >
-                          <p className="truncate text-[12px] font-semibold leading-tight text-white">{tt('booking.staff.any')}</p>
-                          <p className="mt-0.5 truncate text-[10px] text-white/60">{tt('booking.staff.bestSlot')}</p>
-                        </div>
-                      </button>
-                      {serviceStaff.map(m => {
-                        const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
-                        const links = (m.social_links ?? []).map((s) => s.url).filter(Boolean)
-                        return (
-                          <div
-                            key={m.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => startBooking(String(m.id))}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startBooking(String(m.id)) } }}
-                            className="relative cursor-pointer transition-all active:scale-[0.97]"
-                            style={{
-                              aspectRatio: '3/4',
-                              background: 'rgba(255,255,255,0.08)',
-                              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)',
-                              clipPath: 'inset(0 round 16px)',
-                            }}
-                          >
-                            {avatarUrl
-                              ? <img src={avatarUrl} alt={m.name} className="absolute inset-0 h-full w-full object-cover object-top" />
-                              : <div className="absolute inset-0 flex items-center justify-center"><User className="h-10 w-10 text-white/25" /></div>
-                            }
-                            {links.length > 0 && (
-                              <div className="absolute right-1.5 top-1.5 flex gap-1">
-                                {links.slice(0, 2).map((url) => {
-                                  const platform = detectPlatform(url)
-                                  return (
-                                    <a
-                                      key={url}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      aria-label={SOCIAL_LABELS[platform]}
-                                      className="flex h-5 w-5 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-colors hover:bg-black/60"
-                                    >
-                                      <img src={socialIconDataUri(platform)} alt="" className="h-3.5 w-3.5 rounded-full" />
-                                    </a>
-                                  )
-                                })}
-                              </div>
-                            )}
-                            <div
-                              className="absolute inset-x-0 bottom-0 flex min-h-[52px] flex-col justify-center px-2.5 py-2.5 text-left"
-                              style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
-                            >
-                              <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
-                              {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/60">{m.bio}</p>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* DATETIME */}
+              {/* 3. lépés — Mikor legyen? (design 21.7): fent a választott (Módosít), a napok (a naptár-gombbal a távolabbiak)
+                  és a szabad időpontok — a választott a márkaszínben; választás után rögtön az Adatok jön */}
               {view === 'datetime' && bookingService && (
                 <div>
-                  <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.when.title')}</h2>
-                  <p className="mb-4 text-xs text-white/45">
-                    {bookingStaffId ? bookingStaff?.name : tt('booking.staff.any')} · {bookingService.name} · {bookingService.duration_minutes} {tt('booking.minutes')}
-                  </p>
-                  <div data-edit-id="rules" className="mb-3 overflow-hidden rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                    <DateStrip
-                      selected={bookingDate}
-                      onChange={d => { setBookingDate(d); setBookingSlot(null) }}
-                      dayCount={bookingWindowDays}
-                      locale={locale}
-                      dark
-                    />
-                  </div>
-                  <div data-edit-id="rules" className={cn('rounded-2xl p-4 pb-6', bookingWindowDays <= 0 && 'hidden')} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
-                      {format(bookingDateParsed, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}
-                    </p>
-                    {loadingSlots ? (
-                      <div className="flex items-center justify-center gap-2 py-6 text-white/45">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-sm">{tt('booking.loading')}</span>
+                  <Picked title={`${bookingService.name} · ${bookingStaffId ? bookingStaff?.name ?? '' : tt('booking.staff.any')}`}
+                    meta={`${bookingService.duration_minutes} ${tt('booking.minutes')} · ${priceLabel(bookingService.price, bookingService.currency)}`}
+                    onChange={() => { setDir(-1); setView('serviceDetail') }} />
+                  <div className="mt-5 text-ui-title font-light">{tt('booking.when.title')}</div>
+                  {bookingWindowDays <= 0 ? (
+                    <p className={`mt-2 text-ui-meta ${c.meta}`}>{tt('dateStrip.closed')}</p>
+                  ) : (
+                    <>
+                      <div data-edit-id="rules" ref={stripRef}>
+                        <CardDayPicker c={c} className="mt-2" days={pickDays} onPick={(k) => { setBookingDate(k); setBookingSlot(null) }} />
                       </div>
-                    ) : slotsError ? (
-                      <div className="py-6 text-center" role="alert">
-                        <p className="text-[13px] text-white/55">{tt('booking.err.slots')}</p>
-                        <button onClick={loadSlots} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-ink-dark">
-                          {tt('booking.retry')}
-                        </button>
-                      </div>
-                    ) : slots.length === 0 ? (
-                      <div className="py-6 text-center">
-                        <p className="text-[13px] text-white/55">{tt('booking.noSlots')}</p>
-                        <p className="mt-1 text-xs text-white/35">{tt('booking.noSlotsHint')}</p>
-                      </div>
-                    ) : (
-                      <div
-                        key={`${bookingDate}-${slots.length}`}
-                        className="grid grid-cols-3 gap-2"
-                      >
-                        {slots.map((slot, i) => {
-                          const sel = bookingSlot?.start === slot.start
-                          return (
-                            <motion.button
-                              key={slot.start}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.22, ease: 'easeOut', delay: i * 0.035 }}
-                              onClick={() => {
-                                setBookingSlot(slot)
-                                setTimeout(() => { setDir(1); setView('details') }, 260)
-                              }}
-                              className="rounded-xl py-3 text-sm font-semibold transition-all active:scale-[0.96]"
-                              style={{
-                                background: sel ? 'white' : 'rgba(255,255,255,0.08)',
-                                border: `1.5px solid ${sel ? 'white' : 'rgba(255,255,255,0.12)'}`,
-                                color: sel ? 'var(--ink-dark)' : 'white',
-                                boxShadow: sel ? '0 0 0 3px rgba(255,255,255,0.12)' : undefined,
-                              }}
-                            >
-                              {slot.start}
-                            </motion.button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
+                      <div className={`mt-3 text-ui-label ${c.meta}`}>{format(bookingDateParsed, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}</div>
+                      {loadingSlots ? (
+                        <div className={`flex items-center justify-center gap-2 py-6 ${c.meta}`}><Loader2 className="h-4 w-4 animate-spin" /><span className="text-ui-meta">{tt('booking.loading')}</span></div>
+                      ) : slotsError ? (
+                        <div className="py-6 text-center" role="alert">
+                          <p className={`text-ui-meta ${c.meta}`}>{tt('booking.err.slots')}</p>
+                          <Button size="sm" variant={c.dark ? 'onDark' : 'cell'} className="mt-3" onClick={loadSlots}>{tt('booking.retry')}</Button>
+                        </div>
+                      ) : slots.length === 0 ? (
+                        <div className="py-6 text-center">
+                          <p className={`text-ui-meta ${c.meta}`}>{tt('booking.noSlots')}</p>
+                          <p className={`mt-1 text-ui-label ${c.meta}`}>{tt('booking.noSlotsHint')}</p>
+                        </div>
+                      ) : (
+                        <CardSlotGrid c={c} className="mt-2" slots={slots.map((x) => x.start)} on={bookingSlot?.start}
+                          onPick={(t) => { const slot = slots.find((x) => x.start === t); if (!slot) return; setBookingSlot(slot); setTimeout(() => { setDir(1); setView('details') }, 260) }} />
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
               {/* DETAILS */}
               {view === 'details' && (
                 <div>
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.details.title')}</h2>
+                  <h2 className="mb-4 text-ui-title font-light">{tt('booking.details.title')}</h2>
                   {/* Előleg-tájékoztató MÁR az adatoknál — a vendég előre tudja, mennyi, mikor és visszajár-e */}
                   {depositEnabled && depositInfo && (
-                    <div data-edit-id="deposit" className="mb-4 flex gap-3 rounded-2xl p-4" style={{ background: 'rgba(241,206,69,0.10)', border: '1px solid rgba(241,206,69,0.30)' }}>
-                      <HandCoins className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.7} />
-                      <div className="text-[13px] leading-relaxed text-white/70">
-                        <p className="font-semibold text-white">{(() => { const n = salonDepositNotice(depositInfo, selectedService && (selectedService.currency ?? 'HUF') === 'HUF' ? selectedService.price : null); return tt(n.key, n.params) })()}</p>
+                    <div data-edit-id="deposit" className={`mb-4 flex gap-3 rounded-ui-inner p-4 ${c.row}`}>
+                      <HandCoins className="mt-0.5 h-5 w-5 shrink-0 text-ui-yellow" strokeWidth={1.7} />
+                      <div className="text-ui-meta leading-relaxed opacity-80">
+                        <p className="font-semibold">{(() => { const n = salonDepositNotice(depositInfo, selectedService && (selectedService.currency ?? 'HUF') === 'HUF' ? selectedService.price : null); return tt(n.key, n.params) })()}</p>
                         <p>{tt('public.deposit.noticeHow')} {depositInfo.refundHours > 0 ? tt('public.deposit.noticeRefund', { hours: depositInfo.refundHours }) : tt('public.deposit.noticeRefundAny')}</p>
                       </div>
                     </div>
                   )}
                   {rememberedGuest && (
-                    <p className="-mt-2 mb-3 text-[12px] text-white/50">
+                    <p className={`-mt-2 mb-3 text-ui-label ${c.meta}`}>
                       {tt('booking.details.remembered')}{' '}
-                      <button type="button" onClick={forgetRememberedGuest} className="font-semibold text-white/80 underline underline-offset-2 hover:text-white">
+                      <button type="button" onClick={forgetRememberedGuest} className="font-semibold opacity-80 underline underline-offset-2">
                         {tt('booking.details.forget')}
                       </button>
                     </p>
@@ -1417,44 +987,44 @@ export function ProfileCard({
                       const fieldBlocks: Record<FormFieldId, ReactNode> = {
                         name: (
                       <div data-edit-id="field:name" key={`name-${detailsShakeKey}`} className={cn('space-y-1', errors.name && 'animate-shake')}>
-                        <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.name')}</Label>
+                        <Label htmlFor="bk-name" className={`text-ui-label ${c.meta}`}>{tt('booking.field.name')}</Label>
                         <Input
                           id="bk-name" ref={fieldRefs.name} value={customerName}
                           onChange={e => { setCustomerName(e.target.value); clearError('name') }}
                           onBlur={() => onFieldBlur('name')}
                           autoComplete="name" aria-invalid={!!errors.name}
                           placeholder={tt('booking.field.namePlaceholder')}
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.name && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.name && 'ring-1 ring-red-400')}
                         />
-                        {errors.name && <p role="alert" className="text-[12px] text-red-400">{errors.name}</p>}
+                        {errors.name && <p role="alert" className="text-ui-label text-red-400">{errors.name}</p>}
                       </div>
                         ),
                         email: (
                       <div data-edit-id="field:email" key={`email-${detailsShakeKey}`} className={cn('space-y-1', errors.email && 'animate-shake')}>
-                        <Label htmlFor="bk-email" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.email')}</Label>
+                        <Label htmlFor="bk-email" className={`text-ui-label ${c.meta}`}>{tt('booking.field.email')}</Label>
                         <Input
                           id="bk-email" ref={fieldRefs.email} type="email" inputMode="email" autoComplete="email" value={customerEmail}
                           onChange={e => { setCustomerEmail(e.target.value); clearError('email') }}
                           onBlur={() => onFieldBlur('email')}
                           aria-invalid={!!errors.email}
                           placeholder={tt('booking.field.emailPlaceholder')}
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.email && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.email && 'ring-1 ring-red-400')}
                         />
-                        {errors.email && <p role="alert" className="text-[12px] text-red-400">{errors.email}</p>}
+                        {errors.email && <p role="alert" className="text-ui-label text-red-400">{errors.email}</p>}
                       </div>
                         ),
                         phone: (
                       <div data-edit-id="field:phone" key={`phone-${detailsShakeKey}`} className={cn('space-y-1', errors.phone && 'animate-shake')}>
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
                         <PhoneCountryInput
                           inputRef={fieldRefs.phone} country={customerCountry} phone={customerPhone}
                           onCountryChange={code => setCustomerCountry(code)}
                           onPhoneChange={p => { setCustomerPhone(p); clearError('phone') }}
                           onBlur={() => onFieldBlur('phone')} required={requirePhone}
                           dark
-                          inputClass={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] px-3 text-[14px] font-medium text-white placeholder:text-white/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/50 backdrop-blur-[10px]', errors.phone && 'ring-1 ring-red-400')}
+                          inputClass={cn(inputCls, errors.phone && 'ring-1 ring-red-400')}
                         />
-                        {errors.phone && <p role="alert" className="text-[12px] text-red-400">{errors.phone}</p>}
+                        {errors.phone && <p role="alert" className="text-ui-label text-red-400">{errors.phone}</p>}
                       </div>
                         ),
                         address: (
@@ -1462,12 +1032,12 @@ export function ProfileCard({
                       {/* Előlegnél a cím a SZÁMLÁHOZ kell — ezt egyszer, fejlécként mondjuk el (nem mezőnként) */}
                       {depositEnabled && (
                         <div className="pt-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">{tt('booking.details.billing')}</p>
-                          <p className="text-[12px] text-white/45">{tt('booking.details.billingWhy')}</p>
+                          <p className="text-ui-label font-semibold uppercase tracking-[0.12em] opacity-80">{tt('booking.details.billing')}</p>
+                          <p className={`text-ui-label ${c.meta}`}>{tt('booking.details.billingWhy')}</p>
                         </div>
                       )}
                       <div data-edit-id="field:address" key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
-                        <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                        <Label htmlFor="bk-city" className={`text-ui-label ${c.meta}`}>
                           {addressGateOn ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
                         </Label>
                         <Input
@@ -1476,14 +1046,14 @@ export function ProfileCard({
                           onBlur={() => onFieldBlur('city')}
                           aria-invalid={!!errors.city}
                           autoComplete="address-level2" placeholder={tt('booking.field.cityPlaceholder')}
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.city && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.city && 'ring-1 ring-red-400')}
                         />
-                        {errors.city && <p role="alert" className="text-[12px] text-red-400">{errors.city}</p>}
-                        {addressGateOn && !depositEnabled && !errors.city && <p className="text-[11px] text-white/40">{addressNote}</p>}
+                        {errors.city && <p role="alert" className="text-ui-label text-red-400">{errors.city}</p>}
+                        {addressGateOn && !depositEnabled && !errors.city && <p className={`text-ui-label ${c.meta}`}>{addressNote}</p>}
                       </div>
                       {!addressCityOnly && (
                       <div data-edit-id="field:address" key={`address-${detailsShakeKey}`} className={cn('space-y-1', errors.address && 'animate-shake')}>
-                        <Label htmlFor="bk-address" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                        <Label htmlFor="bk-address" className={`text-ui-label ${c.meta}`}>
                           {addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
                         </Label>
                         <Input
@@ -1492,30 +1062,30 @@ export function ProfileCard({
                           onBlur={() => onFieldBlur('address')}
                           aria-invalid={!!errors.address}
                           autoComplete="street-address" placeholder="Pl. Fő utca 12."
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.address && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.address && 'ring-1 ring-red-400')}
                         />
-                        {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
-                        {addressGateOn && !depositEnabled && !errors.address && <p className="text-[11px] text-white/40">{addressNote}</p>}
+                        {errors.address && <p role="alert" className="text-ui-label text-red-400">{errors.address}</p>}
+                        {addressGateOn && !depositEnabled && !errors.address && <p className={`text-ui-label ${c.meta}`}>{addressNote}</p>}
                       </div>
                       )}
                       {depositEnabled && invoicingEnabled && (
                         <>
-                          <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
-                            <span className="text-[13px] text-white/80">{tt('public.voucher.companyToggle')}</span>
+                          <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
+                            <span className="text-ui-meta opacity-80">{tt('public.voucher.companyToggle')}</span>
                             <Switch checked={customerIsCompany} onChange={setCustomerIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                           </div>
                           {customerIsCompany && (
                             <div key={`taxNumber-${detailsShakeKey}`} className={cn('space-y-1', errors.taxNumber && 'animate-shake')}>
-                              <Label htmlFor="bk-taxnumber" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.taxNumber')} *</Label>
+                              <Label htmlFor="bk-taxnumber" className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumber')} *</Label>
                               <Input
                                 id="bk-taxnumber" ref={fieldRefs.taxNumber} value={customerTaxNumber}
                                 onChange={e => { setCustomerTaxNumber(e.target.value); clearError('taxNumber') }}
                                 onBlur={() => onFieldBlur('taxNumber')}
                                 aria-invalid={!!errors.taxNumber}
                                 placeholder="12345678-1-42"
-                                className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.taxNumber && 'ring-1 ring-red-400')}
+                                className={cn(inputCls, errors.taxNumber && 'ring-1 ring-red-400')}
                               />
-                              {errors.taxNumber ? <p role="alert" className="text-[12px] text-red-400">{errors.taxNumber}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.taxNumberHint')}</p>}
+                              {errors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{errors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumberHint')}</p>}
                             </div>
                           )}
                         </>
@@ -1530,7 +1100,7 @@ export function ProfileCard({
                         if (q.type === 'yesno') {
                           return (
                             <div key={key} className="flex items-center justify-between gap-4 py-1">
-                              <Label className="text-[13px] font-medium text-white/85">{q.label}</Label>
+                              <Label className="text-ui-meta font-medium opacity-80">{q.label}</Label>
                               <Switch
                                 checked={val === 'Igen'}
                                 onChange={(v) => setCustomAnswers(a => ({ ...a, [key]: v ? 'Igen' : 'Nem' }))}
@@ -1542,42 +1112,42 @@ export function ProfileCard({
                         if (q.type === 'select') {
                           return (
                             <div key={`${key}-${detailsShakeKey}`} className={cn('space-y-1', err && 'animate-shake')}>
-                              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{q.label}{q.required ? ' *' : ''}</Label>
+                              <Label className={`text-ui-label ${c.meta}`}>{q.label}{q.required ? ' *' : ''}</Label>
                               <select
                                 value={val}
                                 onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
-                                className={cn('h-11 w-full rounded-[12px] border border-white/10 bg-white/[0.06] px-3 text-[14px] font-medium text-white focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', err && 'ring-1 ring-red-400')}
+                                className={cn(inputCls, 'w-full', err && 'ring-1 ring-red-400')}
                               >
-                                <option value="" className="text-ink">Válassz…</option>
+                                <option value="" className="text-ui-text">Válassz…</option>
                                 {(q.options ?? []).map((o, oi) => o.value ? (
-                                  <option key={oi} value={o.value} className="text-ink">{o.value}</option>
+                                  <option key={oi} value={o.value} className="text-ui-text">{o.value}</option>
                                 ) : null)}
                               </select>
-                              {err && <p role="alert" className="text-[12px] text-red-400">{err}</p>}
+                              {err && <p role="alert" className="text-ui-label text-red-400">{err}</p>}
                             </div>
                           )
                         }
                         return (
                           <div key={`${key}-${detailsShakeKey}`} className={cn('space-y-1', err && 'animate-shake')}>
-                            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{q.label}{q.required ? ' *' : ''}</Label>
+                            <Label className={`text-ui-label ${c.meta}`}>{q.label}{q.required ? ' *' : ''}</Label>
                             <Input
                               value={val}
                               onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
                               aria-invalid={!!err}
-                              className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', err && 'ring-1 ring-red-400')}
+                              className={cn(inputCls, err && 'ring-1 ring-red-400')}
                             />
-                            {err && <p role="alert" className="text-[12px] text-red-400">{err}</p>}
+                            {err && <p role="alert" className="text-ui-label text-red-400">{err}</p>}
                           </div>
                         )
                       })}</div>
                         ),
                         notes: (
                       <div data-edit-id="field:notes" className="space-y-1">
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.note')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('booking.field.note')}</Label>
                         <Textarea
                           value={customerNotes} onChange={e => setCustomerNotes(e.target.value)}
                           placeholder={tt('booking.field.notePlaceholder')} rows={3}
-                          className="rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 resize-none focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                          className={`${inputCls} h-auto min-h-[88px] resize-none py-3`}
                         />
                       </div>
                         ),
@@ -1600,24 +1170,24 @@ export function ProfileCard({
                           <button
                             type="button"
                             onClick={() => setRedeemOpen(true)}
-                            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-white/45 underline underline-offset-2 transition-colors hover:text-white/70"
+                            className={`inline-flex items-center gap-1.5 text-ui-label font-medium underline underline-offset-2 transition-colors ${c.meta}`}
                           >
                             <Gift className="h-3 w-3" /> Van ajándékutalványod?
                           </button>
                         ) : (
                           <div className="space-y-1">
-                            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Utalvány-kód</Label>
+                            <Label className={`text-ui-label ${c.meta}`}>Utalvány-kód</Label>
                             <Input
                               value={redeemCode}
                               onChange={e => { setRedeemCode(e.target.value.toUpperCase()); setRedeemValid(null); setRedeemError(null) }}
                               onBlur={checkRedeemCode}
                               placeholder="XXXX-XXXX"
-                              className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                              className={inputCls}
                             />
-                            {redeemChecking && <p className="text-[11px] text-white/40">Ellenőrzés…</p>}
-                            {redeemError && <p role="alert" className="text-[12px] text-red-400">{redeemError}</p>}
+                            {redeemChecking && <p className={`text-ui-label ${c.meta}`}>Ellenőrzés…</p>}
+                            {redeemError && <p role="alert" className="text-ui-label text-red-400">{redeemError}</p>}
                             {redeemValid && (
-                              <p className="text-[12px] text-emerald-400">Érvényes utalvány — {formatPrice(redeemValid.amount_huf, 'HUF')} jóváírva.</p>
+                              <p className="text-ui-label text-emerald-400">Érvényes utalvány — {formatPrice(redeemValid.amount_huf, 'HUF')} jóváírva.</p>
                             )}
                           </div>
                         )}
@@ -1626,11 +1196,11 @@ export function ProfileCard({
                     {(marketingVisible || (editorView && newsletterEnabled)) && (
                       <div data-edit-id="newsletter" className={cn('space-y-1.5', editorView && !marketingVisible && 'opacity-35 pointer-events-none')}>
                         <div className="flex items-center justify-between gap-3 py-1">
-                          <span className="text-[13px] text-white/70">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                          <span className="text-ui-meta opacity-80">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
                           <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
                         </div>
-                        <p className="text-[11px] text-white/40">
-                          Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-white/70">Adatvédelmi tájékoztató</a>.
+                        <p className={`text-ui-label ${c.meta}`}>
+                          Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2">Adatvédelmi tájékoztató</a>.
                         </p>
                       </div>
                     )}
@@ -1641,11 +1211,11 @@ export function ProfileCard({
               {/* DEPOSIT */}
               {view === 'deposit' && depositEnabled && (
                 <div>
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('public.deposit.title')}</h2>
+                  <h2 className="mb-4 text-ui-title font-light">{tt('public.deposit.title')}</h2>
                   {/* bookingStaffId lehet null ("Bármelyik szakember") — a deposit-intent route
                       old fel egy konkrét, szabad szakembert, ha nincs megadva. */}
                   {editorView ? (
-                    <div data-edit-id="deposit" className="rounded-2xl p-4 text-[13px] leading-relaxed text-white/70" style={{ background: 'rgba(241,206,69,0.10)', border: '1px solid rgba(241,206,69,0.30)' }}>
+                    <div data-edit-id="deposit" className={`rounded-ui-inner p-4 text-ui-meta leading-relaxed opacity-80 ${c.row}`}>
                       Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.
                     </div>
                   ) : selectedServiceId && bookingSlot && (
@@ -1653,7 +1223,9 @@ export function ProfileCard({
                       dark
                       locale={locale}
                       requestBody={{ kind: 'salon', salonId, serviceId: selectedServiceId, staffId: bookingStaffId, date: bookingDate, start_time: bookingSlot.start, email: customerEmail || undefined }}
-                      onPaid={(pid, amount) => {
+                      onPaid={(pid, amount, sid) => {
+                        // „bárki” szakembernél a szerver feloldotta — a foglalás ugyanerre menjen (a pénz az övé lehet)
+                        if (!bookingStaffId && sid) setBookingStaffId(sid)
                         setPaymentIntentId(pid)
                         setDepositAmountHuf(amount)
                         setDir(1)
@@ -1667,15 +1239,15 @@ export function ProfileCard({
               {/* CONSENT — digitális beleegyező nyilatkozat */}
               {view === 'consent' && consentEnabled && (
                 <div data-edit-id="consent">
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{consentTitle?.trim() || tt('public.consent.title')}</h2>
+                  <h2 className="mb-4 text-ui-title font-light">{consentTitle?.trim() || tt('public.consent.title')}</h2>
                   <div
-                    className="mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed text-white/75"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}
+                    className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-ui-inner p-4 text-ui-meta leading-relaxed opacity-80 ${c.row}`}
+                    
                   >
                     {consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'}
                   </div>
                   <div className="flex items-center justify-between gap-3 py-1">
-                    <span className="text-[13px] text-white/70">Elolvastam és elfogadom a fenti nyilatkozatot</span>
+                    <span className="text-ui-meta opacity-80">Elolvastam és elfogadom a fenti nyilatkozatot</span>
                     <Switch checked={consentGiven} onChange={setConsentGiven} ariaLabel="Nyilatkozat elfogadása" />
                   </div>
                 </div>
@@ -1684,8 +1256,8 @@ export function ProfileCard({
               {/* SUMMARY */}
               {view === 'summary' && bookingService && bookingSlot && (
                 <div>
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.summary.title')}</h2>
-                  <div data-edit-id="summary" className="mb-4 rounded-2xl px-4 py-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                  <h2 className="mb-4 text-ui-title font-light">{tt('booking.summary.title')}</h2>
+                  <div data-edit-id="summary" className={`mb-4 rounded-ui-inner px-4 py-1 ${c.row}`} >
                     {[
                       { label: tt('booking.step.service'), value: bookingService.name },
                       { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : tt('booking.staff.any') },
@@ -1700,8 +1272,8 @@ export function ProfileCard({
                       ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
                     ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
                       <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && 'border-b border-white/[0.08]')}>
-                        <span className="shrink-0 pt-0.5 text-xs text-white/45">{label.replace(/\s*\*$/, '')}</span>
-                        <span className="min-w-0 text-right text-sm font-semibold text-white [overflow-wrap:anywhere]">{value}</span>
+                        <span className={`shrink-0 pt-0.5 text-ui-label ${c.meta}`}>{label.replace(/\s*\*$/, '')}</span>
+                        <span className="min-w-0 text-right text-ui-meta font-semibold [overflow-wrap:anywhere]">{value}</span>
                       </div>
                     ))}
                   </div>
@@ -1711,13 +1283,13 @@ export function ProfileCard({
 
               {/* SUCCESS — közös visszaigazoló képernyő (szalon + étterem). */}
               {view === 'success' && (
-                <BookingSuccess
+                <BookingSuccess card={cardStyle}
                   locale={locale}
                   confirmed={successDetails?.confirmed !== false}
                   hasEmail={!!successDetails?.hasEmail}
                   confirmEmailEnabled={confirmEmailEnabled}
                   reminderHours={reminderHours}
-                  summary={successDetails && (<><span className="font-semibold text-white">{successDetails.service}</span> · {successDetails.staff} · {successDetails.date} {successDetails.time}</>)}
+                  summary={successDetails && (<><span className="font-semibold">{successDetails.service}</span> · {successDetails.staff} · {successDetails.date} {successDetails.time}</>)}
                   icsHref={successDetails?.icsToken ? `/api/ics/booking/${encodeURIComponent(successDetails.icsToken)}` : null}
                   onDone={handleCloseSuccess}
                 />
@@ -1726,11 +1298,11 @@ export function ProfileCard({
               {/* VOUCHER — vásárlás */}
               {view === 'voucher' && (
                 <div data-edit-id="sec:voucher" className="pb-2">
-                  <button onClick={() => goTo('main', null)} className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-white/45 transition-colors hover:text-white/70">
+                  <button onClick={() => goTo('services', null, null, -1)} className={`mb-4 inline-flex items-center gap-1.5 text-ui-label font-medium transition-colors ${c.meta}`}>
                     <ArrowLeft className="h-3.5 w-3.5" /> {tt('public.back')}
                   </button>
-                  <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{tt('public.voucher')}</h2>
-                  <p className="mb-5 text-[12px] text-white/45">{tt('public.voucher.redeemableAt', { salon: salonName })}</p>
+                  <h2 className="mb-1 text-ui-title font-light">{tt('public.voucher')}</h2>
+                  <p className={`mb-5 text-ui-label ${c.meta}`}>{tt('public.voucher.redeemableAt', { salon: salonName })}</p>
 
                   {!voucherPaymentStep ? (
                     <div className="space-y-4">
@@ -1747,7 +1319,7 @@ export function ProfileCard({
                                 onClick={() => { setSelectedVoucherTypeId(String(vt.id)); setVoucherTypeError(false) }}
                                 className={cn(
                                   'flex flex-col items-start overflow-hidden rounded-[14px] border text-left transition-colors',
-                                  selected ? 'border-gold bg-gold/[0.08]' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]',
+                                  selected ? 'border-ui-yellow bg-ui-yellow/[0.08]' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]',
                                 )}
                               >
                                 <div className="h-20 w-full bg-white/[0.06]">
@@ -1757,91 +1329,91 @@ export function ProfileCard({
                                   )}
                                 </div>
                                 <div className="px-2.5 py-2">
-                                  <div className="truncate text-[12.5px] font-medium text-white">{vt.name}</div>
-                                  <div className="text-[12px] text-gold">{formatPrice(vt.amount_huf, 'HUF')}</div>
+                                  <div className="truncate text-ui-meta font-medium">{vt.name}</div>
+                                  <div className="text-ui-label text-ui-yellow">{formatPrice(vt.amount_huf, 'HUF')}</div>
                                 </div>
                               </button>
                             )
                           })}
                         </div>
-                        {voucherTypeError && <p role="alert" className="text-[12px] text-red-400">{tt('public.voucher.chooseTypeError')}</p>}
+                        {voucherTypeError && <p role="alert" className="text-ui-label text-red-400">{tt('public.voucher.chooseTypeError')}</p>}
                       </div>
 
                       <div key={`name-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.name && 'animate-shake')}>
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.yourName')} *</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.yourName')} *</Label>
                         <Input
                           value={voucherPurchaserName} onChange={e => { setVoucherPurchaserName(e.target.value); clearVoucherFieldError('name') }}
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.name && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.name && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.name && <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.name}</p>}
+                        {voucherFieldErrors.name && <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.name}</p>}
                       </div>
                       <div key={`email-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.email && 'animate-shake')}>
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.yourEmail')} *</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.yourEmail')} *</Label>
                         <Input
                           type="email" inputMode="email" value={voucherPurchaserEmail} onChange={e => { setVoucherPurchaserEmail(e.target.value); clearVoucherFieldError('email') }}
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.email && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.email && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.email && <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.email}</p>}
+                        {voucherFieldErrors.email && <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.email}</p>}
                       </div>
                       <div key={`city-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.city && 'animate-shake')}>
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.city')} *</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.city')} *</Label>
                         <Input
                           value={voucherPurchaserCity} onChange={e => { setVoucherPurchaserCity(e.target.value); clearVoucherFieldError('city') }}
                           autoComplete="address-level2"
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.city && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.city && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.city ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.city}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.cityHint')}</p>}
+                        {voucherFieldErrors.city ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.city}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.cityHint')}</p>}
                       </div>
                       <div key={`address-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.address && 'animate-shake')}>
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.address')} *</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.address')} *</Label>
                         <Input
                           value={voucherPurchaserAddress} onChange={e => { setVoucherPurchaserAddress(e.target.value); clearVoucherFieldError('address') }}
                           autoComplete="street-address"
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.address && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.address && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.addressHint')}</p>}
+                        {voucherFieldErrors.address ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.address}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.addressHint')}</p>}
                       </div>
 
                       {invoicingEnabled && voucherCompanyEnabled && (
-                      <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
-                        <span className="text-[13px] text-white/80">{tt('public.voucher.companyToggle')}</span>
+                      <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
+                        <span className="text-ui-meta opacity-80">{tt('public.voucher.companyToggle')}</span>
                         <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
                       )}
                       {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && (
                         <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
-                          <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.taxNumber')} *</Label>
+                          <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumber')} *</Label>
                           <Input
                             value={voucherPurchaserTaxNumber} onChange={e => { setVoucherPurchaserTaxNumber(e.target.value); clearVoucherFieldError('taxNumber') }}
                             placeholder="12345678-1-42"
-                            className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.taxNumber && 'ring-1 ring-red-400')}
+                            className={cn(inputCls, voucherFieldErrors.taxNumber && 'ring-1 ring-red-400')}
                           />
-                          {voucherFieldErrors.taxNumber ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.taxNumberHint')}</p>}
+                          {voucherFieldErrors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumberHint')}</p>}
                         </div>
                       )}
 
                       <div className="!mt-6 h-px bg-white/[0.08]" />
 
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.recipientName')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.recipientName')}</Label>
                         <Input
                           value={voucherRecipientName} onChange={e => setVoucherRecipientName(e.target.value)}
-                          className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                          className={inputCls}
                         />
                       </div>
                       <div key={`recipientEmail-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.recipientEmail && 'animate-shake')}>
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.recipientEmail')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.recipientEmail')}</Label>
                         <Input
                           type="email" inputMode="email" value={voucherRecipientEmail} onChange={e => { setVoucherRecipientEmail(e.target.value); clearVoucherFieldError('recipientEmail') }}
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.recipientEmail && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.recipientEmail && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.recipientEmailHint')}</p>}
+                        {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.recipientEmailHint')}</p>}
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.message')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.message')}</Label>
                         <Textarea
                           value={voucherMessage} onChange={e => setVoucherMessage(e.target.value)} rows={3}
-                          className="rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 resize-none focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                          className={`${inputCls} h-auto min-h-[88px] resize-none py-3`}
                         />
                       </div>
 
@@ -1854,7 +1426,7 @@ export function ProfileCard({
                       </button>
                     </div>
                   ) : voucherCreating ? (
-                    <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-white" /></div>
+                    <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>
                   ) : (
                     <DepositStep
                       dark
@@ -1869,39 +1441,20 @@ export function ProfileCard({
                 </div>
               )}
 
-              {/* VOUCHER SUCCESS */}
+              {/* VOUCHER SUCCESS — Kész (design 21.9): pipa a márkaszínben, az utalvány képe (előlap a kóddal, hátlap a QR-ral) */}
               {view === 'voucherSuccess' && voucherResult && (
-                <div className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
-                  <motion.div
-                    initial={{ scale: 0.7, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                    className="mb-6 flex h-20 w-20 items-center justify-center rounded-full"
-                    style={{ background: 'rgba(52,211,153,0.15)' }}
-                  >
-                    <CheckCircle className="h-10 w-10 text-emerald-400" />
+                <div className="flex flex-col items-center py-4 text-center">
+                  <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 28 }}>
+                    <IconCircle size="lg" icon={Check} className={ACCENT} />
                   </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.15 }}
-                  >
-                    <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white">{tt('public.voucher.successTitle')}</h2>
-                    <p className="mb-6 text-sm text-white/55">{tt('public.voucher.successSubtitle')}</p>
-                    <div className="mb-6 rounded-[16px] px-5 py-4" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                      <p className="mb-1 text-xs text-white/45">{tt('public.voucher.code')}</p>
-                      <p className="text-xl font-semibold tracking-wide text-gold">{voucherResult.code}</p>
-                      <p className="mt-2 text-sm text-white/60">{formatPrice(voucherResult.amountHuf, 'HUF')}</p>
+                  <motion.div className="w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
+                    <div className="mt-4 text-ui-sub font-light">{tt('public.voucher.successTitle')}</div>
+                    <p className={`mt-1 text-ui-meta ${c.meta}`}>{tt('public.voucher.successSubtitle')}</p>
+                    <div className="mt-5 space-y-2 text-left">
+                      <VoucherCard amount={formatPrice(voucherResult.amountHuf, 'HUF')} code={voucherResult.code} bg="yellow" biz={{ name: salonName, logo: null }} expires={voucherResult.expiresAt ? format(new Date(voucherResult.expiresAt), 'PPP', { locale: dfLocale(locale) }) : ''} />
+                      <VoucherCard side="back" code={voucherResult.code} qr={voucherResult.qrCodeDataUrl} bg="dark" biz={{ name: salonName, logo: null }} />
                     </div>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={voucherResult.qrCodeDataUrl} alt={tt('public.voucher.qrAlt')} className="mx-auto mb-6 h-40 w-40 rounded-[12px]" />
-                    <button
-                      onClick={handleCloseVoucherSuccess}
-                      className="flex h-12 w-full items-center justify-center rounded-full text-[14px] font-semibold text-ink-dark"
-                      style={{ background: '#FFD85F' }}
-                    >
-                      {tt('public.success.back')}
-                    </button>
+                    <Button variant={c.dark ? 'onDark' : 'cell'} className="mt-4 w-full" onClick={handleCloseVoucherSuccess}>{tt('public.success.back')}</Button>
                   </motion.div>
                 </div>
               )}
@@ -1914,13 +1467,12 @@ export function ProfileCard({
         {/* Footer */}
         {view === 'success' || view === 'voucher' || view === 'voucherSuccess' ? null : isBookingView ? (
           <div
-            className="shrink-0 px-6 pt-2 space-y-2"
-            style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+            className="shrink-0 space-y-2 px-6 pb-3 pt-2"
           >
             {/* A deposit view-n a DepositStep saját "Fizetés" gombja intézi a tovább-lépést, a közös CTA-t elrejtjük */}
             {view !== 'deposit' && (
               <>
-                <button
+                <Button
                   onClick={() => {
                     if (view === 'summary') {
                       submit()
@@ -1953,46 +1505,34 @@ export function ProfileCard({
                     }
                   }}
                   disabled={view === 'datetime' || submitting || (view === 'consent' && !consentGiven)}
-                  className="flex h-14 w-full items-center justify-center gap-2 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100"
-                  style={{
-                    background: view === 'summary' ? '#FFD85F' : (view === 'details' || (view === 'consent' && consentGiven)) ? 'white' : 'rgba(255,255,255,0.10)',
-                    color: view === 'summary' ? 'var(--ink-dark)' : (view === 'details' || (view === 'consent' && consentGiven)) ? 'var(--ink-dark)' : 'rgba(255,255,255,0.30)',
-                  }}
+                  // design: a fő gomb a márkaszínben, a kit méretében (mint a borítón); amíg nem lehet tovább, halvány
+                  className={cn('w-full', ACCENT)}
                 >
                   {submitting
                     ? <Loader2 className="h-4 w-4 animate-spin" />
                     : view === 'summary' ? tt('booking.confirm') : tt('booking.next')
                   }
-                  {!submitting && (view === 'details' || (view === 'consent' && consentGiven)) && <Check className="h-4 w-4 opacity-70" />}
-                </button>
+                  {!submitting && <ArrowRight className="h-4 w-4" />}
+                </Button>
                 {view === 'summary' && (
-                  <div data-edit-id="terms" className="text-center text-xs text-white/40">
+                  <div data-edit-id="terms" className={`text-center text-ui-label ${c.meta}`}>
                     {tt('rbooking.termsPrefix')}{' '}
                     <TermsModal sections={termsSections} company={company} locale={locale} />
+                    {company?.privacy_url && <>. {tt('rbooking.privacyPrefix')}{' '}<a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{tt('rbooking.privacyLink')}</a></>}
                   </div>
                 )}
               </>
             )}
           </div>
-        ) : (
-          <div className="hidden shrink-0 px-6 pb-6 pt-3 lg:block">
-            <button
-              onClick={() => goTo('services', null)}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-full text-[14px] font-semibold text-ink-dark transition-all active:scale-[0.98] hover:opacity-90"
-              style={{ background: '#FFD85F' }}
-            >
-              {tl(locale, 'public.bookCta')}
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-        {/* Beágyazott (iframe) widgeten márkajelzés — ingyen marketing minden beágyazott oldalról. */}
+        ) : null}
+        {/* a kártya alján mindig a rendszer jele (design 21.1) — beágyazva linkként (ingyen marketing a beágyazó oldalról) */}
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1"><PoweredBy dark={c.dark} />{!embed && <CookieFooterLink dark={c.dark} onClick={openCookieSettings} />}{company?.privacy_url && <a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className={`text-ui-label ${c.dark ? 'text-white/55' : 'text-ui-muted'} underline-offset-2 outline-none hover:underline`}>{tt('public.footer.privacy')}</a>}</div>
         {embed && (
           <a
             href={APP_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 py-3.5 text-[13px] text-white/45 transition-colors hover:text-white/70"
+            className={`flex shrink-0 items-center justify-center gap-2 border-t border-white/10 py-3.5 text-ui-meta transition-colors ${c.meta}`}
           >
             Powered by <BrandLogo variant="dark" className="h-5" />
           </a>

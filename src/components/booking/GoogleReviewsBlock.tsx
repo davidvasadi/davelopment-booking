@@ -45,7 +45,7 @@ export function GoogleReviewsBlock({ google, locale, title, countLabel, allLabel
                 {r.authorUrl
                   ? <a href={r.authorUrl} target="_blank" rel="noopener noreferrer" className="block truncate text-[13px] font-semibold text-white hover:underline">{r.author}</a>
                   : <p className="truncate text-[13px] font-semibold text-white">{r.author}</p>}
-                <p className="text-[11px] text-white/45"><span className="text-gold">{'★'.repeat(Math.round(r.rating))}</span> · {r.relativeTime}</p>
+                <p className="text-[11px] text-white/45"><span className="text-ui-yellow">{'★'.repeat(Math.round(r.rating))}</span> · {r.relativeTime}</p>
               </div>
             </div>
             <p className="mt-2 line-clamp-4 text-[12.5px] leading-relaxed text-white/75">{r.text}</p>

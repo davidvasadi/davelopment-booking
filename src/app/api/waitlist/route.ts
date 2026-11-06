@@ -5,6 +5,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { sendWaitlistSignupEmail as sendSalonWaitlistSignup } from '@/lib/email'
 import { sendWaitlistSignupEmail as sendRestaurantWaitlistSignup } from '@/lib/restaurantEmail'
 import type { Salon, Restaurant } from '@/payload/payload-types'
+import { isBusinessLocked, LOCKED_ERROR } from '@/lib/businessLock'
 
 /**
  * Publikus várólista-feliratkozás. Additív, defenzív: csak akkor hoz létre bejegyzést, ha az
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
     }
 
     const biz = (salon ?? restaurant)!
+    if (await isBusinessLocked(payload, biz.owner)) return NextResponse.json({ error: LOCKED_ERROR, locked: true }, { status: 423 })
     // A várólista EGYETLEN kapcsolója a Funkció-központ `feature_modules.waitlist_on`-ja.
     const waitlistEnabled = !!biz.feature_modules?.waitlist_on
     if (!waitlistEnabled) {

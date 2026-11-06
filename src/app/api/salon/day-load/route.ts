@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
+import { getClosedDays } from '@/lib/closedDays'
 import type { Booking } from '@/payload/payload-types'
 
 /**
@@ -48,5 +49,7 @@ export async function GET(req: NextRequest) {
     counts[b.date] = (counts[b.date] ?? 0) + 1
   }
 
-  return NextResponse.json({ counts })
+  // a hónap zárt napjai (a dátumválasztó csíkozza őket — design 6.9)
+  const { closedDates, closedWeekdays } = await getClosedDays(payload, 'salon', active.id)
+  return NextResponse.json({ counts, closedDates: closedDates.filter((d) => d.startsWith(month)), closedWeekdays })
 }

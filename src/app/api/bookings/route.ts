@@ -9,11 +9,13 @@ import { sendPushToUsers } from '@/lib/webPush'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
-import { computeSalonDepositHuf } from '@/lib/depositCalc'
+import { computeSalonDepositHuf, depositApplies } from '@/lib/depositCalc'
 import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
 import { isWithinBookingWindow } from '@/lib/bookingWindow'
 import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
+import { salonPayee } from '@/lib/payee'
+import { isBusinessLocked, LOCKED_ERROR } from '@/lib/businessLock'
 
 const schema = z.object({
   salonId: z.coerce.string(),
@@ -64,6 +66,15 @@ function getIp(req: NextRequest): string {
   )
 }
 
+/** Minden foglalható (aktív szolgáltatáshoz rendelt, aktív) szakembernél kész-e a saját Stripe — a foglalóoldal szabálya. */
+async function allBookableStaffTakePayments(payload: Awaited<ReturnType<typeof getPayloadClient>>, salonId: string | number): Promise<boolean> {
+  const svc = await payload.find({ collection: 'services', where: { and: [{ salon: { equals: salonId } }, { is_active: { not_equals: false } }] }, limit: 500, depth: 0, overrideAccess: true })
+  const ids = [...new Set((svc.docs as Service[]).flatMap((x) => (x.staff ?? []).map((m) => String(m && typeof m === 'object' ? m.id : m))))]
+  if (!ids.length) return false
+  const st = await payload.find({ collection: 'staff', where: { and: [{ id: { in: ids } }, { is_active: { equals: true } }] }, limit: 500, depth: 0, overrideAccess: true })
+  return (st.docs as StaffMember[]).every((m) => !!m.stripe_connect_onboarded && !!m.stripe_connect_account_id)
+}
+
 export async function POST(request: NextRequest) {
   let body: unknown
   try {
@@ -83,6 +94,7 @@ export async function POST(request: NextRequest) {
 
   const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
   let staffId = parsed.data.staffId
+  const anyStaff = !parsed.data.staffId
 
   // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
   if (await isGuestBlocked({ business: 'salon', businessId: salonId, email: customer_email, phone: customer_phone })) {
@@ -147,10 +159,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A foglaláshoz szükséges adatok nem találhatók. Kérjük, kezdd újra a foglalást.' }, { status: 400 })
     }
 
+    // zárolt üzlet (lejárt / szünetelő előfizetés): nincs új online foglalás (design 21.13)
+    if (await isBusinessLocked(payload, salon.owner)) return NextResponse.json({ error: LOCKED_ERROR, locked: true }, { status: 423 })
+
+    // A foglalóoldalon rejtett / inaktív szolgáltatás online nem foglalható (a tulaj kézzel továbbra is rögzítheti)
+    if (service.is_active === false || service.online_visible === false) {
+      return NextResponse.json({ error: 'Ez a szolgáltatás online nem foglalható.' }, { status: 400 })
+    }
+
     // Foglalási ablak (pl. 60 nap) — ugyanaz a számítás, mint a foglaló dátumsávján (budapesti nap).
     if (!isWithinBookingWindow(salon, date)) {
       return NextResponse.json({ error: 'Erre a napra még nem lehet foglalni.' }, { status: 400 })
     }
+
+    // kié a pénz és a számla: az üzleté, vagy szakemberenkénti számlázásnál a foglalás szakemberéé (lib/payee)
+    const payee = salonPayee(salon, staff)
 
     // Double-check slot is still available (race condition guard)
     const availableSlots = await getAvailableSlots({ salonId, staffId, serviceId, date })
@@ -159,11 +182,11 @@ export async function POST(request: NextRequest) {
       // látta a slotot, de közben más elvitte) — AZONNALI visszatérítés, a hiba explicit
       // közli, hogy a vendéget NEM terhelték meg.
       let refunded = false
-      if (payment_intent_id && salon.stripe_connect_account_id) {
+      if (payment_intent_id && payee.accountId) {
         const stripe = getStripe()
         if (stripe) {
           try {
-            await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: salon.stripe_connect_account_id })
+            await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: payee.accountId })
             refunded = true
           } catch (e) {
             console.error('[Bookings API] refund-on-conflict hiba:', e)
@@ -184,7 +207,11 @@ export async function POST(request: NextRequest) {
 
     // Ha az üzletnél be van kapcsolva az előleg ÉS a Stripe onboarding kész, a fizetés
     // KÖTELEZŐ — sose bízzunk kliens-oldali jelzésben, mindig a szerver dönt.
-    const depositRequired = !!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded && !!salon.stripe_connect_account_id
+    // „Mely foglalásoknál” (16.1): ugyanaz a szabály, mint a foglalóoldalon — csak akkor kell fizetés, ha erre a foglalásra vonatkozik
+    // Szakemberenkénti számlázásnál „bárki” választással a foglalóoldal csak akkor kér előleget, ha MINDEN foglalható
+    // szakembernél van online fizetés — itt ugyanaz a szabály; ha mégis jött fizetés, azt mindig ellenőrizzük.
+    const anyWithoutDeposit = payee.kind === 'staff' && anyStaff && !payment_intent_id && !(await allBookableStaffTakePayments(payload, salonId))
+    const depositRequired = !!salon.deposit_settings?.enabled && payee.canTakePayments && !anyWithoutDeposit && depositApplies(salon.deposit_settings, { date, priceHuf: service.price ?? 0 })
     let depositHuf: number | null = null
     if (depositRequired) {
       if (!payment_intent_id) {
@@ -199,13 +226,13 @@ export async function POST(request: NextRequest) {
       }
       const stripe = getStripe()
       if (!stripe) return NextResponse.json({ error: 'A fizetés jelenleg nincs konfigurálva.' }, { status: 503 })
-      const intent = await stripe.paymentIntents.retrieve(payment_intent_id, undefined, { stripeAccount: salon.stripe_connect_account_id! })
-      const expectedHuf = computeSalonDepositHuf(salon.deposit_settings, service.price ?? 0)
+      const intent = await stripe.paymentIntents.retrieve(payment_intent_id, undefined, { stripeAccount: payee.accountId! })
+      const expectedHuf = computeSalonDepositHuf(salon.deposit_settings, service.price ?? 0, date)
       if (intent.status !== 'succeeded' || !expectedHuf || intent.amount !== hufToStripeMinor(expectedHuf)) {
         // Sikeres terhelés, de eltérő összeg/állapot — anomália, AZONNALI visszatérítés
         // (nem hagyjuk "elakadva" a vendég pénzét manuális rendezésre várva).
         if (intent.status === 'succeeded') {
-          await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: salon.stripe_connect_account_id! }).catch((e) =>
+          await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: payee.accountId! }).catch((e) =>
             console.error('[Bookings API] anomália-refund hiba:', e),
           )
         }
@@ -360,7 +387,8 @@ export async function POST(request: NextRequest) {
       void issueDepositInvoiceBestEffort({
         collection: 'bookings',
         id: booking.id,
-        invoiceSettings: salon.invoice_settings,
+        invoiceSettings: payee.invoiceSettings,
+        sellerTaxNumber: payee.taxNumber,
         buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number },
         label: `Előleg — ${service.name} · ${salon.name} · ${date}`,
         grossHuf: depositHuf,

@@ -2,15 +2,17 @@ import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
-import { ReservationDateFilter, type BookingsRange } from '@/components/restaurant/ReservationDateFilter'
+import { BookingsDateNav, type BookingsRange } from '@/components/shared/BookingsDateNav'
 import { DailyView } from '@/components/restaurant/DailyView'
 import { RestaurantScheduleView } from '@/components/restaurant/RestaurantScheduleView'
-import { PrintDayButton } from '@/components/restaurant/PrintDayButton'
+import { BookingsMoreMenu } from '@/components/shared/BookingsMoreMenu'
 import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import { parseISO } from 'date-fns'
-import type { Reservation, Table, Room, OpeningHour, OpeningHoursException } from '@/payload/payload-types'
+import { APP_URL } from '@/lib/brand'
+import { getClosedDays } from '@/lib/closedDays'
+import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -61,36 +63,11 @@ export default async function RestaurantBookingsPage({
   const turnMinutes = restaurant.turn_duration_minutes ?? 120
   const canManage = can(capabilities, 'bookings.manage')
   const dateFilterEl = (
-    <ReservationDateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile />
+    <BookingsDateNav key="date-filter" base="/restaurant" currentDate={selectedDate} range={range} loadEndpoint="/api/restaurant/day-load" />
   )
 
-  // Zárva-napok (heti/havi nézethez) — ugyanaz a két lekérdezés, mint a Naptár oldalon
-  // (restaurant/schedule/page.tsx): egyszeri kivétel-zárás (dátum-tartomány!) + heti visszatérő
-  // zárvatartás.
-  const [closedExceptionsRes, closedWeeklyRes] = await Promise.all([
-    payload.find({
-      collection: 'opening-hours-exceptions',
-      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_closed: { equals: true } }] },
-      depth: 0, limit: 500, overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'opening-hours',
-      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_open: { equals: false } }] },
-      depth: 0, limit: 20, overrideAccess: true,
-    }),
-  ])
-  const closedDates: string[] = (closedExceptionsRes.docs as OpeningHoursException[]).flatMap((e) => {
-    const dates: string[] = []
-    const cur = new Date(e.start_date)
-    const end = new Date(e.end_date)
-    while (cur <= end) {
-      dates.push(cur.toISOString().slice(0, 10))
-      cur.setDate(cur.getDate() + 1)
-    }
-    return dates
-  })
-  const DOW_NUM: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 }
-  const closedWeekdays = Array.from(new Set((closedWeeklyRes.docs as { day_of_week?: string | null }[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
+  // Zárva-napok — ugyanaz a forrás, mint a Naptár oldalon és a dátumválasztón (lib/closedDays).
+  const { closedDates, closedWeekdays } = await getClosedDays(payload, 'restaurant', restaurant.id)
 
   // Esemény-típusok az admin szerkesztő-laphoz (a tulaj engedélyezettjei, vagy az alapkészlet).
   const enabledEvents = ((restaurant as { event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null }[] | null }).event_types ?? [])
@@ -122,12 +99,13 @@ export default async function RestaurantBookingsPage({
         where: { and: [{ restaurant: { equals: restaurant.id } }, { date: { equals: selectedDate } }] },
         sort: 'start_time',
         limit: 300,
-        depth: 1,
+        depth: 1, populate: { restaurants: { name: true } }, // sebesség: az étteremből csak a név
         overrideAccess: true,
       }),
       payload.find({
         collection: 'rooms',
         where: { restaurant: { equals: restaurant.id } },
+        populate: { restaurants: { name: true } },
         limit: 100,
         overrideAccess: true,
       }),
@@ -135,12 +113,19 @@ export default async function RestaurantBookingsPage({
         collection: 'tables',
         where: { and: [{ restaurant: { equals: restaurant.id } }, { is_active: { not_equals: false } }] },
         limit: 500,
-        depth: 1,
+        depth: 1, populate: { restaurants: { name: true } },
         overrideAccess: true,
       }),
     ])
 
     const reservations = resResult.docs as Reservation[]
+    // Üres napon (design 6.3) a következő foglalás — egy kattintással odaugrik.
+    const nextRaw = reservations.some((r) => r.status !== 'cancelled' && r.status !== 'no_show') ? null : (await payload.find({
+      collection: 'reservations',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { date: { greater_than: selectedDate } }, { status: { not_in: ['cancelled', 'no_show'] } }] },
+      sort: ['date', 'start_time'], limit: 1, depth: 0, overrideAccess: true,
+    })).docs[0] as Reservation | undefined
+    const nextBooking = nextRaw ? { date: String(nextRaw.date).slice(0, 10), time: nextRaw.start_time, title: `${nextRaw.customer_name}, ${nextRaw.pax} fő` } : null
     const rooms = roomsResult.docs as Room[]
     const tables = tablesResult.docs as Table[]
 
@@ -151,11 +136,7 @@ export default async function RestaurantBookingsPage({
     const cancelledCount = reservations.filter(
       (r) => r.status === 'cancelled' || r.status === 'no_show',
     ).length
-    const completedCount = reservations.filter((r) => r.status === 'completed').length
-    const walkInCount = reservations.filter((r) => r.source === 'walk_in').length
 
-    const roomCount = rooms.length
-    const tableCount = tables.length
 
     const isClosedToday = closedDates.includes(selectedDate) || (selectedDate >= ymd(new Date()) && closedWeekdays.includes(parseISO(selectedDate).getDay()))
 
@@ -173,24 +154,17 @@ export default async function RestaurantBookingsPage({
           closeMin={closeMin}
           turnMinutes={turnMinutes}
           openReservationId={reservationParam}
-          roomCount={roomCount}
-          tableCount={tableCount}
           activeCount={activeCount}
-          completedCount={completedCount}
           cancelledCount={cancelledCount}
-          walkInCount={walkInCount}
           dateFilter={dateFilterEl}
           printButton={
-            <PrintDayButton
-              key="print-btn"
-              days={[selectedDate]}
-              restaurantName={restaurant.name}
-              reservations={reservations}
-            />
+            <BookingsMoreMenu key="print-btn" days={[selectedDate]} />
           }
           canManage={canManage}
           consentEnabled={!!restaurant.consent_settings?.enabled}
           isClosedToday={isClosedToday}
+          nextBooking={nextBooking}
+          publicUrl={restaurant.slug ? `${APP_URL}/${restaurant.slug}` : null}
         />
         <WaitlistPanel restaurantId={restaurant.id} />
       </div>
@@ -223,7 +197,7 @@ export default async function RestaurantBookingsPage({
   let baseCloseMin = oh?.is_open && oh.close_time ? hhmmToMinutes(oh.close_time) : 23 * 60
   if (baseCloseMin <= baseOpenMin) baseCloseMin += 24 * 60
 
-  const [resResult, roomsResult] = await Promise.all([
+  const [resResult, roomsResult, tablesRangeResult] = await Promise.all([
     payload.find({
       collection: 'reservations',
       where: {
@@ -235,18 +209,28 @@ export default async function RestaurantBookingsPage({
       },
       sort: 'start_time',
       limit: range === 'month' ? 5000 : 2000,
-      depth: 1,
+      depth: 1, populate: { restaurants: { name: true } }, // sebesség: az étteremből csak a név
       overrideAccess: true,
     }),
     payload.find({
       collection: 'rooms',
       where: { restaurant: { equals: restaurant.id } },
+      populate: { restaurants: { name: true } },
       limit: 100,
+      overrideAccess: true,
+    }),
+    // a heti / havi telítettséghez (design 6.16 / 6.17): a termek ülőhelyei
+    payload.find({
+      collection: 'tables',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_active: { not_equals: false } }] },
+      limit: 500,
+      depth: 0,
       overrideAccess: true,
     }),
   ])
   const reservations = resResult.docs as Reservation[]
   const rooms = roomsResult.docs as Room[]
+  const rangeTables = tablesRangeResult.docs as Table[]
 
   // Idő-tengely: a nyitvatartás-alapérték kiszélesítve a tartomány összes foglalására, hogy
   // egy se essen a tengelyen kívülre (ugyanaz a minta, mint a napi nézetnél).
@@ -266,11 +250,10 @@ export default async function RestaurantBookingsPage({
         days={days}
         range={range}
         date={selectedDate}
-        title="Asztalfoglalások"
-        subtitle={range === 'week' ? 'Heti áttekintés' : 'Havi áttekintés'}
         restaurantId={String(restaurant.id)}
         reservations={reservations}
         rooms={rooms}
+        tables={rangeTables}
         eventTypes={eventTypes}
         openMin={rangeOpenMin}
         closeMin={rangeCloseMin}
@@ -279,7 +262,7 @@ export default async function RestaurantBookingsPage({
         closedWeekdays={closedWeekdays}
         dateFilter={dateFilterEl}
         printButton={
-          <PrintDayButton key="print-btn" days={days} restaurantName={restaurant.name} reservations={reservations} />
+          <BookingsMoreMenu key="print-btn" days={days} />
         }
         canManage={canManage}
       />

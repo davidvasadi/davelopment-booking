@@ -1,63 +1,42 @@
 'use client'
 
-import { SHEET_MOBILE } from '@/lib/motion'
+
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
-import { TimeSelect } from '@/components/ui/time-select'
-import { TimeSlotGrid } from '@/components/ui/TimeSlotGrid'
-import { DurationSlider } from '@/components/ui/DurationSlider'
-import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, CalendarClock, UserRound, Sparkles, Check } from 'lucide-react'
-import { eventIconByKey, eventColorByKey } from '@/components/settings/eventTypeIcons'
-import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
+import { Button, FIELD, Input, Meta, Pill, StatusPill } from '@/components/ui-kit'
+import { PopupModal } from '@/components/ui/popup-modal'
+import { BookingSummary } from '@/components/shared/BookingSummary'
+import { ChoicePills, PaxStep, SlotGrid, StepRow, StepTitle, TableStep, slotGridOf } from '@/components/blocks/booking'
+import { DayPickerStrip } from '@/components/shared/BookingsDateNav'
+import { statusOf } from '@/components/shared/BookingList'
+import { Loader2, Trash2, Check } from 'lucide-react'
+import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { hhmmToMinutes, minutesToHHMM, capsWords } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/offlineDrafts'
 import { useOnline } from '@/lib/useOnline'
 import { markLocalMutation } from '@/lib/localMutationTracker'
 import { urgencyOf } from './DailyView'
-import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
-import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
+import { PhoneCountryInput } from '@/components/booking/PhoneInputs'
+import { COUNTRIES } from '@/components/booking/phoneCountries'
 import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Reservation } from '@/payload/payload-types'
 import { useGuestLookup, GuestSuggestList, type GuestSuggestion } from '@/components/shared/GuestLookup'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { SectionBar, FieldRow, ROW_INPUT, STEP_BTN, pillSmCls } from '@/components/shared/FormSheet'
 
-const HU_MONTHS_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
-/** „2026. október 26., hétfő” — a panel fejlécébe (a nyers ÉÉÉÉ-HH-NN helyett). */
+/** Ma (helyi idő) és a mostani óra:perc — az alap-kijelölés ma az első ez utáni szabad időpont. */
+const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+
+/** „2026. Október 26., hétfő” — a panel fejlécébe (a nyers ÉÉÉÉ-HH-NN helyett). */
 function formatLongHu(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   if (!y || !m || !d) return dateStr
-  return new Date(y, m - 1, d).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
-}
-
-function formatHuDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return `${y}. ${HU_MONTHS_SHORT[m - 1]} ${d}.`
+  return capsWords(new Date(y, m - 1, d).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }))
 }
 
 // ISO ország-kód → nemzetközi előhívó (a tárolt teljes szám összeállításához / felbontásához).
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
-
-// Az avatar-menü (UserMenu) „genie" belépője — DESKTOP-on (középre nyíló modal) PONTOSAN ezt
-// használja (azonos érzés: nagy scale-ugrás + overshoot = pulzáló pop, a gyerekek staggerrel folynak be).
-const GENIE = {
-  hidden: { opacity: 0, scale: 0.7, y: 14 },
-  show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, stiffness: 520, damping: 26, mass: 0.9, staggerChildren: 0.045, delayChildren: 0.06 } },
-  exit: { opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.14, ease: 'easeIn' as const } },
-} as const
-// Mobilon (alulról induló sheet) VALÓDI alulról-felcsúszás kell — a genie kicsinyítő-pop-ja itt
-// épp azt az érzetet keltette, hogy nem "úszik fel" alulról, csak beugrik/felnő a helyén.
-// közös mobilos lap-mozgás (lib/motion) — csak tolás, áttetszőség/skála nélkül (telefonon sima)
-const SLIDE_UP = SHEET_MOBILE
-// A panel régiói (fejléc/törzs/lábléc) „folyami" belépője a genie-stagger alá.
-const PANEL_ITEM = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
-} as const
 
 /**
  * Új foglalás alap-státusza a forrás + időpont alapján (a host felülírhatja):
@@ -122,12 +101,8 @@ export interface ComboOption {
   totalCapacity: number
 }
 
-// Státusz-pöttyök — ugyanazok a színek, mint a Foglalások táblázatos listájában.
-const STATUS_DOT: Record<string, string> = {
-  confirmed: 'bg-[#1D9D63]', seated: 'bg-[#2F6FD0]', pending: 'bg-[#E0B21C]', completed: 'bg-[#B9B4A6]', cancelled: 'bg-[#C0564A]', no_show: 'bg-[#E07B39]',
-}
 const statusOptions: { value: Reservation['status']; label: string }[] = [
-  { value: 'pending', label: 'Megerősítésre vár' },
+  { value: 'pending', label: 'Függő' },
   { value: 'confirmed', label: 'Megerősítve' },
   { value: 'seated', label: 'Leültetve' },
   { value: 'completed', label: 'Befejezett' },
@@ -135,22 +110,13 @@ const statusOptions: { value: Reservation['status']; label: string }[] = [
   { value: 'cancelled', label: 'Lemondva' },
 ]
 
-// A sidebar fejléc-badge színei — egyezzenek a foglalási nézet (DailyView) palettájával.
-const statusBadge: Record<string, string> = {
-  pending: 'bg-amber-400 text-amber-950',
-  confirmed: 'bg-ink-dark text-white',
-  seated: 'bg-indigo-500 text-white',
-  completed: 'bg-emerald-500 text-white',
-  no_show: 'bg-red-500 text-white',
-  cancelled: 'bg-zinc-200 text-ink-soft line-through',
-}
 const statusLabelOf = (s: string) => statusOptions.find((o) => o.value === s)?.label ?? s
 const sourceLabelOf: Record<string, string> = { walk_in: 'Beeső', phone: 'Telefon', online: 'Online' }
 
 const sourceOptions: { value: Reservation['source']; label: string }[] = [
-  { value: 'walk_in', label: 'Beeső' },
-  { value: 'phone', label: 'Telefon' },
   { value: 'online', label: 'Online' },
+  { value: 'phone', label: 'Telefon' },
+  { value: 'walk_in', label: 'Beeső' },
 ]
 
 export interface EditTarget {
@@ -181,20 +147,11 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   const router = useRouter()
   const online = useOnline()
   const reservation = target?.reservation ?? null
+  const exclude: Record<string, string> = reservation?.id ? { excludeReservationId: String(reservation.id) } : {}
   const isEdit = !!reservation
   const draftId = draftIdOf(reservation)
   const isDraft = draftId != null
 
-  // Mobilon (alulról induló sheet) valódi felcsúszás, desktopon (középre nyíló modal) a genie-pop
-  // — a Tailwind `sm:` töréspontnak megfelelő 640px-es media query-vel váltva.
-  const [isDesktop, setIsDesktop] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 640px)')
-    setIsDesktop(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [])
 
   // A foglalás napja — kezdetben a jelenleg megtekintett nap (a `date` prop), de a sheeten
   // belül átválasztható (ld. DatePickerPopover lent), hogy ne kelljen a nézetet elhagyni
@@ -227,34 +184,22 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   // igény, tehát a legszélesebb halmaz). A rács maga EZT mutatja fixen — a létszám váltása
   // nem csereéli le/tölti újra, csak azt jelzi (ld. lejjebb), melyik időpont fér el rá.
   const [fetchedSlots, setFetchedSlots] = useState<{ start: string; end: string }[]>([])
+  // a nap összes kezdése (a rácson a nem szabad foglaltként látszik — design 6.18)
+  const [allSlots, setAllSlots] = useState<string[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
-  // a szabad-időpont lekérés lezárult-e (az alap-időpont csak UTÁNA állhat be, különben egy még
-  // betöltés előtti, nem-szabad időpontot jelölne ki)
-  const [slotsReady, setSlotsReady] = useState(false)
 
-  // Kézi időpontnál (nincs szabad sáv / szerkesztés nélküli üres idő) ne 00:00 legyen az alap:
-  // ma az aktuális idő 15 percre felfelé kerekítve, más napon a nyitás — a nyitvatartásba szorítva
-  // (a görgős választó úgyis csak azon belül enged választani).
-  useEffect(() => {
-    if (!open || isEdit || !slotsReady || slotsLoading || startTime || fetchedSlots.length > 0) return
-    const now = new Date()
-    let m = selectedDate === ymdLocal(now) ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : (openMin ?? 9 * 60)
-    if (openMin != null) m = Math.max(m, openMin)
-    if (closeMin != null) m = Math.min(m, closeMin - 15)
-    m = Math.min(Math.max(m, 0), 23 * 60 + 45)
-    setStartTime(minutesToHHMM(m))
-  }, [open, isEdit, slotsReady, slotsLoading, startTime, fetchedSlots.length, selectedDate, openMin, closeMin])
   // A ténylegesen beállított létszámra elférő időpontok halmaza — külön, lassabban
   // (debounce-olva) frissül, hogy a +/- pötyögtetése ne dobja újra az egész rácsot.
   const [paxAvailableStarts, setPaxAvailableStarts] = useState<Set<string> | null>(null)
+  // az időpontot a rendszer választotta-e (nem a tulaj kattintott rá)
+  const autoTimeRef = useRef(false)
   // Igaz, ha a nap TELJESEN zárva van (pl. heti pihenőnap) — a szerver mondja meg (getOpeningWindow),
   // nem a kliens tippeli a záróra alapján, mert az csak az "elmúlt mára" esetet fedi le.
   const [dayClosed, setDayClosed] = useState(false)
   const [options, setOptions] = useState<MoveOption[]>([])
   const [busyTables, setBusyTables] = useState<MoveOption[]>([])
-  const [tablePickerOpen, setTablePickerOpen] = useState(false)
-  const tablePickerRef = useRef<HTMLDivElement>(null)
-  const tableRowRef = useRef<HTMLDivElement>(null)
+  // az összevonás-javaslatot elutasította (design 6.18 „Nem kérem”)
+  const [comboDismissed, setComboDismissed] = useState(false)
   const [confirmSmallTable, setConfirmSmallTable] = useState(false)
   const [suggestedCombo, setSuggestedCombo] = useState<ComboOption | null>(null)
   const [optionsLoading, setOptionsLoading] = useState(false)
@@ -363,49 +308,76 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   // Hibát (nem-2xx választ) explicit ELDOBUNK, nem hallgatjuk el — a korábbi némán-üres
   // fallback (json.slots ?? []) egy szerver-hibát is "nincs szabad időpont"-ként mutatott.
   useEffect(() => {
-    if (isEdit || !open || !restaurantId) {
+    if (!open || !restaurantId) {
       setFetchedSlots([])
+      setAllSlots([])
       setSlotsLoading(false)
-      setSlotsReady(true)
       setDayClosed(false)
       setPaxAvailableStarts(null)
       return
     }
     const ctrl = new AbortController()
     setSlotsLoading(true)
-    setSlotsReady(false)
     setFetchedSlots([])
     setDayClosed(false)
     setPaxAvailableStarts(null)
-    const params = new URLSearchParams({ restaurantId, date: selectedDate, pax: '1', includePast: '1' })
+    // szerkesztésnél a saját foglalás nem foglalja a saját asztalát — utólag is a szabadok közül választható
+    const params = new URLSearchParams({ restaurantId, date: selectedDate, pax: '1', includePast: '1', ...exclude })
     fetch(`/api/restaurant/slots?${params}`, { credentials: 'include', signal: ctrl.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Slots API ${r.status}`)
-        return r.json() as Promise<{ slots?: { start: string; end: string }[]; closed?: boolean }>
+        return r.json() as Promise<{ slots?: { start: string; end: string }[]; candidates?: string[]; closed?: boolean }>
       })
       .then((json) => {
         setFetchedSlots(json.slots ?? [])
+        setAllSlots(json.candidates ?? [])
         setDayClosed(!!json.closed)
         setSlotsLoading(false)
-        setSlotsReady(true)
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return
         console.error('[ReservationEditSheet] slots fetch failed', err)
         setSlotsLoading(false)
-        setSlotsReady(true)
       })
     return () => ctrl.abort()
   }, [isEdit, open, restaurantId, selectedDate])
+
+  // A választott asztal(ok) szabad kezdései — a rácson a többi áthúzva (mint a szalonnál a választott munkatársnál),
+  // a múltban és most is: ami arra az asztalra már foglalt, az nem választható tisztán.
+  const [tableFreeStarts, setTableFreeStarts] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (!open || !restaurantId || !tableId) { setTableFreeStarts(null); return }
+    const ctrl = new AbortController()
+    const params = new URLSearchParams({ restaurantId, date: selectedDate, pax: String(pax || 1), includePast: '1', tableIds: tableId, duration: String(duration), ...exclude })
+    fetch(`/api/restaurant/slots?${params}`, { credentials: 'include', signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { tableFree?: string[] } | null) => setTableFreeStarts(json?.tableFree ? new Set(json.tableFree) : null))
+      .catch(() => {})
+    return () => ctrl.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, restaurantId, selectedDate, tableId, duration])
+
+  // Új foglalásnál alapból az első szabad időpont (erre a létszámra) — ma a mostani idő utáni első (design 6.18)
+  useEffect(() => {
+    if (!open || isEdit || slotsLoading || startTime || fetchedSlots.length === 0) return
+    const now = selectedDate === todayYmd() ? nowHM() : ''
+    const first = fetchedSlots.map((x) => x.start).find((t) => t >= now && (!paxAvailableStarts || paxAvailableStarts.has(t)))
+    if (first) { autoTimeRef.current = true; setStartTime(first) }
+  }, [open, isEdit, slotsLoading, fetchedSlots, paxAvailableStarts, startTime, selectedDate])
+  // a rendszer választotta időpont, ha a létszám / ülésidő változása után már nem fér el: újra a következő jót választja
+  useEffect(() => {
+    if (isEdit || !autoTimeRef.current || !startTime || !paxAvailableStarts || paxAvailableStarts.has(startTime)) return
+    setStartTime('')
+  }, [isEdit, paxAvailableStarts, startTime])
 
   // Az adott létszámra ténylegesen elférő időpontok. NINCS debounce — minden létszám-
   // változásra azonnal indul a kérés, az előzőt az AbortController szakítja félbe, így
   // mindig csak a LEGUTOLSÓ fut le. A régi halmazt megtartjuk amíg az új meg nem érkezik,
   // hogy a rács ne villanjon el/vissza minden kattintásnál (folyamatos, ugrás-mentes UX).
   useEffect(() => {
-    if (isEdit || !open || !restaurantId || !pax) return
+    if (!open || !restaurantId || !pax) return
     const ctrl = new AbortController()
-    const params = new URLSearchParams({ restaurantId, date: selectedDate, pax: String(pax), includePast: '1' })
+    const params = new URLSearchParams({ restaurantId, date: selectedDate, pax: String(pax), duration: String(duration), includePast: '1', ...exclude })
     fetch(`/api/restaurant/slots?${params}`, { credentials: 'include', signal: ctrl.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error(`Slots API ${r.status}`)
@@ -419,7 +391,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         console.error('[ReservationEditSheet] pax-availability fetch failed', err)
       })
     return () => ctrl.abort()
-  }, [isEdit, open, restaurantId, selectedDate, pax])
+  }, [isEdit, open, restaurantId, selectedDate, pax, duration])
 
   // Szabad asztalok lekérése idő/létszám változásra
   const loadOptions = useCallback(async () => {
@@ -648,464 +620,169 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   }
 
   if (typeof document === 'undefined') return null
-  return createPortal(
+  const endTime = startTime ? minutesToHHMM(hhmmToMinutes(startTime) + duration) : ''
+  const saveLabel = isDraft
+    ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')
+    : !online
+      ? (isEdit ? 'Offline — szerkesztés nem lehetséges' : 'Mentés vázlatként (offline)')
+      : (isEdit ? 'Mentés' : 'Foglalás mentése')
+
+  if (typeof document === 'undefined') return null
+  return (
     <>
-      <AnimatePresence>
-        {open && (
-          <div key="res-sheet" className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4">
-            {/* Finom, elmosott háttér — 1:1 az avatar-menü érzésével (enyhe dim + 2px blur). */}
-            <motion.div
-              className="absolute inset-0 bg-black/[0.06] backdrop-blur-[2px]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              onClick={requestClose}
-            />
-            {/* Középre úszó panel — az avatar „genie" springje (pulzáló pop); mobilon alsó lap. */}
-            <motion.div
-              variants={isDesktop ? GENIE : SLIDE_UP}
-              initial="hidden"
-              animate="show"
-              exit="exit"
-              style={{ transformOrigin: isDesktop ? 'center' : 'bottom center' }}
-              className="relative z-10 flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:max-h-[92vh] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-w-[840px] sm:rounded-[26px] lg:max-w-[1120px]"
-            >
-              {/* Mobilon fogantyú (koppintásra bezár) az X helyett — az alsó menü „…” lapjának mintája */}
-              <button type="button" aria-label="Bezárás" onClick={requestClose} className="w-full shrink-0 py-3 sm:hidden"><span className="mx-auto block h-1 w-10 rounded-full bg-[#e0ddd6]" /></button>
-              {/* Fejléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 pb-4 pt-0 sm:px-6 sm:py-4">
-                <div className="min-w-0">
-                  <h2 className="text-[20px] font-light tracking-[-0.02em] text-ink">
-                    {isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
-                  </h2>
-                  <p className="mt-0.5 text-[13px] text-ink-soft">
-                    {formatLongHu(selectedDate)}{isDraft && ' · még nem véglegesített offline vázlat'}
-                  </p>
-                  {((isEdit && !isDraft) || occasion) && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {isEdit && !isDraft && (
+      {/* Új / szerkesztett asztalfoglalás (a /design 6.18): balra a lépések, jobbra az élő összegzés a mentéssel */}
+      <PopupModal
+        open={open}
+        onClose={requestClose}
+        title={isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
+        subtitle={isDraft ? 'még nem véglegesített offline vázlat' : undefined}
+        headerExtra={(isEdit && !isDraft) || occasion ? <>{isEdit && !isDraft && (
                         <>
-                          {/* Státusz-pont: pulzál, ha folyamatban (megerősítésre vár); egyébként statikus. */}
-                          <span
-                            title={status === 'pending' ? 'Folyamatban — megerősítésre vár' : statusLabelOf(status)}
-                            className={`h-2 w-2 shrink-0 rounded-full ${
-                              status === 'pending'
-                                ? 'bg-amber-400 animate-soft-pulse'
-                                : status === 'cancelled' || status === 'no_show'
-                                  ? 'bg-zinc-300'
-                                  : 'bg-emerald-500'
-                            }`}
-                          />
-                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-ink-soft'}`}>
-                            {statusLabelOf(status)}
-                          </span>
-                          {source && source !== 'online' && (
-                            <span className="rounded-full bg-[#F4F4F4] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-soft">
-                              {sourceLabelOf[source]}
-                            </span>
-                          )}
-                          {urgency && (
-                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}>
-                              {urgency.label}
-                            </span>
-                          )}
+                          <StatusPill status={statusOf(status).tone}>{statusLabelOf(status)}</StatusPill>
+                          {source && source !== 'online' && <Pill tone="cell" size="sm">{sourceLabelOf[source]}</Pill>}
+                          {urgency && <StatusPill status={urgency.tone}>{urgency.label}</StatusPill>}
                           {reservation?.payment_status === 'paid' && (
-                            <span
-                              title={reservation.invoice_status === 'issued' ? `Számla: ${reservation.invoice_number}` : 'Bizonylat még nincs kiállítva'}
-                              className="inline-flex items-center gap-1 rounded-full bg-[#DCF3E2] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#1D7A3C]"
-                            >
-                              Előleg befizetve{reservation.deposit_amount_huf ? ` · ${reservation.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}
+                            <span title={reservation.invoice_status === 'issued' ? `Számla: ${reservation.invoice_number}` : 'Bizonylat még nincs kiállítva'}>
+                              <StatusPill status="ok">Előleg befizetve{reservation.deposit_amount_huf ? ` · ${reservation.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}</StatusPill>
                             </span>
                           )}
-                          {reservation?.payment_status === 'failed' && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-[#FBE1DE] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#B3261E]">
-                              Sikertelen előleg-fizetés
-                            </span>
-                          )}
-                          {reservation?.payment_status === 'refunded' && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-soft">
-                              Előleg visszatérítve
-                            </span>
-                          )}
+                          {reservation?.payment_status === 'failed' && <StatusPill status="bad">Sikertelen előleg-fizetés</StatusPill>}
+                          {reservation?.payment_status === 'refunded' && <StatusPill status="neutral">Előleg visszatérítve</StatusPill>}
                         </>
                       )}
-                      {/* Alkalom (occasion) — feltűnő jelvény fent, ahogy korábban a szülinapnál volt. */}
+                      {/* Alkalom — a választott esemény-típus ikonjával és saját színével */}
                       {occasion && (() => {
                         const OccIcon = eventIconByKey(occasionIcon)
                         return (
-                          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-[0_1px_4px_rgba(40,30,10,.22)]" style={{ background: eventColorByKey(occasionIcon) }}>
+                          <Pill tone="white" size="sm">
                             <OccIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} /> {occasion}
-                          </span>
+                          </Pill>
                         )
-                      })()}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={requestClose}
-                  aria-label="Bezárás"
-                  className="hidden h-9 w-9 shrink-0 sm:flex items-center justify-center rounded-full bg-[#F4F4F4] text-ink-soft transition-colors hover:bg-zinc-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </motion.div>
-
-              {/* Törzs (görgethető) */}
-              {/* „Adatlap” elrendezés (mint egy letisztult táblázat): szürke fejléc-sáv szekciónként,
-                  egyforma sorok vékony elválasztóval, bal oldalt címke, jobb oldalt keret nélküli
-                  érték. Lekerekítés: minden választható elem kerek pill. Asztalon két oszlop. */}
-              <motion.div variants={PANEL_ITEM} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-8 lg:space-y-0">
-          {/* ── FOGLALÁS ── */}
-          <div>
-            <SectionBar icon={CalendarClock} label="Foglalás" />
-
-            <FieldRow label="Nap">
-              <DatePickerPopover
-                value={selectedDate}
-                onChange={setSelectedDate}
-                loadEndpoint="/api/restaurant/day-load"
-                triggerClassName="flex h-9 w-full items-center justify-between gap-2 text-left text-[14px] font-medium text-ink"
-              >
-                {formatHuDate(selectedDate)}
-                <ChevronRight className="h-4 w-4 text-ink-soft2" />
-              </DatePickerPopover>
-            </FieldRow>
-
-            <FieldRow label="Létszám" hint={atPaxCap ? `Erre az időpontra max ${paxCap} fő fér el.` : undefined}>
-              {/* Érintőbarát stepper — kerek +/− gombok; a felső korlát az adott időpontra még
-                  leültethető létszám (paxCap), nem a kemény 50. */}
-              <div className="flex items-center justify-end gap-3">
-                <button type="button" aria-label="Kevesebb fő" onClick={() => setPax((p) => Math.max(1, p - 1))} disabled={pax <= 1} className={STEP_BTN}>−</button>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={paxCap}
-                  value={pax}
-                  onChange={(e) => setPax(Math.min(paxCap, Math.max(1, Number(e.target.value) || 1)))}
-                  className="w-10 border-0 bg-transparent text-center text-[15px] font-semibold tabular-nums text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-                <button type="button" aria-label="Több fő" onClick={() => setPax((p) => Math.min(paxCap, p + 1))} disabled={pax >= paxCap} className={STEP_BTN}>+</button>
-              </div>
-            </FieldRow>
-
-            <FieldRow label="Időpont" stacked>
-              {/* Új foglalásnál: szabad időpontok — ugyanaz a komponens/UX mint a szalonnál. */}
-              {!isEdit ? (
-                slotsLoading ? (
-                  <div className="flex h-9 items-center gap-2 text-sm text-ink-soft2">
-                    <Loader2 className="h-4 w-4 animate-spin shrink-0" /> Időpontok betöltése…
-                  </div>
-                ) : fetchedSlots.length === 0 ? (
-                  <div className="space-y-2">
-                    <p className="flex items-start gap-1 text-[10px] font-semibold leading-snug text-amber-600 sm:text-[11px]">
-                      <AlertTriangle className="mt-[1px] h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
-                      <span>
-                        {dayClosed
-                          ? 'Ezen a napon zárva vagyunk — válassz másik napot, vagy add meg kézzel.'
-                          : selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
-                            ? 'Mára már zárva vagyunk — válassz másik napot, vagy add meg kézzel.'
-                            : 'Nincs szabad időpont ezen a napon — add meg kézzel.'}
-                      </span>
-                    </p>
-                    <TimeSelect
-                      value={startTime}
-                      onChange={setStartTime}
-                      minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
-                      maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <TimeSlotGrid slots={fetchedSlots} value={startTime} onChange={setStartTime} highlightStarts={paxAvailableStarts} />
-                    {paxAvailableStarts && paxAvailableStarts.size === 0 && (
-                      <p className="text-[11px] font-medium text-amber-600">
-                        Erre a létszámra jelenleg egyik időpont sem elég — a halvány időpontok is választhatók, csak kézi asztal-egyeztetést igényelnek.
-                      </p>
-                    )}
-                  </>
-                )
-              ) : (
-                <TimeSelect
-                  value={startTime}
-                  onChange={setStartTime}
-                  minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
-                  maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
-                />
+                      })()}</> : undefined}
+        maxWidth="sm:max-w-[960px]"
+        aside={
+          <BookingSummary
+            name={name.trim() || `${pax} fős asztalfoglalás`}
+            sub={[phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : null, email.trim() || null].filter(Boolean).join(' · ') || undefined}
+            day={formatLongHu(selectedDate)}
+            time={startTime}
+            until={endTime ? `– ${endTime} · ${duration} perc` : undefined}
+            rows={[
+              ['Létszám', `${pax} fő`],
+              ['Asztal', tableId ? pickedNames : 'Automatikus'],
+              ['Forrás', sourceOptions.find((o) => o.value === source)?.label ?? '—'],
+              ...(occasion ? [['Alkalom', occasion] as [string, string]] : []),
+              ...(notes.trim() ? [['Megjegyzés', notes.trim()] as [string, string]] : []),
+            ]}
+            confirmNote={!isEdit && email.trim() && !emailErr ? 'Visszaigazoló e-mail megy a vendégnek' : undefined}
+            actions={<>
+              {isEdit && !isDraft && target?.reservation?.status === 'pending' && (
+                <Button size="lg" variant="yellow" icon={Check} onClick={() => save({ status: 'confirmed' })} disabled={saving || !online} className="w-full">Elfogadás</Button>
               )}
-            </FieldRow>
-
-            <div ref={tableRowRef} className="scroll-mt-2" />
-            <FieldRow
-              label={<span className="inline-flex items-center gap-1.5">Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}</span>}
-            >
-              {/* Figyelmeztetés / tájékoztatás a SORON BELÜL, a címke és az asztalnév között (nem alatta) */}
-              {(() => {
-                // az asztalok szabadsága az idősávtól függ → időpont nélkül nincs mit felkínálni
-                const tableHint: string | undefined = !startTime
-                  ? 'Előbb válassz időpontot — utána látod a szabad asztalokat.'
-                  : pickedBusy.length > 0 && !optionsLoading
-                    ? `${pickedNames} ekkor már foglalt — válassz másikat.`
-                  : pickedTooSmall && !optionsLoading
-                    ? `${pickedNames} (${pickedCapacity} fő) kicsi ${pax} főre — válassz nagyobbat.`
-                  : tableId.includes(',')
-                  ? `Összevont asztalok: ${tableId.split(',').map((id) => tableChoices.find((c) => String(c.id) === id)?.name ?? id).join(' + ')}`
-                  : suggestedCombo && tableId === ''
-                    ? `Egy asztal sem elég, automatikusan összevonva: ${suggestedCombo.names.join(' + ')} (${suggestedCombo.totalCapacity} fő)`
-                    : !optionsLoading && startTime && options.length === 0 && !suggestedCombo
-                      ? 'Nincs szabad asztal erre az időpontra/létszámra.'
-                      : undefined
-                const tone: string = !startTime ? 'muted' : (pickedBusy.length > 0 || pickedTooSmall) && !optionsLoading ? 'warn' : !optionsLoading && options.length === 0 && !suggestedCombo && !tableId.includes(',') ? 'warn' : 'ok'
-                const cls = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-[#1D7A4C]' : 'text-ink-soft2'
-                return (
-                  <div className="flex min-w-0 items-center justify-end gap-3">
-                    {tableHint && (
-                      <span title={tableHint} className={`flex min-w-0 flex-1 items-center justify-end gap-1 text-right text-[11px] font-medium leading-tight ${cls}`}>
-                        {tone === 'warn' && <AlertTriangle className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />}
-                        <span className="truncate">{tableHint}</span>
-                      </span>
-                    )}
-                  {/* A sor csak összegzés + nyitó; maga a választó alatta nyílik le (nem natív legördülő) */}
-                  <button
-                    type="button"
-                    disabled={!startTime}
-                    onClick={() => {
-                      const next = !tablePickerOpen
-                      setTablePickerOpen(next)
-                      // RÖGTÖN görgessen (nem a lenyílás végén): az Asztal sor a nézet tetejére
-                      // kerül, a választó így a látható részbe nyílik le
-                      if (next) requestAnimationFrame(() => tableRowRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
-                    }}
-                    aria-expanded={tablePickerOpen}
-                    className="flex h-9 shrink-0 items-center justify-end gap-1.5 text-right text-[14px] font-medium text-ink disabled:text-ink-soft2"
-                  >
-                    <span className="truncate">
-                      {tableId
-                        ? tableId.split(',').map((id) => tableChoices.find((c) => String(c.id) === id)?.name ?? id).join(' + ')
-                        : !startTime ? 'Automatikus' : `Automatikus · ${tableChoices.filter((t) => t.fitsPax).length} szabad`}
-                    </span>
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-ink-soft2 transition-transform ${tablePickerOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  </div>
-                )
-              })()}
-            </FieldRow>
-            <AnimatePresence initial={false}>
-              {tablePickerOpen && startTime && (
-                <motion.div
-                  key="table-picker"
-                  ref={tablePickerRef}
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1, transition: { type: 'spring', stiffness: 420, damping: 36 } }}
-                  exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
-                  className="overflow-hidden border-b border-line"
-                >
-                  <TablePicker
-                    free={tableChoices}
-                    busy={busyTables}
-                    value={tableId}
-                    combo={suggestedCombo}
-                    onPick={(id) => { setTableId(id); setTablePickerOpen(false) }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <FieldRow label="Ülésidő" stacked last>
-              <DurationSlider value={duration} onChange={setDuration} min={30} max={120} step={15} />
-              {clip && (
-                <p className="mt-2 flex items-start gap-1 text-[11px] font-semibold leading-snug text-[#C0453F]">
-                  <AlertTriangle className="mt-[1px] h-3 w-3 shrink-0" strokeWidth={2.2} />
-                  <span>Záráskor ({clip.actualEnd}) zártok — a foglalás {clip.actualEnd}-ig tart, nem {clip.wantedEnd}-ig.</span>
-                </p>
-              )}
-            </FieldRow>
-          </div>
-
-          {/* ── VENDÉG + RÉSZLETEK ── */}
-          <div className="space-y-6">
-            <div>
-              <SectionBar icon={UserRound} label="Vendég" />
-              <FieldRow label="Név">
-                <Input
-                  className={ROW_INPUT}
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }}
-                  autoComplete="off"
-                  placeholder={source === 'walk_in' ? 'Üresen: „Beeső”' : source === 'phone' ? 'Üresen: „Telefon”' : 'Pl. Kovács Anna'}
-                />
-              </FieldRow>
-              <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
-              <FieldRow label="Telefon">
-                <PhoneCountryInput
-                  country={country}
-                  phone={phone}
-                  onCountryChange={setCountry}
-                  onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }}
-                  inputClass="h-9 text-[14px] text-ink"
-                />
-              </FieldRow>
-              <FieldRow
-                label="Email"
-                hint={emailErr ?? undefined}
-                hintTone="bad"
-                aside={isEdit && reservation?.id ? (
-                  <EmailStatusBadge
-                    endpoint={`/api/restaurant/reservation-email-status?reservationId=${reservation.id}`}
-                    resendEndpoint="/api/restaurant/resend-reservation-email"
-                    resendBody={{ reservationId: reservation.id }}
-                  />
-                ) : undefined}
-              >
-                <Input
-                  className={ROW_INPUT}
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }}
-                  placeholder="opcionális"
-                  aria-invalid={!!emailErr}
-                />
-              </FieldRow>
-              <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
-              <FieldRow label="Város">
-                <Input className={ROW_INPUT} value={city} onChange={(e) => setCity(e.target.value)} placeholder="opcionális" />
-              </FieldRow>
-              <FieldRow label="Megjegyzés" last>
-                <Input className={ROW_INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
-              </FieldRow>
-
-              {target?.reservation?.custom_answers && Object.keys(target.reservation.custom_answers).length > 0 && (
-                <div className="mt-3 divide-y divide-line rounded-[12px] border border-line">
+              <Button size="lg" onClick={() => save()} disabled={saving || (!online && isEdit && !isDraft)} className="w-full">
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}{saveLabel}
+              </Button>
+              {isDraft
+                ? <Button onClick={discardDraft} disabled={saving} variant="ghost" icon={Trash2} className="w-full text-ui-bad">Vázlat törlése</Button>
+                : isEdit && <Button onClick={() => setConfirmCancel(true)} disabled={saving} variant="ghost" icon={Trash2} className="w-full text-ui-bad">Törlés</Button>}
+            </>}
+          />
+        }
+      >
+        <StepTitle n={1} className="mt-0">Vendég</StepTitle>
+        <Input className="mt-2" value={name} onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }} autoComplete="off" placeholder={source === 'walk_in' ? 'Vendég neve (üresen: „Beeső”)' : source === 'phone' ? 'Vendég neve (üresen: „Telefon”)' : 'Vendég neve'} />
+        <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
+        <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+          <PhoneCountryInput country={country} phone={phone} onCountryChange={setCountry} onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }} inputClass={`${FIELD} h-11`} />
+          <Input value={email} onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }} placeholder="E-mail (opcionális)" aria-invalid={!!emailErr} />
+          <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Város (opcionális)" />
+        </div>
+        {emailErr && <p className="mt-1 text-ui-label text-ui-bad">{emailErr}</p>}
+        {isEdit && reservation?.id && (
+          <div className="mt-1.5"><EmailStatusBadge endpoint={`/api/restaurant/reservation-email-status?reservationId=${reservation.id}`} resendEndpoint="/api/restaurant/resend-reservation-email" resendBody={{ reservationId: reservation.id }} /></div>
+        )}
+        <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
+        <div className="mt-1.5">
+          {target?.reservation?.custom_answers && Object.keys(target.reservation.custom_answers).length > 0 && (
+                <div className="mt-3 divide-y divide-dashed divide-ui-divider rounded-ui-control bg-ui-cell">
                   {Object.values(target.reservation.custom_answers).map((qa, i) => (
                     <div key={i} className="px-3.5 py-2.5">
-                      <div className="text-[12px] text-ink-soft">{qa.question}</div>
-                      <div className="text-sm text-ink">{qa.answer}</div>
+                      <div className="text-ui-meta text-ui-muted">{qa.question}</div>
+                      <div className="text-ui-body text-ui-text">{qa.answer}</div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+        </div>
 
-            <div>
-              <SectionBar icon={Sparkles} label="Részletek" />
-              <FieldRow label="Forrás" stacked>
-                <div className="flex flex-wrap gap-1">
-                  {sourceOptions.map((o) => (
-                    <button key={o.value} type="button" onClick={() => setSource(o.value)} className={pillSmCls(source === o.value)}>
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </FieldRow>
-              <FieldRow label="Státusz" stacked>
-                <div className="flex flex-wrap gap-1">
-                  {statusOptions
-                    // "Megerősítésre vár" csak akkor választható, ha a foglalás MÁR most is az
-                    .filter((st) => st.value !== 'pending' || status === 'pending')
-                    .map((st) => (
-                      <button key={st.value} type="button" onClick={() => { setStatus(st.value); setStatusTouched(true) }} className={pillSmCls(status === st.value)}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[st.value] ?? 'bg-zinc-300'}`} />
-                        {st.label}
-                      </button>
-                    ))}
-                </div>
-              </FieldRow>
-              {(() => {
-                // Ha a jelenlegi alkalom nincs a listában (egyedi/régi), külön kiválasztott pillként mutatjuk.
-                const extra = occasion && !eventTypes.some((e) => e.label === occasion)
-                  ? [{ icon: occasionIcon ?? 'party', label: occasion }]
-                  : []
-                const opts = [...eventTypes, ...extra]
-                if (opts.length === 0) return null
-                return (
-                  <FieldRow label="Alkalom" stacked last>
-                    <div className="flex flex-wrap gap-1">
-                      <button type="button" onClick={() => { setOccasion(null); setOccasionIcon(null) }} className={pillSmCls(occasion == null)}>Nincs</button>
-                      {opts.map((et, i) => {
-                        const Icon = eventIconByKey(et.icon)
-                        const active = occasion === et.label
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => active ? (setOccasion(null), setOccasionIcon(null)) : (setOccasion(et.label), setOccasionIcon(et.icon))}
-                            className={pillSmCls(active)}
-                          >
-                            <Icon className={`h-3 w-3 ${active ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.8} />
-                            {et.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </FieldRow>
-                )
-              })()}
-            </div>
-          </div>
-              </motion.div>{/* /Törzs */}
+        <PaxStep className="mt-5" pax={pax} paxMax={paxCap} onPax={setPax} hint={atPaxCap ? `Erre az időpontra max ${paxCap} fő fér el.` : undefined} />
 
-              {/* Lábléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 flex-col gap-2 border-t border-line p-4 sm:px-6 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
-                {/* Összegzés — mint a szalonnál: kör (a létszámmal) + mellette KÉT sor
-                    (1: név / létszám, 2: nap · idő · asztal · forrás). Asztalon a gomb mellett. */}
-                <div className="flex min-w-0 items-center gap-2.5 lg:flex-1">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-dark text-[13px] font-semibold tabular-nums text-white">{pax}</span>
-                  <span className="min-w-0 leading-tight">
-                    <span className="block truncate text-[13.5px] font-semibold text-ink">{name.trim() || `${pax} fős asztalfoglalás`}</span>
-                    <span className="block truncate text-[12px] text-ink-soft">
-                      {[
-                        name.trim() ? `${pax} fő` : null,
-                        formatHuDate(selectedDate),
-                        startTime || null,
-                        tableId ? pickedNames : null,
-                        sourceOptions.find((o) => o.value === source)?.label,
-                      ].filter(Boolean).join(' · ')}
-                    </span>
-                  </span>
-                </div>
-                {/* A vázlat lokális → online/offline is menthető. Valódi foglalás szerkesztéséhez szerver kell. */}
-                {/* Jóváhagyásra váró foglalás: egy kattintással elfogadható (a módosításokkal együtt
-                    ment, a vendég a `confirmOnApproval` hookon át megkapja a visszaigazolót). */}
-                {isEdit && !isDraft && target?.reservation?.status === 'pending' && (
-                  <Button onClick={() => save({ status: 'confirmed' })} disabled={saving || !online} className="h-12 w-full rounded-full bg-[#74AA19] text-[15px] font-semibold text-ink-dark hover:bg-[#74AA19]/90 lg:w-auto lg:px-8">
-                    <Check className="h-4 w-4 mr-2" strokeWidth={2.6} /> Elfogadás
-                  </Button>
-                )}
-                <Button onClick={() => save()} disabled={saving || (!online && isEdit && !isDraft)} className="h-12 w-full rounded-full bg-ink-dark text-[15px] font-semibold text-white hover:bg-ink-dark/90 lg:w-auto lg:px-10">
-                  {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  {isDraft
-                    ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')
-                    : !online
-                      ? (isEdit ? 'Offline — szerkesztés nem lehetséges' : 'Mentés vázlatként (offline)')
-                      : (isEdit ? 'Mentés' : 'Foglalás rögzítése')}
-                </Button>
-                {isDraft ? (
-                  <Button
-                    onClick={discardDraft}
-                    disabled={saving}
-                    variant="ghost"
-                    className="w-full text-red-600 hover:text-red-700 lg:order-first lg:w-auto"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" /> Vázlat törlése
-                  </Button>
-                ) : (
-                  isEdit && (
-                    <Button
-                      onClick={() => setConfirmCancel(true)}
-                      disabled={saving}
-                      variant="ghost"
-                      className="w-full text-red-600 hover:text-red-700 lg:order-first lg:w-auto"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" /> Törlés
-                    </Button>
-                  )
-                )}
-              </motion.div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+        <StepTitle n={3}>Időpont</StepTitle>
+        <div className="mt-2"><DayPickerStrip value={selectedDate} onPick={setSelectedDate} loadEndpoint="/api/restaurant/day-load" /></div>
+        {/* design 6.18: mindig a rács — a foglalt (vagy erre a létszámra kevés) csíkos, áthúzott; kézzel az is választható */}
+        {slotsLoading ? (
+          <div className="mt-2 flex h-10 items-center gap-2 text-ui-body text-ui-muted"><Loader2 className="h-4 w-4 shrink-0 animate-spin" /> Időpontok betöltése…</div>
+        ) : (() => {
+          const free = fetchedSlots.map((x) => x.start).filter((t) => (!paxAvailableStarts || paxAvailableStarts.has(t)) && (!tableFreeStarts || tableFreeStarts.has(t)))
+          const grid = slotGridOf({ free, all: allSlots, on: startTime || undefined, fallback: [openMin ?? 11 * 60, closeMin ?? 22 * 60] })
+          return (
+            <>
+              <SlotGrid className="mt-2 sm:grid-cols-6" slots={grid.slots} on={startTime} busy={grid.busy} onPick={(t) => { autoTimeRef.current = false; setStartTime(t) }} />
+              {free.length === 0 && <Meta className="mt-2">{dayClosed || !allSlots.length ? 'Ezen a napon zárva vagytok' : `Erre a napra ${pax} főre nincs szabad asztal`} — a csíkos időpont is választható, ha mégis felveszed.</Meta>}
+            </>
+          )
+        })()}
+
+        {/* design 6.18: asztal (automatikus vagy választott), összevonás-javaslat, alkalom */}
+        {(() => {
+          const free = tableChoices.map((t) => ({ id: String(t.id), name: t.name, capacity: t.capacity, small: !t.fitsPax, title: !t.fitsPax ? 'Kicsi ehhez a létszámhoz' : t.freeForMin != null ? `Csak ${t.freeForMin} percig szabad — utána foglalás jön rá` : undefined }))
+          const busy = busyTables.filter((b) => !tableChoices.some((f) => String(f.id) === String(b.id))).map((t) => ({ id: String(t.id), name: t.name, capacity: t.capacity, busy: true, busyMin: t.busyForMin, title: t.busyForMin != null ? `${t.busyForMin} perc múlva szabadul fel` : 'Ebben az idősávban foglalt' }))
+          const hint = !startTime ? 'Előbb válassz időpontot — utána látod a szabad asztalokat.'
+            : pickedBusy.length > 0 && !optionsLoading ? `${pickedNames} ekkor már foglalt — válassz másikat.`
+            : pickedTooSmall && !optionsLoading ? `${pickedNames} (${pickedCapacity} fő) kicsi ${pax} főre — válassz nagyobbat.`
+            : !optionsLoading && options.length === 0 && !suggestedCombo ? 'Nincs szabad asztal erre az időpontra/létszámra.'
+            : undefined
+          // a jelenlegi alkalom, ha nincs a listában (egyedi / régi), külön választhatóként
+          const occOpts = [...eventTypes, ...(occasion && !eventTypes.some((e) => e.label === occasion) ? [{ icon: occasionIcon ?? 'party', label: occasion }] : [])]
+          return (
+            <TableStep
+              n={4}
+              className="mt-5"
+              time={startTime || undefined}
+              tables={startTime ? [...free, ...busy] : []}
+              value={tableId}
+              onPick={setTableId}
+              autoHint={!startTime || optionsLoading ? undefined : suggestedCombo ? `${suggestedCombo.names.join(' + ')} összetolva · ${suggestedCombo.totalCapacity} hely` : (() => { const best = [...options].filter((o) => o.fitsPax).sort((a, b) => a.capacity - b.capacity)[0]; return best ? `${best.name} · ${best.capacity} fő` : 'nincs megfelelő szabad asztal' })()}
+              hint={hint}
+              combo={suggestedCombo && tableId === '' && !comboDismissed ? { label: `${suggestedCombo.names.join(' + ')} · ${suggestedCombo.totalCapacity} hely`, reason: `Egy szabad asztal sem elég ${pax} főre.` } : null}
+              onCombo={(accept) => (accept && suggestedCombo ? setTableId(suggestedCombo.ids.map(String).join(',')) : setComboDismissed(true))}
+              occasions={occOpts.map((e) => ({ value: e.label, label: e.label }))}
+              occasion={occasion}
+              onOccasion={(v) => { if (v === occasion) { setOccasion(null); setOccasionIcon(null) } else { setOccasion(v); setOccasionIcon(occOpts.find((e) => e.label === v)?.icon ?? null) } }}
+            />
+          )
+        })()}
+
+        <StepTitle n={5}>Egyéb</StepTitle>
+        <StepRow label="Forrás" first>
+          <ChoicePills options={sourceOptions.map((o) => ({ value: o.value ?? '', label: o.label }))} value={source ?? null} onPick={(v) => setSource(v as Reservation['source'])} />
+        </StepRow>
+        {/* az asztal mennyi időre foglalt — a kit választó pilljeivel (a csúszka helyett) */}
+        <StepRow label="Ülésidő">
+          <ChoicePills
+            options={[...new Set([30, 60, 90, 120, 150, 180, duration])].sort((x, y) => x - y).map((m) => ({ value: String(m), label: m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)},5` : '0,5'} ó` : `${m / 60} ó` }))}
+            value={String(duration)}
+            onPick={(v) => setDuration(Number(v))}
+          />
+        </StepRow>
+        {clip && <Meta className="text-ui-bad">Záráskor ({clip.actualEnd}) zártok — a foglalás {clip.actualEnd}-ig tart, nem {clip.wantedEnd}-ig.</Meta>}
+        <StepRow label="Státusz">
+          <ChoicePills options={statusOptions.map((o) => ({ value: o.value, label: o.label }))} value={status} onPick={(v) => { setStatus(v as Reservation['status']); setStatusTouched(true) }} />
+        </StepRow>
+        <StepRow label="Megjegyzés">
+          <Input size="sm" className="w-[220px] max-w-full" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
+        </StepRow>
+      </PopupModal>
 
       {/* Kisebb asztalra ültetés — tudatos megerősítés után mehet (a szerver is csak így engedi) */}
       <ConfirmDialog
@@ -1121,179 +798,27 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         onConfirm={() => { setConfirmSmallTable(false); void save({ allowOverCapacity: true }) }}
       />
 
-      {confirmCancel && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-line p-6 shadow-2xl">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-ink mb-1">Biztosan törlöd a foglalást?</h3>
-                <p className="text-sm text-ink-soft">
-                  Ez a művelet nem vonható vissza — a foglalás véglegesen törlődik a rendszerből.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmCancel(false)}
-                disabled={saving}
-                className="flex-1 h-11 rounded-full bg-[#F4F4F4] text-ink text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
-              >
-                Mégse
-              </button>
-              <button
-                type="button"
-                onClick={deleteReservation}
-                disabled={saving}
-                className="flex-1 h-11 rounded-full bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
-              >
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {saving ? 'Törlés...' : 'Igen, törlöm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <ConfirmDialog
+        open={confirmCancel}
+        title="Biztosan törlöd a foglalást?"
+        description="Ez a művelet nem vonható vissza — a foglalás véglegesen törlődik a rendszerből."
+        confirmLabel={saving ? 'Törlés…' : 'Igen, törlöm'}
+        busy={saving}
+        onConfirm={deleteReservation}
+        onCancel={() => setConfirmCancel(false)}
+        zIndexClass="z-[95]"
+      />
       {/* Dirty-guard — mentetlen változásnál zárás előtt rákérdezünk. */}
-      {confirmDiscard && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
-          <div className="w-full max-w-sm rounded-2xl bg-white border border-line p-6 shadow-2xl">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-ink mb-1">Elveted a módosításokat?</h3>
-                <p className="text-sm text-ink-soft">
-                  Van mentetlen változás. Ha bezárod, elvész.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmDiscard(false)}
-                className="flex-1 h-11 rounded-full bg-[#F4F4F4] text-ink text-sm font-semibold hover:opacity-80 transition-opacity"
-              >
-                Mégse
-              </button>
-              <button
-                type="button"
-                onClick={() => { setConfirmDiscard(false); onClose() }}
-                className="flex-1 h-11 rounded-full bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
-              >
-                Elvetem
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>,
-    document.body,
+      <ConfirmDialog
+        open={confirmDiscard}
+        title="Elveted a módosításokat?"
+        description="Van mentetlen változás. Ha bezárod, elvész."
+        confirmLabel="Elvetem"
+        onConfirm={() => { setConfirmDiscard(false); onClose() }}
+        onCancel={() => setConfirmDiscard(false)}
+        zIndexClass="z-[95]"
+      />
+    </>
   )
 }
 
-
-/** Csoportosított asztal-választó: „Automatikus” (ajánlással) felül, alatta teremenként pill-gombok.
- *  Szabad = kattintható; kicsi = halvány; foglalt (ebben az idősávban) = áthúzott, nem kattintható. */
-function TablePicker({
-  free, busy, value, combo, onPick,
-}: {
-  free: MoveOption[]
-  busy: MoveOption[]
-  value: string
-  combo: ComboOption | null
-  onPick: (id: string) => void
-}) {
-  type Item = MoveOption & { state: 'free' | 'small' | 'busy' }
-  const items: Item[] = [
-    ...free.map((t) => ({ ...t, state: (t.fitsPax ? 'free' : 'small') as Item['state'] })),
-    ...busy.filter((b) => !free.some((f) => String(f.id) === String(b.id))).map((t) => ({ ...t, state: 'busy' as const })),
-  ]
-  const rooms = new Map<string, Item[]>()
-  for (const it of items) {
-    const key = it.room ?? 'Terem nélkül'
-    if (!rooms.has(key)) rooms.set(key, [])
-    rooms.get(key)!.push(it)
-  }
-  for (const list of rooms.values()) list.sort((a, b) => a.capacity - b.capacity || a.name.localeCompare(b.name, 'hu'))
-  const best = free.find((t) => t.fitsPax)
-  const autoHint = combo ? `${combo.names.join(' + ')} · ${combo.totalCapacity} fő (összevonva)` : best ? `${best.name} · ${best.capacity} fő` : 'nincs megfelelő szabad asztal'
-  const selected = new Set(value ? value.split(',') : [])
-
-  return (
-    <div className="space-y-3 px-3 pb-3 pt-1">
-      <button
-        type="button"
-        onClick={() => onPick('')}
-        className={`flex w-full items-center justify-between gap-3 rounded-[14px] border px-3.5 py-2.5 text-left transition-colors ${
-          !value ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink hover:border-line-strong'
-        }`}
-      >
-        <span>
-          <span className="block text-[13px] font-semibold">Automatikus</span>
-          <span className={`block text-[11.5px] ${!value ? 'text-white/65' : 'text-ink-soft2'}`}>A rendszer ezt adná: {autoHint}</span>
-        </span>
-        {!value && <span className="text-[12px] font-semibold text-gold">✓</span>}
-      </button>
-
-      {[...rooms.entries()].map(([room, list]) => (
-        <div key={room}>
-          <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-widest text-ink-soft2">{room}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {list.map((t) => {
-              const on = selected.has(String(t.id))
-              const busyT = t.state === 'busy'
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  disabled={busyT && !on}
-                  onClick={() => onPick(String(t.id))}
-                  title={busyT ? 'Ebben az idősávban foglalt' : t.state === 'small' ? 'Kicsi ehhez a létszámhoz' : undefined}
-                  className={`relative inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors ${
-                    on
-                      ? 'border-ink-dark bg-ink-dark text-white'
-                      : busyT
-                        ? 'cursor-not-allowed border-dashed border-line bg-transparent text-ink-soft2/60 line-through'
-                        : t.state === 'small'
-                          ? 'border-line bg-white text-ink-soft2 hover:border-line-strong'
-                          : 'border-line bg-white text-ink hover:border-line-strong'
-                  }`}
-                >
-                  {/* ugyanaz a jel, mint a jelmagyarázatban */}
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${
-                    busyT ? 'border border-dashed border-ink-soft2 bg-transparent' : t.state === 'small' ? 'bg-[#D9D4C5]' : 'bg-[#1D9D63]'
-                  }`} />
-                  {t.name}
-                  <span className={`text-[11.5px] font-medium ${on ? 'text-white/65' : 'text-ink-soft2'}`}>{t.capacity} fő</span>
-                  {on && t.state !== 'free' && <span className="text-[11px] font-semibold text-gold">{busyT ? 'foglalt!' : 'kicsi!'}</span>}
-                  {/* percjelző a jobb felső sarokban: foglaltnál ennyi múlva szabadul, szabadnál ennyi ideig szabad */}
-                  {(t.busyForMin != null || t.freeForMin != null) && (
-                    <span
-                      title={t.busyForMin != null ? `${t.busyForMin} perc múlva szabadul fel` : `Csak ${t.freeForMin} percig szabad — utána foglalás jön rá`}
-                      className="absolute -right-1 -top-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[9.5px] font-bold leading-tight text-white no-underline shadow-sm"
-                    >
-                      {t.busyForMin ?? t.freeForMin}'
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-2.5 text-[11px] text-ink-soft2">
-        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#1D9D63]" />szabad</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#D9D4C5]" />kicsi a társaságnak</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full border border-dashed border-ink-soft2" />foglalt ebben az időben</span>
-        <span className="inline-flex items-center gap-1.5"><span className="rounded-full bg-amber-500 px-1 text-[9px] font-bold leading-tight text-white">15'</span>foglaltnál: ennyi múlva szabadul · szabadnál: ennyi ideig szabad</span>
-      </div>
-    </div>
-  )
-}

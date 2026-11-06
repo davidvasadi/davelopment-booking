@@ -37,6 +37,8 @@ interface Body {
   customer_city?: string
   notes?: string
   status?: Booking['status']
+  /** honnan jött: online / beeső / telefon (mint az éttermi foglalásnál) */
+  source?: Booking['source']
 }
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/
@@ -127,6 +129,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Ütközés: a szakembernek már van foglalása erre az időre' }, { status: 409 })
   }
 
+  // ── Szünet: a szakember aznapi beosztásának szünetére nem lehet foglalni (a publikus foglaló sem kínálja fel —
+  //    lib/availability ugyanígy kezeli; a Shifts.date déli UTC időpontként tárolt). ──
+  const shift = (await payload.find({
+    collection: 'shifts',
+    where: { and: [{ staff: { equals: staffId } }, { date: { equals: `${date}T12:00:00.000Z` } }] },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })).docs[0] as { breaks?: { start_time?: string | null; end_time?: string | null }[] | null } | undefined
+  const onBreak = (shift?.breaks ?? []).find((w) => w.start_time && w.end_time && startMin < hhmmToMinutes(w.end_time) && endMin > hhmmToMinutes(w.start_time))
+  if (onBreak) {
+    return NextResponse.json({ error: `A szakembernek ${onBreak.start_time}–${onBreak.end_time} között szünete van — erre az időre nem lehet foglalni` }, { status: 409 })
+  }
+
   const data: Partial<Booking> = {
     service: Number(serviceId) as unknown as Booking['service'],
     // Ár pillanatfelvétele — létrehozáskor az induló érték, szerkesztésnél (szolgáltatás-
@@ -144,6 +160,7 @@ export async function POST(req: NextRequest) {
   if (body.customer_city !== undefined) data.customer_city = body.customer_city.trim() || null
   if (body.notes !== undefined) data.notes = body.notes
   if (body.status !== undefined) data.status = body.status
+  if (body.source && ['online', 'walk_in', 'phone'].includes(body.source)) data.source = body.source
 
   if (bookingId != null) {
     const updated = await payload.update({
@@ -164,6 +181,8 @@ export async function POST(req: NextRequest) {
       salon: Number(salon.id),
       customer_name: body.customer_name?.trim() || 'Vendég',
       status: body.status ?? 'confirmed',
+      // a tulaj által rögzített foglalás jellemzően telefonos, ha nem választott mást
+      source: data.source ?? 'phone',
       // Önlemondó token — hogy a visszaigazoló emailben legyen működő lemondás-link.
       cancellation_token: randomBytes(32).toString('hex'),
     } as unknown as Booking,

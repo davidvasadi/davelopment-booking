@@ -1,138 +1,51 @@
-import Link from 'next/link'
 import { getPayloadClient } from '@/lib/payload'
-import type { Salon, Service, StaffMember } from '@/payload/payload-types'
+import type { Media, Salon, Service, StaffMember } from '@/payload/payload-types'
 import { getLocale } from '@/lib/i18n/server'
 import { t } from '@/lib/i18n'
+import { formatBookingDate } from '@/lib/emailLayout'
+import { Button } from '@/components/ui-kit'
+import { GuestResult, GuestShell } from '@/components/blocks/guest-pages'
 
-export default async function ConfirmCancelPage({
-  params,
-}: {
-  params: Promise<{ token: string }>
-}) {
+/**
+ * Szalon: a lemondás megerősítése (a visszaigazoló / emlékeztető levél „Foglalás lemondása” linkje) — design 21.12.
+ * A lemondás űrlappal (POST) megy, nem linkkel: a link-előtöltés (prefetch) különben már a megjelenéskor lemondaná.
+ */
+export default async function ConfirmCancelPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const locale = await getLocale()
   const payload = await getPayloadClient()
-
-  const result = await payload.find({
-    collection: 'bookings',
-    where: { cancellation_token: { equals: token } },
-    depth: 2,
-    limit: 1,
-    overrideAccess: true,
-  })
-
+  const result = await payload.find({ collection: 'bookings', where: { cancellation_token: { equals: token } }, depth: 2, limit: 1, overrideAccess: true })
   const booking = result.docs[0]
 
+  const salon = booking && typeof booking.salon === 'object' ? (booking.salon as Salon) : null
+  const biz = salon ? { name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? (salon.logo as Media).url ?? null : null } : null
+  const home = salon?.slug ? `/${salon.slug}` : '/'
+
   if (!booking) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center space-y-4">
-          <div className="mx-auto h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center">
-            <span className="text-2xl text-red-400">✕</span>
-          </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.invalidTitle')}</h1>
-          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.invalidBody')}</p>
-          <Link href="/" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
-            {t(locale, 'public.cancel.backHome')}
-          </Link>
-        </div>
-      </div>
-    )
+    return <GuestShell biz={null}><GuestResult tone="bad" title={t(locale, 'public.cancel.invalidTitle')} text={t(locale, 'public.cancel.invalidBody')} /></GuestShell>
   }
-
   if (booking.status === 'cancelled') {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center space-y-4">
-          <div className="mx-auto h-14 w-14 rounded-full bg-zinc-800 flex items-center justify-center">
-            <span className="text-2xl text-zinc-400">✓</span>
-          </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.already')}</h1>
-          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.alreadyBody')}</p>
-          <Link href="/" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
-            {t(locale, 'public.cancel.backHome')}
-          </Link>
-        </div>
-      </div>
-    )
+    return <GuestShell biz={biz}><GuestResult tone="cell" title={t(locale, 'public.cancel.already')} text={t(locale, 'public.cancel.alreadyBody')}><Button variant="cell" href={home}>{t(locale, 'public.cancel.backToPlace')}</Button></GuestResult></GuestShell>
   }
-
   if (booking.status === 'completed') {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center space-y-4">
-          <div className="mx-auto h-14 w-14 rounded-full bg-zinc-800 flex items-center justify-center">
-            <span className="text-2xl text-zinc-400">✕</span>
-          </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.cannot')}</h1>
-          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.cannotBody')}</p>
-          <Link href="/" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
-            {t(locale, 'public.cancel.backHome')}
-          </Link>
-        </div>
-      </div>
-    )
+    return <GuestShell biz={biz}><GuestResult tone="cell" title={t(locale, 'public.cancel.cannot')} text={t(locale, 'public.cancel.cannotBody')}><Button variant="cell" href={home}>{t(locale, 'public.cancel.backToPlace')}</Button></GuestResult></GuestShell>
   }
 
-  const salon = typeof booking.salon === 'object' ? booking.salon as Salon : null
-  const service = typeof booking.service === 'object' ? booking.service as Service : null
-  const staff = typeof booking.staff === 'object' ? booking.staff as StaffMember : null
-  const salonSlug = salon?.slug ?? ''
-
+  const service = typeof booking.service === 'object' ? (booking.service as Service) : null
+  const staff = typeof booking.staff === 'object' ? (booking.staff as StaffMember) : null
+  const rows: [string, string][] = [
+    ...(service ? [[t(locale, 'email.label.service'), service.name] as [string, string]] : []),
+    ...(staff ? [[t(locale, 'email.label.staff'), staff.name] as [string, string]] : []),
+    [t(locale, 'public.cancel.when'), `${formatBookingDate(String(booking.date).slice(0, 10), locale)} ${booking.start_time}`],
+  ]
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.title')}</h1>
-          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.confirmDetail')}</p>
-        </div>
-
-        <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-5 space-y-2.5">
-          {salon && (
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">{t(locale, 'public.cancel.salon')}</span>
-              <span className="text-white font-medium">{salon.name}</span>
-            </div>
-          )}
-          {service && (
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">{t(locale, 'email.label.service')}</span>
-              <span className="text-white font-medium">{service.name}</span>
-            </div>
-          )}
-          {staff && (
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">{t(locale, 'email.label.staff')}</span>
-              <span className="text-white font-medium">{staff.name}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm">
-            <span className="text-zinc-500">{t(locale, 'public.cancel.when')}</span>
-            <span className="text-white font-medium">{booking.date} {booking.start_time}</span>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {/* Űrlap (POST), nem <Link>: a Link prefetch-e GET-tel már a gomb megjelenésekor
-              lefuttatta volna a lemondást. */}
-          <form action={`/api/cancel/${encodeURIComponent(token)}`} method="post">
-            <button
-              type="submit"
-              className="block w-full h-12 rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold text-sm flex items-center justify-center transition-colors"
-            >
-              {t(locale, 'public.cancel.yes')}
-            </button>
-          </form>
-          <Link
-            href={salonSlug ? `/${salonSlug}` : '/'}
-            className="block w-full h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm flex items-center justify-center transition-colors"
-          >
-            {t(locale, 'public.cancel.no')}
-          </Link>
-        </div>
-
-      </div>
-    </div>
+    <GuestShell biz={biz}>
+      <GuestResult tone="warn" title={t(locale, 'public.cancel.title')} text={t(locale, 'public.cancel.confirmDetail')} rows={rows}>
+        <form action={`/api/cancel/${encodeURIComponent(token)}`} method="post" className="contents">
+          <Button type="submit" variant="danger" className="w-full">{t(locale, 'public.cancel.yes')}</Button>
+        </form>
+        <Button variant="cell" href={home}>{t(locale, 'public.cancel.no')}</Button>
+      </GuestResult>
+    </GuestShell>
   )
 }

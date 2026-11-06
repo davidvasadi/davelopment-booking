@@ -3,10 +3,8 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
-import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/components/dashboard/ScheduleView'
-import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
-import { StatusPills } from '@/components/dashboard/StatusPills'
-import { PageHeader } from '@/components/ui/page-header'
+import { CalendarView } from '@/components/dashboard/CalendarView'
+import type { StaffVM, ShiftVM, ShiftType } from '@/lib/schedule'
 import type { StaffMember, Shift, Media, Availability } from '@/payload/payload-types'
 import { fixMediaUrl } from '@/lib/utils'
 
@@ -52,7 +50,8 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
       collection: 'shifts',
       where: { salon: { equals: salon.id } },
       sort: 'date',
-      depth: 0,
+      // depth 1: a táppénzes papír neve / mérete (a munkatárs is objektumként jön — a staffId ezt kezeli)
+      depth: 1,
       limit: 5000,
       overrideAccess: true,
     }),
@@ -81,7 +80,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
   const closedWeekdays = Array.from(new Set((weeklyClosedRes.docs as Availability[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
 
   // Meghívóra váró (még nem elfogadott) tagok — amíg nem fogadják el, nem oszthatók be
-  // műszakra (lakat + UX infó a szakember-választón, ld. ScheduleView DayEditor).
+  // műszakra (lakat + UX infó a szakember-választón, ld. ShiftEditor).
   const invitedRes = await payload.find({
     collection: 'memberships',
     where: { and: [{ salon: { equals: salon.id } }, { status: { equals: 'invited' } }] },
@@ -115,6 +114,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
     birthday: s.birthday ? toYmd(s.birthday) : null,
     join_date: s.join_date ? toYmd(s.join_date) : null,
     weekly_hours: typeof s.weekly_hours === 'number' ? s.weekly_hours : null,
+    annual_leave_days: typeof s.annual_leave_days === 'number' ? s.annual_leave_days : null,
     phone: s.phone ?? null,
     documents: (s.documents ?? []).map((d) => ({
       label: d.label ?? 'Dokumentum',
@@ -136,6 +136,8 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
     note: sh.note ?? null,
     left_early_at: sh.left_early_at ?? null,
     left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
+    paid: !!sh.paid,
+    sickNote: sh.sick_note && typeof sh.sick_note === 'object' ? { filename: sh.sick_note.filename ?? 'táppénzes papír', mimeType: sh.sick_note.mimeType ?? null, filesize: sh.sick_note.filesize ?? null } : null,
   }))
 
   // A bejelentkezett user staff-rekordjának megkeresése email alapján.
@@ -143,76 +145,26 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
   const myStaffId = myStaffRaw ? String(myStaffRaw.id) : undefined
 
   // Saját-nézet: view.own VAGY manage.own (mindkét esetben csak saját adat, nincs csapatlista).
-  // manage.own esetén a ScheduleView-ban canManage=true, mert csak saját embert lát → szerkeszthet.
+  // manage.own esetén a CalendarView-ban canManage=true, mert csak saját embert lát → szerkeszthet.
   const isOwnOnly = !canManage
   const staff = canManage ? allStaff : (myStaffRaw ? [allStaff.find((s) => s.id === myStaffId)!].filter(Boolean) : allStaff)
   const shifts = canManage ? allShifts : allShifts.filter((s) => s.staffId === myStaffId)
 
-  const now = new Date()
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const todayStr = toYmd(now.toISOString())
-
-  // ── KPI-k ──
-  // Vezető: csapat-összesítő; saját-nézet: csak a saját hónap
-  const kpiShifts = canManage ? allShifts.filter((s) => s.date.startsWith(ym)) : shifts.filter((s) => s.date.startsWith(ym))
-  // "Ledolgozott" = csak a MÁIG tartó napok — a beosztás-automatizáló a foglalási ablakra
-  // (akár 60+ nap előre) is beír "Műszak" rekordot, azok nélkül a jövőbeli napok is
-  // "ledolgozott" óraként jelentek volna meg ebben a fejléc-KPI-ban.
-  const workedHours = Math.round(kpiShifts.filter((s) => s.type === 'shift' && s.date <= todayStr).reduce((a, s) => a + (s.hours ?? 0), 0))
-  const offDays = kpiShifts.filter((s) => s.type === 'leave' || s.type === 'sick' || s.type === 'vacation').length
-
-  const total = kpiShifts.length || 1
-  const pct = (n: number) => Math.round((n / total) * 100)
-  const nShift = kpiShifts.filter((s) => s.type === 'shift').length
-  const nVac = kpiShifts.filter((s) => s.type === 'leave' || s.type === 'vacation').length
-  const nSick = kpiShifts.filter((s) => s.type === 'sick').length
-  const pills = [
-    { label: 'Műszak', pct: pct(nShift), background: '#1D1C19', color: '#fff' },
-    { label: 'Szabadság', pct: pct(nVac), background: '#F1CE45', color: '#1D1C19' },
-    {
-      label: 'Betegszab.',
-      pct: pct(nSick),
-      background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)',
-      color: '#57564f',
-      border: '1px solid var(--dav-line-strong)',
-      align: 'end' as const,
-    },
-  ]
+  // bérköltség: a munkatárs havi bére
+  const pay = Object.fromEntries((staffRes.docs as StaffMember[]).filter((s) => typeof s.salary === 'number' && s.salary > 0).map((s) => [String(s.id), { type: 'monthly' as const, rate: s.salary as number }]))
 
   return (
-    <div className="space-y-6">
-      <div className="px-4 pt-4 lg:px-0 lg:pt-0">
-        {canManage ? (
-          <PageHeader eyebrow="Csapat" title="Naptár" />
-        ) : (
-          <PageHeader eyebrow="Naptár" title="Saját beosztás" />
-        )}
-        <div className="mt-0 flex flex-col gap-6 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
-          <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
-          <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-            {canManage ? (
-              <>
-                <CountUpKpi icon="users" value={allStaff.length} label="Csapattag" />
-                <CountUpKpi icon="clock" value={workedHours} label="Ledolgozott óra (hó)" />
-                <CountUpKpi icon="off" value={offDays} label="Szabadság / hiányzás" />
-              </>
-            ) : (
-              <>
-                <CountUpKpi icon="clock" value={workedHours} label="Saját óra (hó)" />
-                <CountUpKpi icon="off" value={offDays} label="Hiányzás / szab." />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-      <ScheduleView
+    <div>
+      <CalendarView
         variant="salon"
         staffPageHref={can(capabilities, 'staff.view') || can(capabilities, 'staff.manage') ? '/dashboard/staff' : null}
         salonId={String(salon.id)}
         staff={staff}
         shifts={shifts}
-        year={now.getFullYear()}
-        month={now.getMonth()}
+        // a bér csak a csapatot kezelőnek megy le a böngészőbe
+        pay={canManage ? pay : {}}
+        // a bér- és borravaló-összesítő (11.3) egyelőre rejtve — még nincs eldöntve, hová kerül
+        showPayroll={false}
         closedDates={closedDates}
         closedWeekdays={closedWeekdays}
         canManage={canManage || (isOwnOnly && canManageOwn)}

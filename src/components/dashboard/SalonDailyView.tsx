@@ -1,61 +1,34 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl, formatPrice } from '@/lib/utils'
-import { List, ChartNoAxesGantt, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote, Coffee } from 'lucide-react'
-import type { BookingsRange } from './DateFilter'
-import { StatusPills } from '@/components/dashboard/StatusPills'
-import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
-import BookingActions from '@/components/dashboard/BookingActions'
+import { hhmmToMinutes, ymdLocal, fixMediaUrl } from '@/lib/utils'
+import { Check, Clock, Wallet, CalendarDays, Coffee, FileSignature, Phone, X } from 'lucide-react'
+import type { BookingsRange } from '@/components/shared/BookingsDateNav'
+import { BookingsHead, EmptyDayBar, EMPTY_FILTER, type NextBooking, applyBookingFilter, type BookingFilter } from '@/components/shared/BookingsHead'
+import { segments, thousands } from '@/components/dashboard/OverviewLayout'
+import { Avatar, Card, FieldRow, Kpi, Meta, Note, StatusPill } from '@/components/ui-kit'
+import { BookingDrawer, type DrawerAction } from '@/components/shared/BookingDrawer'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { setBookingStatus } from '@/components/dashboard/ApprovalActions'
+import { markLocalMutation } from '@/lib/localMutationTracker'
+import { MobileDayTimeline, hourRows } from '@/components/blocks/day-timeline'
+import { DayStrip } from '@/components/shared/BookingsDateNav'
+import { ResourceGrid, shortAlert } from '@/components/shared/ResourceGrid'
+import { STATUS_LEGEND, statusBlockClass, statusCard } from '@/components/shared/statusColors'
+import { BlockLegend, BookingFacts } from '@/components/blocks/booking'
+import { BookingList, statusOf } from '@/components/shared/BookingList'
 import { SalonOfflineBanner } from '@/components/dashboard/SalonOfflineBanner'
 import { BookingEditSheet, type EditTarget } from '@/components/dashboard/BookingEditSheet'
 import { getDrafts, subscribeDrafts, type SalonBookingDraft } from '@/lib/salonBookingDrafts'
-import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
-import { HoverButton } from '@/components/shared/HoverButton'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
-import { StatusLegend, SALON_LEGEND } from '@/components/shared/StatusLegend'
+import { BookingCheckout, type OnsiteSettings } from './BookingCheckout'
+import { AttentionPill } from '@/components/blocks/booking'
 
 type ViewMode = 'list' | 'timeline'
 
-const statusLabel: Record<string, string> = {
-  pending: 'Megerősítésre vár', confirmed: 'Megerősítve',
-  completed: 'Befejezett', cancelled: 'Lemondva',
-}
-// Mobil lista-nézet: rövid státusz-felirat a pötty mellé (keskeny oszlopba is kiférjen).
-const statusShort: Record<string, string> = {
-  pending: 'Függő', confirmed: 'Megerősítve', completed: 'Befejezett', cancelled: 'Lemondva',
-}
-// A hatch-mintás (szaggatott "börtön") hátterek NEM Tailwind bg-[...] arbitrary osztályként
-// mennek — Safariban (és mobil WebKiten) a bonyolult repeating-linear-gradient bracket-szintaxis
-// nem mindig alkalmazódott (üresen/fehéren maradt a kártya), csak Chrome-on volt jó. Sima
-// `style`-lal adjuk, mint az üres-sáv placeholdereknél — az garantáltan minden böngészőben fut.
-// Fedő (nem áttetsző) színek — korábban rgba(...) volt, ami a krém oldal-háttéren szépen
-// nézett ki, DE egy kártya-verem elé kerülve átütött rajta a mögötte lévő elem színe.
-const HATCH_COMPLETED = 'repeating-linear-gradient(115deg,#FAF8F3 0 7px,#E5E0CD 7px 14px)'
-function statusBg(status: string): { background: string } | undefined {
-  if (status === 'completed') return { background: HATCH_COMPLETED }
-  return undefined
-}
-// Tömör blokk-színek a davelopment-kánon szerint (a szalon 4 státusza):
-// confirmed=sötét (alap), pending=gold (függő), completed=szaggatott hatch (kész, mint az
-// étteremnél és az Áttekintés-oldalon) — a háttér a statusBg()-ből jön (style), cancelled=
-// szaggatott áthúzott.
-const statusBlock: Record<string, string> = {
-  pending: 'bg-[#F1CE45] text-ink-dark border-[#F1CE45]',
-  confirmed: 'bg-[#1D1C19] text-white border-[#1D1C19]',
-  completed: 'text-ink-soft2 border border-[#c9c2ae]',
-  cancelled: 'bg-[#C0564A] text-white border-[#C0564A]',
-}
-const statusDot: Record<string, string> = {
-  pending: 'bg-gold', confirmed: 'bg-ink-dark', completed: 'bg-[#C9C2AE]', cancelled: 'bg-[#C0564A]',
-}
-const CANCEL_RED = '#C0564A'
 export const ACTIVE = new Set(['pending', 'confirmed', 'completed', 'cancelled'])
-const STATUS_DARK_BG = new Set(['confirmed', 'cancelled'])
-
 /** Élő, percenként frissülő aktuális idő (perc éjféltől). null, ha a megtekintett nap nem ma van. */
 function useNowMinutes(date: string): number | null {
   const calc = () => {
@@ -74,41 +47,32 @@ function useNowMinutes(date: string): number | null {
 }
 
 /** Egyszerű sürgősség-jelzés: megerősített foglalás, de a kezdés ideje már elmúlt (ma). */
-function urgencyOf(b: Booking, nowMin: number | null): { label: string; cls: string } | null {
+function urgencyOf(b: Booking, nowMin: number | null): { label: string } | null {
   if (nowMin == null) return null
   const start = hhmmToMinutes(b.start_time)
   if (b.status === 'confirmed' && nowMin > start) {
-    return { label: `Késik ${nowMin - start}p`, cls: 'bg-red-500 text-white border-red-600' }
+    return { label: `Késik ${nowMin - start} p` }
   }
   return null
+}
+
+/** Fizetésre vár (design 6.8.1 — 1. fokozat): helyszíni fizetés bekapcsolva, a megerősített foglalás véget ért, és még
+ *  nincs lezárva fizetéssel. A jel a blokkon és a soron, amíg el nem intézik. */
+export function paymentDue(b: Booking, onsiteOn: boolean, date: string, nowMin: number | null): boolean {
+  if (!onsiteOn || b.status !== 'confirmed' || b.paid_at) return false
+  const today = ymdLocal(new Date())
+  return date < today || (date === today && nowMin != null && nowMin >= hhmmToMinutes(b.end_time))
 }
 
 // ── segéd-getterek (a reláció lehet id vagy kifejtett objektum) ──
 export const idOf = (v: unknown): string =>
   v && typeof v === 'object' ? String((v as { id: string | number }).id) : String(v ?? '')
 const serviceOf = (b: Booking): Service | null => (typeof b.service === 'object' ? b.service : null)
-const staffOf = (b: Booking): StaffMember | null => (typeof b.staff === 'object' ? b.staff : null)
+export const staffOf = (b: Booking): StaffMember | null => (typeof b.staff === 'object' ? b.staff : null)
 const durationOf = (b: Booking): number => Math.max(0, hhmmToMinutes(b.end_time) - hhmmToMinutes(b.start_time))
-// Egy "extra" (kinyíló) verem tényleges pixel-magassága — a Framer `height: 'auto'` animáció
-// CSS grid-cellában nem mindig méri fel helyesen (láthatatlan maradt a tartalom), ezért itt
-// EXPLICIT pixel-célértéket adunk az animate-nek: minden elem fix 72px + 8px rés köztük + 8px
-// felső padding (space-y-2 pt-2), pontosan a HatchBand/kártya-magassággal megegyezően.
-export const extraStackHeightPx = (count: number): number => (count > 0 ? 8 + count * 72 + (count - 1) * 8 : 0)
 export const avatarUrlOf = (s: StaffMember | null): string | null => {
   const a = s?.avatar
   return a && typeof a === 'object' ? fixMediaUrl((a as Media).url) : null
-}
-const initialsOf = (name: string): string =>
-  name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·'
-
-/** Kis avatar-kör (profilkép vagy UserRound fallback) — a szakember-sáv címkéjéhez. */
-export function Ava({ url, className }: { url?: string | null; ini?: string; className: string }) {
-  if (url) return <img src={url} alt="" className={`${className} object-cover object-top`} />
-  return (
-    <span className={`${className} flex items-center justify-center`} style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
-      <UserRound className="h-[55%] w-[55%] text-white/30" strokeWidth={1.2} />
-    </span>
-  )
 }
 
 /** Lokális vázlatból „ál-foglalás" készül, ami beleilleszkedik a nézetekbe, de __draft-tal jelölt. */
@@ -136,6 +100,9 @@ export function draftToBooking(d: SalonBookingDraft): DraftBooking {
 }
 
 export interface SalonDailyViewProps {
+  /** Üres napon a következő foglalás (design 6.3) és a foglalóoldal címe a megosztáshoz. */
+  nextBooking?: NextBooking
+  publicUrl?: string | null
   date: string
   /** A jelenlegi időszak-nézet (Nap/Hét/Hónap) — a mobil nézet-választó sheet-be ágyazott
    *  Nap/Hét/Hónap váltóhoz kell (ld. dateFilter komment). Ezen az oldalon mindig 'day'. */
@@ -171,14 +138,15 @@ export interface SalonDailyViewProps {
   canManage?: boolean
   /** A szalon beleegyező nyilatkozat funkciója be van-e kapcsolva. */
   consentEnabled?: boolean
+  /** Fizetés a helyszínen (Beállítások › Fizetés & számlázás) — a megnyitott foglalás „Fizetés” gombjához */
+  onsite?: OnsiteSettings | null
 }
 
 export function SalonDailyView(props: SalonDailyViewProps) {
-  const { date, range, salonId, staff, services, openMin, closeMin, invitedEmails, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
+  const { date, range, salonId, staff, services, openMin, closeMin, invitedEmails, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false, onsite = null } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
-  const [mobileViewOpen, setMobileViewOpen] = useState(false)
   const router = useRouter()
 
   // Lokális vázlatok betöltése + élő követése.
@@ -189,12 +157,6 @@ export function SalonDailyView(props: SalonDailyViewProps) {
 
   // Az oldal mindig az Idősáv nézettel nyílik (nem a legutóbb választottal).
 
-  // Mobilon a nézet-váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav dispatch-eli).
-  useEffect(() => {
-    const handler = () => setMobileViewOpen(true)
-    window.addEventListener('davelopment:open-bookings-view', handler)
-    return () => window.removeEventListener('davelopment:open-bookings-view', handler)
-  }, [])
 
   const pick = (v: ViewMode) => {
     setView(v)
@@ -216,10 +178,12 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   useEffect(() => {
     if (!openBookingId || lastOpenedRef.current === openBookingId) return
     const b = props.bookings.find((x) => String(x.id) === String(openBookingId))
-    if (b) { lastOpenedRef.current = openBookingId; setTarget({ booking: b }) }
+    if (b) { lastOpenedRef.current = openBookingId; setOpened(b) }
   }, [openBookingId, props.bookings])
 
-  const openEdit = (b: Booking) => { if (canManage) setTarget({ booking: b }) }
+  // Kattintás egy foglalásra: a megnyitott foglalás lapja (design 6.7); a vázlat egyből a szerkesztőben nyílik.
+  const [opened, setOpened] = useState<Booking | null>(null)
+  const openEdit = (b: Booking) => { if (isDraft(b)) { if (canManage) setTarget({ booking: b }) } else setOpened(b) }
   const openCreate = (presetStart?: string, presetStaffId?: string | number | null) => {
     if (canManage) setTarget({ booking: null, presetStart, presetStaffId })
   }
@@ -244,8 +208,8 @@ export function SalonDailyView(props: SalonDailyViewProps) {
 
   // Áthelyezés drag&drop-ból: új időpont és/vagy szakember. A szerver validál (átfedés).
   // Hibánál a router.refresh visszaállítja az eredeti pozíciót, és toast jelzi az okot.
-  const moveBooking = async (b: Booking, newStart: string, newStaffId: string | number) => {
-    if (isDraft(b)) return
+  const moveBooking = async (b: Booking, newStart: string, newStaffId: string | number): Promise<boolean> => {
+    if (isDraft(b)) return false
     try {
       const res = await fetch('/api/salon/manage-booking', {
         method: 'POST',
@@ -268,41 +232,34 @@ export function SalonDailyView(props: SalonDailyViewProps) {
       if (!res.ok) throw new Error(json.error ?? 'Az áthelyezés nem sikerült')
       toast.success('Foglalás áthelyezve')
       router.refresh()
+      return true
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Az áthelyezés nem sikerült')
       router.refresh()
+      return false
     }
   }
 
   const activeStaff = useMemo(() => staff.filter((s) => s.is_active !== false), [staff])
 
-  const viewButtons: { mode: ViewMode; icon: typeof List; label: string }[] = [
-    { mode: 'timeline', icon: ChartNoAxesGantt, label: 'Idősáv' },
-    { mode: 'list', icon: List, label: 'Lista' },
-  ]
 
-  // Nap/Hét/Hónap — mobilon a nézet-választó sheet MÁSODIK csoportjaként jelenik meg (a
-  // desktop pill ilyenkor rejtve, ld. DateFilter `hideRangeOnMobile`).
-  const rangeButtons: { mode: BookingsRange; icon: typeof List; label: string }[] = [
-    { mode: 'day', icon: CalendarDays, label: 'Nap' },
-    { mode: 'week', icon: CalendarRange, label: 'Hét' },
-    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
-  ]
   const pickRange = (v: BookingsRange) => router.push(`/dashboard/bookings?date=${date}&range=${v}`)
 
-  // KPI-számok a nap valós adataiból (vázlatokkal együtt).
+  // A fejléc csíkja és számai a nap valós adataiból (vázlatokkal együtt, szűrés nélkül).
   const nowMin = useNowMinutes(date)
-  const totalB = bookings.length || 1
-  // A csík első (sötét) sávja a MÁR LEZÁRULT (Befejezett) foglalásokat méri, a második (arany)
-  // a MÉG AKTÍV, megerősített (nem befejezett, nem lemondott) foglalásokat — így a három sáv
-  // ténylegesen a nap valós lefolyását tükrözi, nem csak egy statikus "megerősítve" halmazt.
-  const activeConfirmedCount = bookings.filter((b) => b.status === 'confirmed').length
-  const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length
-  const activeCount = bookings.filter((b) => b.status !== 'cancelled').length
-  const completedCount = bookings.filter((b) => b.status === 'completed').length
-  const activeDur = bookings.filter((b) => b.status !== 'cancelled')
-  const avgDuration = activeDur.length ? Math.round(activeDur.reduce((s, b) => s + durationOf(b), 0) / activeDur.length) : 0
-  const HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)'
+  const cnt = (st: string) => bookings.filter((b) => b.status === st).length
+  const live = bookings.filter((b) => b.status !== 'cancelled')
+  const revenue = live.reduce((sum, b) => sum + (b.price_snapshot ?? (typeof b.service === 'object' && b.service ? b.service.price : 0) ?? 0), 0)
+  const capacity = Math.max(0, closeMin - openMin) * Math.max(1, activeStaff.length)
+  const fill = capacity ? Math.min(100, Math.round((live.reduce((sum, b) => sum + durationOf(b), 0) / capacity) * 100)) : 0
+
+  // Szűrés (munkatárs, státusz, forrás, keresés) — az idővonal és a lista is a szűrt napot mutatja.
+  const [filter, setFilter] = useState<BookingFilter>(EMPTY_FILTER)
+  const shown = useMemo(
+    () => applyBookingFilter(bookings, filter, (b) => [idOf(b.staff)], (b) => b.status === 'confirmed' && nowMin != null && nowMin > hhmmToMinutes(b.start_time)),
+    [bookings, filter, nowMin],
+  )
+  const VIEWS: ViewMode[] = ['timeline', 'list']
 
   return (
     <div className="space-y-5">
@@ -312,76 +269,45 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         onReview={(d) => setTarget({ booking: draftToBooking(d) })}
       />
 
-      {/* ── Fejléc-sor: cím + alcím · toolbar ── */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] lg:text-[42px] font-light tracking-[-0.02em] text-ink leading-none">
-            Foglalások
-          </h1>
-          <p className="mt-1.5 text-sm font-medium text-ink-soft2">
-            Napi idősáv · {minutesToHHMM(openMin)}–{minutesToHHMM(closeMin)} · {activeStaff.length} szakember
-          </p>
-        </div>
+      <BookingsHead
+        dateNav={dateFilter}
+        range={range}
+        onRange={pickRange}
+        date={date}
+        onDate={(d) => router.push(`/dashboard/bookings?date=${d}&range=day`)}
+        loadEndpoint="/api/salon/day-load"
+        views={['Idővonal', 'Lista']}
+        view={VIEWS.indexOf(view)}
+        onView={(i) => pick(VIEWS[i])}
+        filter={filter}
+        onFilter={setFilter}
+        who={activeStaff.map((s) => ({ id: String(s.id), label: s.name, img: avatarUrlOf(s) }))}
+        matchCount={shown.length}
+        exportButton={printButton}
+        onCreate={canManage ? () => openCreate() : undefined}
+        bar={segments([
+          { label: 'Megerősített', value: cnt('confirmed'), tone: 'dark' },
+          { label: 'Függő', value: cnt('pending'), tone: 'yellow' },
+          { label: 'Befejezett', value: cnt('completed'), tone: 'white' },
+          { label: 'Lemondva', value: cnt('cancelled'), tone: 'outline' },
+        ])}
+        kpis={<>
+          <Kpi icon={CalendarDays} value={String(live.length)} label="Foglalás" />
+          <Kpi icon={Wallet} value={thousands(revenue)} label="Bevétel (Ft)" />
+          <Kpi icon={Clock} value={`${fill}%`} label="Telítettség" />
+        </>}
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          {dateFilter}
-          {/* Nézet-váltó — desktopon inline pill; mobilon a fejléc-ikon (csengő mellett)
-              nyitja alulról felcsúszó választóként (ld. MobileOptionSheet lent). */}
-          <div className="hidden h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1 lg:inline-flex">
-            {viewButtons.map(({ mode, icon: Icon, label }) => (
-              <HoverButton
-                key={mode}
-                onClick={() => pick(mode)}
-                title={label}
-                ariaLabel={label}
-                className={`flex h-8 w-9 items-center justify-center rounded-[15px] transition-colors ${
-                  view === mode ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'
-                }`}
-              >
-                {/* csak ikon — a nevét rámutatva (title) írja ki */}
-                <Icon className="h-4 w-4 shrink-0" />
-              </HoverButton>
-            ))}
-          </div>
-          <div className="hidden lg:block">{printButton}</div>
-          {canManage && (
-            <HoverButton
-              onClick={() => openCreate()}
-              className="hidden items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 lg:inline-flex"
-            >
-              <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
-              <span className="hidden sm:inline">Új foglalás</span>
-            </HoverButton>
-          )}
-        </div>
-      </div>
+      {!props.bookings.some((b) => b.status !== 'cancelled') && <EmptyDayBar next={props.nextBooking ?? null} base="/dashboard" publicUrl={props.publicUrl} />}
 
-      {/* ── Státusz-csík (bal) + nagy KPI-számok (jobb) — csak a Lista nézetben (az Idősáv teljes szélességű). ── */}
-      {view !== 'timeline' && (
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <StatusPills
-            eager
-            className="flex-1 lg:max-w-[760px]"
-            segments={[
-              { label: 'Befejezett', pct: Math.round((completedCount / totalB) * 100), background: '#1D1C19', color: '#fff' },
-              { label: 'Megerősített', pct: Math.round((activeConfirmedCount / totalB) * 100), background: '#F1CE45', color: '#1D1C19' },
-              { label: 'Lemondva', pct: Math.round((cancelledCount / totalB) * 100), background: HATCH, color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
-            ]}
-          />
-          <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-            <CountUpKpi icon="calendar" value={activeCount} label="Foglalás" />
-            <CountUpKpi icon="done" value={completedCount} label="Befejezett" />
-            <CountUpKpi icon="clock" value={avgDuration} label="Átl. idő (perc)" />
-          </div>
-        </div>
-      )}
-
-      {view === 'list' && <ListTableView date={date} bookings={bookings} onEdit={openEdit} consentEnabled={consentEnabled} />}
+      {view === 'list' && <ListTableView date={date} bookings={shown} onEdit={openEdit} openId={opened ? String(opened.id) : null} onsiteOn={!!onsite?.enabled} />}
       {view === 'timeline' && (
         <TimelineView
+          onsiteOn={!!onsite?.enabled}
           date={date}
-          bookings={bookings}
-          staff={activeStaff}
+          bookings={shown}
+          // munkatárs-szűrésnél csak az ő soruk marad az idővonalon (nem üres sorok a többieké)
+          staff={filter.who.length ? activeStaff.filter((t) => filter.who.includes(String(t.id))) : activeStaff}
           openMin={openMin}
           closeMin={closeMin}
           staffBreaks={staffBreaks}
@@ -392,6 +318,19 @@ export function SalonDailyView(props: SalonDailyViewProps) {
           onCreate={openCreate}
           onMove={moveBooking}
           canManage={canManage}
+        />
+      )}
+
+      {opened && (
+        <SalonBookingDrawer
+          key={String(opened.id)}
+          b={bookings.find((x) => String(x.id) === String(opened.id)) ?? opened}
+          date={date}
+          canManage={canManage}
+          consentEnabled={consentEnabled}
+          onsite={onsite}
+          onClose={() => setOpened(null)}
+          onEdit={() => { const b = opened; setOpened(null); setTarget({ booking: b }) }}
         />
       )}
 
@@ -408,221 +347,45 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         invitedEmails={invitedEmails}
       />
 
-      <MobileOptionSheet
-        open={mobileViewOpen}
-        onClose={() => setMobileViewOpen(false)}
-        title="Nézet"
-        options={viewButtons}
-        value={view}
-        onChange={pick}
-        secondaryTitle="Időszak"
-        secondaryOptions={rangeButtons}
-        secondaryValue={range}
-        secondaryOnChange={pickRange}
-      />
     </div>
   )
 }
 
-/* ---------- Lista nézet (egynapos) — táblázatos ---------- */
-// Státusz a táblázatban: CSAK pötty + színes felirat (nincs sor-háttér) — a sorok így nem
-// folynak egybe, a szem a státusz-oszlopon fut végig.
-const TABLE_STATUS: Record<string, { dot: string; text: string }> = {
-  confirmed: { dot: 'bg-[#1D9D63]', text: 'text-[#1D7A4C]' },
-  pending: { dot: 'bg-[#E0B21C]', text: 'text-[#9A7B12]' },
-  completed: { dot: 'bg-[#B9B4A6]', text: 'text-ink-soft2' },
-  cancelled: { dot: 'bg-[#C0564A]', text: 'text-[#C0564A]' },
-}
-
-function ListTableView({ date, bookings, onEdit, consentEnabled }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void; consentEnabled?: boolean }) {
+/* ---------- Lista nézet (egynapos) — a közös BookingList (design 6.2) ---------- */
+function ListTableView({ date, bookings, onEdit, openId, onsiteOn = false }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void; openId: string | null; onsiteOn?: boolean }) {
   const nowMin = useNowMinutes(date)
-  const nowRef = useRef<HTMLDivElement>(null)
-  const sorted = [...bookings].sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-  const nowIndex = nowMin == null ? -1 : sorted.findIndex((b) => hhmmToMinutes(b.start_time) >= nowMin)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  // A „most” sorra ugrás CSAK a lista saját görgethető dobozán belül történik — korábban a
-  // scrollIntoView az egész oldalt rángatta, és percenként vissza kellett görgetni a fejlécre.
-  useEffect(() => {
-    const box = scrollRef.current
-    const row = nowRef.current
-    if (!box || !row) return
-    box.scrollTo({ top: Math.max(0, row.offsetTop - box.clientHeight / 2), behavior: 'smooth' })
-  }, [nowIndex, date])
-
-  if (sorted.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-[26px] dav-card-glass px-6 py-16 text-center">
-        <CalendarDays className="h-8 w-8 text-ink-soft" strokeWidth={1.6} />
-        <p className="text-sm text-ink-soft">Erre a napra nincs foglalás.</p>
-      </div>
-    )
-  }
-
-  const GRID = 'grid grid-cols-[64px_1fr_auto] items-center gap-3 sm:grid-cols-[88px_1.3fr_1.2fr_1fr_96px_150px_40px] sm:gap-4'
+  const byId = new Map(bookings.map((b) => [String(b.id), b]))
   return (
-    <div className="rounded-[26px] dav-card-glass p-3 sm:p-4">
-      {/* Fejléc-sáv */}
-      <div className={`${GRID} rounded-[14px] bg-[#F4F4F4] px-3 py-2.5 text-[12px] font-semibold text-ink-soft sm:px-4`}>
-        <span>Időpont</span>
-        <span>Vendég</span>
-        <span className="hidden sm:block">Szolgáltatás</span>
-        <span className="hidden sm:block">Szakember</span>
-        <span className="hidden text-right sm:block">Ár</span>
-        <span className="text-right sm:text-left">Státusz</span>
-        <span className="hidden sm:block" />
-      </div>
-
-      {/* a sorok saját dobozban görgetnek; a fejléc-sáv fölötte fix marad */}
-      <div ref={scrollRef} data-lenis-prevent className="relative mt-1 max-h-[calc(100dvh-220px)] min-h-[320px] overflow-y-auto overscroll-contain">
-        {sorted.map((b, i) => {
-          const svc = serviceOf(b)
-          const st = staffOf(b)
-          const draft = isDraft(b)
-          const overdue = !draft && needsHandling(b, nowMin)
-          const ts = TABLE_STATUS[b.status] ?? TABLE_STATUS.completed
-          const price = b.price_snapshot ?? svc?.price ?? null
-          return (
-            <div key={String(b.id)}>
-              {i === nowIndex && (
-                <div ref={nowRef} className="flex items-center gap-2 px-3 py-1.5 sm:px-4">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 animate-soft-pulse" />
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-red-500">Most · {minutesToHHMM(nowMin!)}</span>
-                  <span className="h-px flex-1 bg-red-500/40" />
-                </div>
-              )}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => onEdit(b)}
-                onKeyDown={(e) => { if (e.key === 'Enter') onEdit(b) }}
-                className={`${GRID} cursor-pointer rounded-[14px] px-3 py-3 transition-colors hover:bg-black/[0.025] sm:px-4 ${i > 0 && i !== nowIndex ? 'border-t border-line/70' : ''} ${b.status === 'cancelled' ? 'opacity-70' : ''}`}
-              >
-                <span className="tabular-nums">
-                  <span className="block text-[14px] font-semibold text-ink">{b.start_time}</span>
-                  <span className="block text-[11.5px] text-ink-soft2">{b.end_time}</span>
-                </span>
-                <span className="min-w-0">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className={`truncate text-[14px] font-semibold text-ink ${b.status === 'cancelled' ? 'line-through decoration-ink-soft2/60' : ''}`}>{b.customer_name || 'Vendég'}</span>
-                    {draft && <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase text-ink-dark">Vázlat</span>}
-                    {b.series_id && <Repeat className="h-3.5 w-3.5 shrink-0 text-[#9A7B12]" aria-label="Sorozat" />}
-                    {b.payment_status === 'paid' && <Banknote className="h-3.5 w-3.5 shrink-0 text-[#1D7A3C]" aria-label="Előleg befizetve" />}
-                  </span>
-                  {/* mobilon a szolgáltatás a név alatt */}
-                  <span className="block truncate text-[12.5px] text-ink-soft sm:hidden">{svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}</span>
-                  <span className="hidden truncate text-[12px] text-ink-soft2 sm:block">{b.customer_phone || b.customer_email || ''}</span>
-                </span>
-                <span className="hidden truncate text-[13.5px] text-ink sm:block">{svc?.name ?? '—'}</span>
-                <span className="hidden min-w-0 items-center gap-2 sm:flex">
-                  <Ava url={avatarUrlOf(st)} className="h-7 w-7 shrink-0 overflow-hidden rounded-full" />
-                  <span className="truncate text-[13.5px] text-ink">{st?.name ?? '—'}</span>
-                </span>
-                <span className="hidden text-right text-[13.5px] font-medium tabular-nums text-ink sm:block">{price != null && price > 0 ? formatPrice(price, (b.price_snapshot_currency as string) || 'HUF') : '—'}</span>
-                <span className={`flex items-center justify-end gap-1.5 text-[12.5px] font-semibold sm:justify-start ${overdue ? 'text-[#9A7B12]' : ts.text}`}>
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : ts.dot}`} />
-                  <span className="truncate text-[11.5px] sm:hidden">{overdue ? 'Kezelendő' : (statusShort[b.status] ?? b.status)}</span>
-                  <span className="hidden truncate sm:inline">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
-                </span>
-                <span className="hidden justify-end sm:flex" onClick={(e) => e.stopPropagation()}>
-                  {!draft && (
-                    <BookingActions bookingId={String(b.id)} status={b.status} consentEnabled={consentEnabled} consentAccepted={!!b.consent_accepted} />
-                  )}
-                </span>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+    <BookingList
+      openId={openId}
+      mobileTop={<DayStrip base="/dashboard" date={date} />}
+      onOpen={(id) => { const b = byId.get(id); if (b) onEdit(b) }}
+      items={bookings.map((b) => {
+        const svc = serviceOf(b)
+        const st = staffOf(b)
+        const draft = isDraft(b)
+        const late = !draft && needsHandling(b, nowMin) ? nowMin! - hhmmToMinutes(b.start_time) : null
+        return {
+          id: String(b.id),
+          start: b.start_time,
+          title: b.customer_name || 'Vendég',
+          meta: [svc?.name, st?.name].filter(Boolean).join(' · '),
+          who: st ? { name: st.name, img: avatarUrlOf(st) } : undefined,
+          source: b.source,
+          deposit: b.payment_status === 'paid' ? 'paid' : b.payment_status === 'failed' ? 'failed' : null,
+          series: !!b.series_id,
+          draft,
+          status: !draft && paymentDue(b, onsiteOn, date, nowMin) ? { tone: 'pending' as const, label: 'Fizetésre vár' } : statusOf(b.status, late),
+          cancelled: b.status === 'cancelled',
+        }
+      })}
+    />
   )
 }
 
-/** Egy kompakt foglalás-sor (idő/ügyfél/badge-ek/státusz) — a Lista-nézet ÉS a Heti nézet közös
- *  sor-renderelője, hogy a két nézet vizuálisan egyezzen és ne duplikálódjon a JSX. */
-export function BookingRow({ b, onEdit, nowMin, consentEnabled }: { b: Booking; onEdit: (b: Booking) => void; nowMin: number | null; consentEnabled?: boolean }) {
-  const svc = serviceOf(b)
-  const st = staffOf(b)
-  const draft = isDraft(b)
-  const urgency = draft ? null : urgencyOf(b, nowMin)
-  const overdue = !draft && needsHandling(b, nowMin)
-  return (
-    <div
-      className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'bg-gold/[0.08]' : overdue ? 'bg-[#F1CE45]/[0.12]' : ''}`}
-      style={
-        draft || overdue
-          ? undefined
-          // Safari-bug: a bg-[#hex]/[opacity] Tailwind arbitrary-szintaxis a lemondott
-          // piros háttérnél nem alkalmazódott (ugyanaz a hiba-osztály, mint a hatch-
-          // mintáknál) — sima style-lal garantáltan minden böngészőben fut.
-          : b.status === 'cancelled'
-            ? { background: 'rgba(192,86,74,0.10)' }
-            : statusBg(b.status)
-      }
-    >
-      {urgency && (
-        <span className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls}`}>
-          {urgency.label}
-        </span>
-      )}
-      <button onClick={() => onEdit(b)} className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left">
-        <div className="w-11 sm:w-12 shrink-0">
-          <div className="text-sm sm:text-base font-semibold text-ink tabular-nums leading-tight">{b.start_time}</div>
-          <div className="text-[11px] text-ink-soft2 tabular-nums">{b.end_time}</div>
-        </div>
-        <div className="hidden shrink-0 sm:block">
-          <Ava url={avatarUrlOf(st)} className="h-8 w-8 rounded-full overflow-hidden" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
-            <span className="font-medium text-ink truncate">{b.customer_name}</span>
-            {draft && (
-              <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-dark">Vázlat</span>
-            )}
-            {b.series_id && (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
-                <Repeat className="h-3 w-3" /> Sorozat
-              </span>
-            )}
-            {b.payment_status === 'paid' && (
-              <span title={b.invoice_status === 'issued' ? `Előleg befizetve · Számla: ${b.invoice_number}` : 'Előleg befizetve'} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#DCF3E2] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1D7A3C]">
-                <Banknote className="h-3 w-3" /> Előleg
-              </span>
-            )}
-            {b.payment_status === 'failed' && (
-              <span title="Az előleg-fizetés sikertelen volt" className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FBE1DE] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B3261E]">
-                <Banknote className="h-3 w-3" /> Sikertelen fizetés
-              </span>
-            )}
-          </div>
-          <div className="text-sm text-ink-soft truncate">
-            {svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}{b.customer_phone ? ` · ${b.customer_phone}` : ''}
-          </div>
-          {b.notes && <div className="text-xs text-ink-soft2 mt-0.5 truncate">„{b.notes}”</div>}
-        </div>
-      </button>
-      <div className="flex items-center shrink-0">
-        <span className="hidden sm:flex items-center gap-2 w-32 shrink-0">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
-          <span className="text-xs text-ink-soft truncate">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
-        </span>
-        <div className="flex items-center justify-end w-10 shrink-0">
-          {!draft && (
-            <BookingActions
-              bookingId={String(b.id)}
-              status={b.status}
-              consentEnabled={consentEnabled}
-              consentAccepted={!!b.consent_accepted}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
 
-/* ---------- Idővonal (szakember × idő rács) ---------- */
 type TLProps = {
+  onsiteOn?: boolean
   date: string
   bookings: Booking[]
   staff: StaffMember[]
@@ -634,15 +397,12 @@ type TLProps = {
   isClosedToday?: boolean
   onEdit: (b: Booking) => void
   onCreate: (start?: string, staffId?: string | number | null) => void
-  onMove: (b: Booking, newStart: string, newStaffId: string | number) => void
+  onMove: (b: Booking, newStart: string, newStaffId: string | number) => Promise<boolean>
   canManage?: boolean
 }
 
-function TimelineView({ date, bookings, staff, openMin, closeMin, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false, onEdit, onCreate, onMove, canManage = false }: TLProps) {
-  const totalMin = Math.max(closeMin - openMin, 60)
+function TimelineView({ onsiteOn = false, date, bookings, staff, openMin, closeMin, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false, onEdit, onCreate, onMove, canManage = false }: TLProps) {
   const nowMin = useNowMinutes(date)
-  const nowVisible = nowMin != null && nowMin >= openMin && nowMin <= closeMin
-  const card = 'rounded-[26px] dav-card-glass'
 
   // Ha a nyitás nem kerek órakor van, a nyitás saját időpontja is kap jelölést — különben a
   // tengely csak a következő kerek órától indult, és a nyitás utáni első szakasz jelöletlen/
@@ -652,29 +412,107 @@ function TimelineView({ date, bookings, staff, openMin, closeMin, staffBreaks = 
   for (let m = Math.ceil(openMin / 60) * 60; m < closeMin; m += 60) hourMarks.push(m)
 
   const active = bookings.filter((b) => ACTIVE.has(b.status))
-  // 6+ szakembernél a szakember-oszlopos rács már szűk képernyőn sem fér el kényelmesen (a
-  // reszponzív oszlop-keskenyítés is elfogy) — ilyenkor desktopon is a mobil (egy közös,
-  // óránkénti) elrendezést kapja, ne csak a kis képernyőnél váltson.
-  const forceMobile = staff.length >= 6
 
   return (
     <>
-      <div className={forceMobile ? '' : 'lg:hidden'}>
-        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks, staffOffType, viewerStaffId, isClosedToday }} />
+      <div className="lg:hidden">
+        <MobileTimeline {...{ date, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks, staffOffType, viewerStaffId, isClosedToday }} />
       </div>
-      {!forceMobile && (
-        <div className="hidden lg:block">
-          <StaffColumnsTimeline {...{ staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit, staffBreaks, staffOffType, isClosedToday }} />
-        </div>
-      )}
+      {/* Desktop (design 6.1): munkatársanként egy sor, vízszintesen az idő — a közös rács, mint az étteremnél */}
+      <div className="hidden lg:block">
+        <SalonDayGrid {...{ bookings: active, staff, openMin, closeMin, staffBreaks, staffOffType, isClosedToday, nowMin, canManage, onEdit, onMove }} payDue={(b) => paymentDue(b, onsiteOn, date, nowMin)} />
+      </div>
     </>
   )
 }
 
-// A kinyíló extra foglalás-kártyák „staggered spring" belépője (etalon: a UserMenu popover).
-export const TL_EXTRA_ITEM = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
+/** A szalon napi idővonala desktopon (design 6.1 / 6.3): munkatársanként egy sor — a közös ResourceGrid. A design oldal is
+ *  ezt mutatja (mintaadattal, rögzített „most”-tal). `overlay`: munkatárs-id → a sávra rajzolt plusz elem. */
+export function SalonDayGrid({ bookings: active, staff, openMin, closeMin, staffBreaks = {}, staffOffType = {}, isClosedToday = false, nowMin, canManage = false, onEdit, onMove, overlay, staffSub, payDue }: {
+  /** Fizetésre vár (6.8.1) — a blokkon sárga jel */
+  payDue?: (b: Booking) => boolean
+  bookings: Booking[]
+  staff: StaffMember[]
+  openMin: number
+  closeMin: number
+  staffBreaks?: Record<string, { start: string; end: string }>
+  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
+  isClosedToday?: boolean
+  nowMin: number | null
+  canManage?: boolean
+  onEdit: (b: Booking) => void
+  onMove?: (b: Booking, newStart: string, newStaffId: string | number) => Promise<boolean>
+  overlay?: Record<string, (pos: (min: number) => string) => React.ReactNode>
+  /** a név alatti sor munkatársanként (pl. heti óra) — alapból a pozíció */
+  staffSub?: Record<string, string>
+}) {
+  const dayEnd = active.reduce((max, b) => Math.max(max, hhmmToMinutes(b.end_time)), closeMin)
+  const unassigned = active.filter((b) => !idOf(b.staff) || !staff.some((t) => String(t.id) === idOf(b.staff)))
+  return (
+    <ResourceGrid<Booking>
+      groups={[{
+        key: 'staff',
+        rows: [
+          ...staff.map((t) => {
+            const brk = staffBreaks[String(t.id)]
+            const off = staffOffType[String(t.id)]
+            return {
+              id: String(t.id),
+              name: t.name,
+              label: (
+                <span className="flex items-center gap-2.5">
+                  <Avatar size="sm" src={avatarUrlOf(t)} name={t.name} />
+                  <span className="min-w-0"><span className="block truncate text-ui-body text-ui-text">{t.name}</span><span className="block truncate text-ui-label text-ui-muted">{off ? OFF_TYPE_LABEL[off] : staffSub?.[String(t.id)] ?? t.role_title}</span></span>
+                </span>
+              ),
+              items: active.filter((b) => idOf(b.staff) === String(t.id)),
+              bands: brk ? [{ start: hhmmToMinutes(brk.start), end: hhmmToMinutes(brk.end), label: 'Szünet', icon: Coffee }] : undefined,
+              off: off ? OFF_TYPE_LABEL[off] : undefined,
+              overlay: overlay?.[String(t.id)],
+            }
+          }),
+          ...(unassigned.length ? [{ id: '__no_staff__', name: 'Nincs szakember', label: <span className="text-ui-body text-ui-muted">Nincs szakember</span>, items: unassigned, noDrop: true }] : []),
+        ],
+      }]}
+      access={{
+        id: (b) => String(b.id),
+        start: (b) => hhmmToMinutes(b.start_time),
+        end: (b) => hhmmToMinutes(b.end_time),
+        status: (b) => b.status,
+        draft: isDraft,
+        createdAt: (b) => b.createdAt,
+        // a 30 percen belül kezdődő megerősített foglalás „hamarosan” (körvonalas) — design 6.1
+        // a mobil kártyával egyező színek (shared/statusColors)
+        tone: (b) => statusBlockClass(b.status),
+        dot: (b) => (b.status === 'cancelled' || b.status === 'no_show' ? undefined : statusCard(b.status).dot),
+        dragLabel: (b) => `${b.customer_name}${serviceOf(b) ? ` · ${serviceOf(b)!.name}` : ''}`,
+        block: (b, size) => {
+          const due = !isDraft(b) && !!payDue?.(b)
+          const u = isDraft(b) || due ? null : urgencyOf(b, nowMin)
+          const svc = serviceOf(b)?.name
+          return {
+            title: b.customer_name,
+            sub: size === 'tiny' ? undefined : svc,
+            // design 6.1: a riasztás pill a blokkban — keskenyebb blokkban rövidítve („146'”), a legrövidebbben csak pötty
+            badge: due ? (size === 'tiny' ? <span className="h-2 w-2 shrink-0 rounded-full bg-ui-yellow" /> : <AttentionPill className="shrink-0" />) : u && (size === 'tiny' ? <span className="h-2 w-2 shrink-0 rounded-full bg-ui-bad-dot" /> : <StatusPill status="bad" className="shrink-0">{size === 'wide' ? u.label : shortAlert(u.label)}</StatusPill>),
+            tooltip: `${isDraft(b) ? 'VÁZLAT — ' : canManage ? 'Kattints a szerkesztéshez, vagy húzd át másik időpontra/szakemberhez · ' : ''}${b.customer_name} · ${b.start_time}–${b.end_time}${svc ? ` · ${svc}` : ''}${u ? ` · ${u.label}` : ''}`,
+          }
+        },
+      }}
+      stack={groupOverlaps}
+      openMin={openMin}
+      closeMin={closeMin}
+      endMin={dayEnd}
+      nowMin={nowMin}
+      mode={dayEnd - openMin > 13 * 60 ? 'scroll' : 'fit'}
+      closed={isClosedToday}
+      canManage={canManage}
+      onEdit={onEdit}
+      onMove={onMove ? (b, start, rowId) => onMove(b, start, rowId) : undefined}
+      legend={<BlockLegend alerts={false} items={Object.keys(staffBreaks).length ? STATUS_LEGEND : STATUS_LEGEND.filter((x) => x[1] !== 'Szünet')} />}
+      empty={<Meta className="py-10 text-center">Nincs aktív szakember. Vegyél fel szakembert a foglalások idővonalához.</Meta>}
+    />
+  )
 }
 
 /** Megerősítve maradt, de a kezdés ideje már elmúlt, senki nem vezette át (befejezve/lemondva)
@@ -688,10 +526,6 @@ export function needsHandling(b: Booking, nowMin: number | null): boolean {
  *  ugyanarra az időre lemondtak egy foglalást, majd újra lefoglalták — ekkor a kettő egy
  *  kártya-veremben jelenik meg (a lemondott pirosan kandikál ki mögüle, kattintásra cserélnek). */
 export type CellItem = Booking | [Booking, Booking]
-
-export function cellKey(item: CellItem): string {
-  return Array.isArray(item) ? `${item[0].id}-${item[1].id}` : String(item.id)
-}
 
 /** Az órás sávon belüli foglalásokat csoportosítja: az időben átfedő lemondott+aktív párok egy
  *  verembe kerülnek, a többi (magában álló, akár lemondott is) sima elem marad — időrendben. */
@@ -751,427 +585,48 @@ export function groupOverlaps(rows: Booking[]): CellItem[] {
   return items.map((x) => x.node)
 }
 
-const STACK_PEEK_BG: Record<string, string> = {
-  pending: '#F1CE45', confirmed: '#1D1C19', completed: '#c9c2ae', cancelled: CANCEL_RED,
-}
-
-/** Kártya-pár: ugyanarra az időre esik egy aktív ÉS egy lemondott foglalás (pl. lemondás után
- *  újra lefoglalták). EGYMÁS MELLETT állnak (nem egymáson — nincs átfedés/réteg, így semmi nem
- *  takarhat ki semmit), az aktuálisan "elöl" lévő a teljes kártyát kapja, a másik egy kis
- *  csíkra tolódik — kattintásra a szélességük FLIP-anmiálva cserél (mint a StatusPills sávjai). */
-function BookingCardStack({
-  items, onEdit, showAvatar, nowMin,
-}: { items: [Booking, Booking]; onEdit: (b: Booking) => void; showAvatar: boolean; nowMin: number | null }) {
-  // Két FÜGGETLEN szabály: a POZÍCIÓ (bal/jobb) mindig a lemondotté balra — ez fix, nem változik
-  // kattintásra, hogy sose legyen megtévesztő, melyik időponthoz tartozik. Az ÁLLAPOT (melyik van
-  // nyitva/nagyban) viszont a frissebb (később létrehozott, jellemzően az aktív) legyen alapból.
-  const ordered = [...items].sort((a, b) => (a.status === 'cancelled' ? -1 : b.status === 'cancelled' ? 1 : 0))
-  const freshestId = String([...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0].id)
-  const [frontId, setFrontId] = useState<string>(freshestId)
-  return (
-    <div className="flex h-[72px] items-stretch gap-1.5">
-      {ordered.map((b) => {
-        const id = String(b.id)
-        const isFront = id === frontId
-        return (
-          <div
-            key={id}
-            onClick={isFront ? undefined : (e) => { e.stopPropagation(); setFrontId(id) }}
-            role={isFront ? undefined : 'button'}
-            tabIndex={isFront ? undefined : 0}
-            aria-label={isFront ? undefined : `Előzmény megtekintése: ${b.customer_name} (${statusLabel[b.status] ?? b.status})`}
-            className={`h-full overflow-hidden ${isFront ? 'min-w-0' : 'shrink-0 cursor-pointer rounded-[16px] shadow-dav-card'}`}
-            style={{
-              // Valódi flex-bázis átmenet (nem transform-alapú FLIP) — így a két testvér
-              // MINDEN köztes képkockán is valódi, nem-átfedő flexbox-elrendezésben marad,
-              // nem lóg bele egyik a másikba animáció közben.
-              flexGrow: isFront ? 1 : 0,
-              flexShrink: isFront ? 1 : 0,
-              flexBasis: isFront ? '100%' : 24,
-              transition: 'flex-grow 320ms cubic-bezier(0.22,1,0.36,1), flex-basis 320ms cubic-bezier(0.22,1,0.36,1)',
-              background: !isFront ? (STACK_PEEK_BG[b.status] ?? '#c9c2ae') : undefined,
-            }}
-          >
-            <AnimatePresence initial={false}>
-              {isFront && (
-                <motion.div
-                  key="content"
-                  className="h-full"
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                >
-                  {renderBookingCard(b, onEdit, showAvatar, nowMin)}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/** Egy cella-elem (sima foglalás, magában álló lemondott, vagy kártya-verem) kirajzolása. */
-export function renderCellItem(item: CellItem, onEdit: (b: Booking) => void, showAvatar: boolean, nowMin: number | null) {
-  if (Array.isArray(item)) return <BookingCardStack items={item} onEdit={onEdit} showAvatar={showAvatar} nowMin={nowMin} />
-  return renderBookingCard(item, onEdit, showAvatar, nowMin)
-}
-
-export function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar = true, nowMin: number | null = null) {
-  const svc = serviceOf(b)
-  const st = staffOf(b)
-  const overdue = needsHandling(b, nowMin)
-  const block = overdue ? statusBlock.pending : (statusBlock[b.status] ?? 'bg-white border border-line text-ink')
-  const dark = !overdue && STATUS_DARK_BG.has(b.status)
-  return (
-    <HoverButton
-      onClick={() => onEdit(b)}
-      className={`flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4 text-left shadow-dav-card ${block}`}
-      style={overdue ? undefined : statusBg(b.status)}
-    >
-      {/* Szakember avatarja — gyors azonosítás, kihez van a foglalás. Csak mobilon/vegyes
-          nézetben kell, ahol nincs külön szakember-oszlop — desktopon (szakember-oszlopok)
-          felesleges, azt showAvatar=false-szal kapcsoljuk le. */}
-      {showAvatar && (
-        <Ava url={avatarUrlOf(st)} className={`h-8 w-8 shrink-0 rounded-full overflow-hidden ring-1 ${dark ? 'ring-white/20' : 'ring-black/5'}`} />
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-sm font-semibold">
-            {b.customer_name}{svc?.name ? ` · ${svc.name}` : ''}
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            {b.series_id && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
-                <Repeat className="h-3 w-3" /> Sorozat
-              </span>
-            )}
-            {b.payment_status === 'paid' && (
-              <span title="Előleg befizetve" className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#DCF3E2] text-[#1D7A3C]">
-                <Banknote className="h-2.5 w-2.5" />
-              </span>
-            )}
-            <span className={`h-2 w-2 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
-          </span>
-        </div>
-        <div className={`mt-0.5 truncate text-xs ${dark ? 'text-white/70' : 'text-ink-soft'}`}>
-          {b.start_time}–{b.end_time}{st?.name ? ` · ${st.name}` : ''}
-        </div>
-      </div>
-    </HoverButton>
-  )
-}
-
-/** Óránkénti lista — a mobil idővonal "törzse" (idő-pill + foglalás-kártya/üres rés),
- *  a kártya-wrapper NÉLKÜL, hogy desktopon szakemberenként egymás mellé lehessen tenni
- *  (ld. StaffColumnsTimeline) — ÍGY garantáltan ugyanúgy néz ki, mint mobilon. */
-export function HourList({
-  hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false,
-}: {
-  hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
-  staff?: StaffMember[]
-  staffBreaks?: Record<string, { start: string; end: string }>
-  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
-  viewerStaffId?: string
-  isClosedToday?: boolean
-}) {
-  const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
-  const toggle = (m: number) =>
-    setExpanded((prev) => { const n = new Set(prev); n.has(m) ? n.delete(m) : n.add(m); return n })
-
-  // Saját nézet (mobilon a nem-tulaj csak a saját napját látja → a lista pontosan 1 szakemberre
-  // szűkül): a szabadnap/szabadság/beteg és a szünet ELSŐDLEGES helyen jelenik meg, nem kell
-  // kinyitni — ez zárja le a "hogyan nézzen ki mobilon" kérdést mindkettőre ugyanazzal a mintával.
-  // Tulaj-nézet (több szakember): a meglévő elsődleges hely (valós foglalások) változatlan, a
-  // MÁSOK szabadnapos/szünetelő infója a kibontható "+N" részbe kerül — DE a bejelentkezett user
-  // SAJÁT szünete/szabadnapja akkor is elsődleges (mindig látható) helyen jelenik meg, ha épp a
-  // kevert (mindenkit mutató) tulaj-nézetet nézi.
-  const soleStaff = staff && staff.length === 1 ? staff[0] : null
-  const viewerStaff = staff && staff.length > 1 && viewerStaffId ? staff.find((t) => String(t.id) === viewerStaffId) ?? null : null
-  const primaryStaff = soleStaff ?? viewerStaff
-  const soleOff = primaryStaff ? staffOffType[String(primaryStaff.id)] : undefined
-  const soleBreak = primaryStaff ? staffBreaks[String(primaryStaff.id)] : undefined
-  // A kevert nézetben ez csak akkor "veszi át" a teljes elsődleges helyet, mint az egyszemélyes
-  // nézetben — több szakembernél a SAJÁT off/szünet melléje, nem helyette jelenik meg (ld. lent).
-  const soleTakesOverWholeSlot = !!soleStaff
-  // Tulaj-nézet: aznap szabadnapos/szabadságon/beteg MÁS szakemberek (a sajátunk fent már megvan).
-  const offToday = staff && staff.length > 1 ? staff.filter((t) => staffOffType[String(t.id)] && String(t.id) !== String(viewerStaff?.id ?? '')) : []
-
-  return (
-    <div>
-        {hourMarks.map((m, i) => {
-          const lo = i === 0 ? openMin : m
-          const hi = i < hourMarks.length - 1 ? hourMarks[i + 1] : closeMin + 1
-          const inHourRaw = active
-            .filter((b) => { const s = hhmmToMinutes(b.start_time); return s >= lo && s < hi })
-            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-          const inHour = groupOverlaps(inHourRaw)
-          // Korábbi órában induló, de a szolgáltatás hossza miatt ide is átnyúló foglalások —
-          // enélkül egy 4 órás foglalás a kezdő-óráján túl üresnek tűnt volna.
-          // Csak akkor jelennek meg, ha az órában nem indul foglalás — különben ugyanaz a
-          // foglalás több órában ismétlődne, és a „+N" sem egyezne a látott kártyákkal.
-          const continuing = active
-            .filter((b) => {
-              const s = hhmmToMinutes(b.start_time)
-              const e = hhmmToMinutes(b.end_time)
-              return s < lo && e > lo
-            })
-            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-          // Saját szünet erre az órára — induló VAGY korábbról átnyúló (ugyanaz a minta, mint a
-          // desktop-oszlopoknál: több órás szünet is egybefüggő, összekötött sávként fut).
-          const soleBreakStarts = soleBreak && hhmmToMinutes(soleBreak.start) >= lo && hhmmToMinutes(soleBreak.start) < hi
-          const soleBreakContinues = soleBreak && hhmmToMinutes(soleBreak.start) < lo && hhmmToMinutes(soleBreak.end) > lo
-          // Tulaj-nézet: kik szünetelnek ÉPP ebben az órában (a sajátunk fent már megvan).
-          const breakingNow = staff && staff.length > 1
-            ? staff.filter((t) => {
-                if (String(t.id) === String(viewerStaff?.id ?? '')) return false
-                const b = staffBreaks[String(t.id)]
-                if (!b) return false
-                return hhmmToMinutes(b.start) < hi && hhmmToMinutes(b.end) > lo
-              })
-            : []
-          // Kevert (tulaj) nézetben a SAJÁT szünet/off csak MELLÉ kerül a valós tartalom mellé
-          // (nem veszi át a helyét, mint az egyszemélyes nézetben) — mindig látható, nincs "+N".
-          const viewerBreakHereInMixed = !soleTakesOverWholeSlot && (soleBreakStarts || soleBreakContinues)
-          const viewerOffInMixed = !soleTakesOverWholeSlot && !!soleOff
-          const extraCount = Math.max(0, inHour.length - 1) + (i === 0 ? offToday.length : 0) + breakingNow.length
-          const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
-          const isOpen = expanded.has(m)
-          const pillCls = isNow ? 'bg-ink-dark text-white' : (inHour.length > 0 || soleOff || soleBreakStarts || soleBreakContinues) ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
-          // A saját kártyán a "Te" felirat helyett a saját avatar jelzi, kié a sáv — ugyanaz a
-          // sor-elrendezés, mint a többiek kártyáján (OffAndBreakExtras), csak névsor nélkül.
-          const viewerCard = viewerOffInMixed && soleOff ? (
-            <div className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4" style={{ background: OFF_TYPE_STYLE[soleOff].hatch, color: OFF_TYPE_STYLE[soleOff].fg, borderColor: OFF_TYPE_STYLE[soleOff].border }}>
-              <Ava url={avatarUrlOf(viewerStaff)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
-              <span className="text-[13px] font-semibold">{OFF_TYPE_LABEL[soleOff]}</span>
-            </div>
-          ) : viewerBreakHereInMixed ? (
-            <div className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border border-[rgba(192,86,74,.22)] px-4 text-[#B0453F]" style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}>
-              <Ava url={avatarUrlOf(viewerStaff)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
-              <span className="text-[13px] font-semibold">Szünet</span>
-            </div>
-          ) : null
-          const last = i === hourMarks.length - 1
-          return (
-            <div key={m} className="flex gap-3">
-              <div className="flex w-[62px] shrink-0 flex-col items-center">
-                <span className={`flex h-9 w-full items-center justify-center rounded-full px-3 text-[13px] font-semibold tabular-nums ${pillCls}`}>
-                  {minutesToHHMMWrapped(m)}
-                </span>
-                {!last && (
-                  <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
-                    <span className="absolute inset-y-0 border-l-2 border-dotted border-line-strong" />
-                    {extraCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => toggle(m)}
-                        aria-label={`még ${extraCount} tétel ${minutesToHHMMWrapped(m)}-kor`}
-                        className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                      >
-                        +{extraCount}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1 pb-3">
-                {soleTakesOverWholeSlot && soleOff ? (
-                  // Saját nézet, egész napos távollét — minden óra-sor ugyanezzel a kártyával fut,
-                  // a szomszédos sorokkal a szaggatott vonal köti össze (ld. bal oldali tengely).
-                  <div className="flex h-[72px] items-center justify-center rounded-[18px] border" style={{ background: OFF_TYPE_STYLE[soleOff].hatch, color: OFF_TYPE_STYLE[soleOff].fg, borderColor: OFF_TYPE_STYLE[soleOff].border }}>
-                    <span className="text-[13px] font-semibold">{OFF_TYPE_LABEL[soleOff]}</span>
-                  </div>
-                ) : soleTakesOverWholeSlot && (soleBreakStarts || soleBreakContinues) ? (
-                  <div className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[rgba(192,86,74,.22)] text-[#B0453F]" style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}>
-                    <Coffee className="h-3.5 w-3.5" strokeWidth={1.8} />
-                    <span className="text-[10.5px] font-semibold">Szünet</span>
-                  </div>
-                ) : inHour.length > 0 ? (
-                  <div>
-                    {renderCellItem(inHour[0], onEdit, true, nowMin)}
-                    {viewerCard && <div className="pt-2">{viewerCard}</div>}
-                    <AnimatePresence initial={false}>
-                      {isOpen && (inHour.length > 1 || (i === 0 && offToday.length > 0) || breakingNow.length > 0) && (
-                        <motion.div
-                          key="extra"
-                          className="overflow-hidden"
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                        >
-                          <motion.div
-                            className="space-y-2 pt-2"
-                            initial="hidden"
-                            animate="show"
-                            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.045, delayChildren: 0.02 } } }}
-                          >
-                            {inHour.slice(1).map((item) => (
-                              <motion.div key={cellKey(item)} variants={TL_EXTRA_ITEM}>
-                                {renderCellItem(item, onEdit, true, nowMin)}
-                              </motion.div>
-                            ))}
-                            <OffAndBreakExtras offToday={i === 0 ? offToday : []} breakingNow={breakingNow} staffOffType={staffOffType} staffBreaks={staffBreaks} />
-                          </motion.div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ) : continuing.length > 0 ? (
-                  <div className="space-y-2">
-                    {continuing.map((b) => (
-                      <div key={`cont-${b.id}`} className="opacity-60">{renderBookingCard(b, onEdit, true, nowMin)}</div>
-                    ))}
-                    {viewerCard}
-                  </div>
-                ) : viewerCard ? (
-                  <div className="space-y-2">
-                    {viewerCard}
-                    {extraCount > 0 && (
-                      <AnimatePresence initial={false}>
-                        {isOpen && (
-                          <motion.div
-                            key="extra"
-                            className="overflow-hidden"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                          >
-                            <div className="space-y-2 pt-2">
-                              <OffAndBreakExtras offToday={i === 0 ? offToday : []} breakingNow={breakingNow} staffOffType={staffOffType} staffBreaks={staffBreaks} />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    )}
-                  </div>
-                ) : extraCount > 0 ? (
-                  <div>
-                    {isClosedToday ? (
-                      <ClosedBand />
-                    ) : (
-                      <div
-                        aria-hidden
-                        className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                        style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                      />
-                    )}
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          key="extra"
-                          className="overflow-hidden"
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                        >
-                          <div className="space-y-2 pt-2">
-                            <OffAndBreakExtras offToday={i === 0 ? offToday : []} breakingNow={breakingNow} staffOffType={staffOffType} staffBreaks={staffBreaks} />
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ) : isClosedToday ? (
-                  <ClosedBand />
-                ) : (
-                  <div
-                    aria-hidden
-                    className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                    style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                  />
-                )}
-              </div>
-            </div>
-          )
-        })}
-    </div>
-  )
-}
-
-/** Tulaj-nézet kibontott "+N" toldaléka: aznap szabadnapos/szabadságon/beteg szakemberek (egyszer,
- *  az első órasornál) + akik ÉPP ebben az órában szünetelnek — a valós foglalás-extrák alatt. */
-function OffAndBreakExtras({
-  offToday, breakingNow, staffOffType, staffBreaks,
-}: {
-  offToday: StaffMember[]; breakingNow: StaffMember[]
-  staffOffType: Record<string, 'leave' | 'sick' | 'vacation'>
-  staffBreaks: Record<string, { start: string; end: string }>
-}) {
-  if (offToday.length === 0 && breakingNow.length === 0) return null
-  return (
-    <>
-      {offToday.map((t) => {
-        const off = staffOffType[String(t.id)]
-        if (!off) return null
-        const st = OFF_TYPE_STYLE[off]
-        return (
-          <div key={`off-${t.id}`} className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4" style={{ background: st.hatch, color: st.fg, borderColor: st.border }}>
-            <Ava url={avatarUrlOf(t)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{t.name}</div>
-              <div className="mt-0.5 truncate text-xs opacity-80">{OFF_TYPE_LABEL[off]}</div>
-            </div>
-          </div>
-        )
-      })}
-      {breakingNow.map((t) => {
-        const brk = staffBreaks[String(t.id)]
-        if (!brk) return null
-        return (
-          <div key={`brk-${t.id}`} className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border border-[rgba(192,86,74,.22)] px-4 text-[#B0453F]" style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}>
-            <Ava url={avatarUrlOf(t)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold">{t.name}</div>
-              <div className="mt-0.5 truncate text-xs opacity-80">Szünet {brk.start}–{brk.end}</div>
-            </div>
-          </div>
-        )
-      })}
-    </>
-  )
-}
-
-/** Ugyanaz a "Zárva" mintázat, mint a Naptár hónap-rácsán (ScheduleView.tsx) — az üres
- *  (beosztatlan) sávok kapják, ha a nap egyszeri kivétellel vagy heti visszatérő zárvatartással
- *  zárva van. Sima kártya-háttér + piros szegély + felirat, nem csak egy külön jelvény. */
-export const CLOSED_HATCH = 'repeating-linear-gradient(115deg,#F9E4E1 0 7px,#F1D0CB 7px 9px)'
-export const CLOSED_BORDER = 'rgba(180,60,50,.28)'
-export const CLOSED_FG = '#b43c32'
-
-function ClosedBand() {
-  return (
-    <div
-      aria-hidden
-      className="flex h-[72px] items-center justify-center rounded-[18px] border"
-      style={{ background: CLOSED_HATCH, borderColor: CLOSED_BORDER }}
-    >
-      <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: CLOSED_FG }}>Zárva</span>
-    </div>
-  )
-}
-
-/** Mobil idővonal — kártya-keret + cím + a közös HourList (minden szakember foglalása vegyítve). */
+/** Mobil nap (a /design 6.11): a napcsík, alatta a közös függőleges idővonal — óránként az első foglalás, a
+ *  többi a „+N” alatt; a kártyára koppintva megnyílik. Saját nézetben (egy szakember) a szünet és a távollét is látszik.
+ *  A lemondott foglalások itt nem jelennek meg (a Lista mutatja őket). */
 function MobileTimeline({
-  hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false,
+  date, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false,
 }: {
-  hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
+  date: string; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
   staff: StaffMember[]
   staffBreaks?: Record<string, { start: string; end: string }>
   staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
   viewerStaffId?: string
   isClosedToday?: boolean
 }) {
+  const live = active.filter((b) => b.status !== 'cancelled')
+  const byKey = new Map(live.map((b) => [String(b.id), b]))
+  const own = staff.length === 1 ? staff[0] : viewerStaffId ? staff.find((t) => String(t.id) === viewerStaffId) : undefined
+  const off = own ? staffOffType[String(own.id)] : undefined
+  const rows = hourRows(live, {
+    openMin, closeMin, nowMin,
+    start: (b) => hhmmToMinutes(b.start_time),
+    end: (b) => hhmmToMinutes(b.end_time),
+    ev: (b) => ({
+      key: String(b.id),
+      n: `${isDraft(b) ? '✎ ' : ''}${b.customer_name}`,
+      // a munkatárs neve is a kártyán (nem csak az avatarja)
+      s: [`${b.start_time}–${b.end_time}`, staffOf(b)?.name, serviceOf(b)?.name].filter(Boolean).join(' · '),
+      ...statusCard(b.status),
+      avatars: staffOf(b) ? [{ src: avatarUrlOf(staffOf(b)), name: staffOf(b)!.name }] : undefined,
+    }),
+    // a látható munkatársak szünetei, névvel és avatarral (kié a szünet)
+    extra: (lo, hi) => staff.flatMap((t) => {
+      const br = staffBreaks[String(t.id)]
+      if (!br || hhmmToMinutes(br.start) < lo || hhmmToMinutes(br.start) >= hi) return []
+      return [{ n: `Szünet · ${t.name}`, s: `${br.start}–${br.end}`, tone: 'light' as const, dot: 'bg-ui-bad-dot', avatars: [{ src: avatarUrlOf(t), name: t.name }] }]
+    }),
+  })
   return (
-    <div className="rounded-[26px] p-4 dav-card-glass">
-      <div className="mb-3 text-[17px] font-medium text-ink">Napi időbeosztás</div>
-      <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks, staffOffType, viewerStaffId, isClosedToday }} />
-      <StatusLegend items={SALON_LEGEND} className="mt-1 border-t border-line/70 px-1 pt-3" />
-    </div>
+    <Card>
+      <DayStrip base="/dashboard" date={date} />
+      {(isClosedToday || off) && <Note className="mt-3">{isClosedToday ? 'Ezen a napon zárva vagytok.' : `${OFF_TYPE_LABEL[off!]} — ezen a napon nincs beosztásod.`}</Note>}
+      <MobileDayTimeline rows={rows} more={false} onOpen={(k) => { const b = byKey.get(k); if (b) onEdit(b) }} />
+    </Card>
   )
 }
 
@@ -1181,420 +636,126 @@ function MobileTimeline({
  *  sor automatikusan a legmagasabb cellájához igazodik, így a tengely és az oszlopok mindig
  *  egy vonalban maradnak, még ha az egyik oszlopban ki is nyílik egy "+N" extra foglalás). */
 export const OFF_TYPE_LABEL: Record<'leave' | 'sick' | 'vacation', string> = { leave: 'Szabadság', sick: 'Beteg', vacation: 'Szabadnap' }
-// A fejléc-jelvény (kis pill, tömör szín — az apró szöveg ott olvashatatlan lenne csíkozva) és a
-// teljes napi oszlop-kártya (csíkozott, mint a Szünet — 115°, UGYANAZ a szög, mint a nézet többi
-// szabvány-mintázatánál) külön stílust kap, de azonos színcsaládból.
-export const OFF_TYPE_STYLE: Record<'leave' | 'sick' | 'vacation', { badgeBg: string; badgeFg: string; hatch: string; fg: string; border: string }> = {
-  // Nem sárga — az már a "Függő" foglalás státusz-színe ebben a nézetben, ütközne.
-  leave: { badgeBg: '#E8A23D', badgeFg: '#1D1C19', hatch: 'repeating-linear-gradient(115deg,#F7E2C4 0 7px,#F1D3A6 7px 9px)', fg: '#8A5A1C', border: 'rgba(232,162,61,.3)' },
-  // Meleg (nem semleges) szürke — a semleges F7F7F7/DCDCDC pár a krémes háttér mellett kékesnek
-  // hatott; ez itt az app saját ink-szürke tónuscsaládja, feketésebb összhatással.
-  vacation: { badgeBg: '#E4E1D8', badgeFg: '#1D1C19', hatch: 'repeating-linear-gradient(115deg,#E4E1D8 0 7px,#C7C2B2 7px 9px)', fg: '#3F3D36', border: 'rgba(60,56,44,.18)' },
-  sick: { badgeBg: '#8B6BB0', badgeFg: '#fff', hatch: 'repeating-linear-gradient(115deg,#E7DEF3 0 7px,#F1EAF8 7px 9px)', fg: '#6E4E96', border: 'rgba(124,92,168,.22)' },
-}
+const SOURCE_LABEL: Record<string, string> = { online: 'Online · foglalóoldal', phone: 'Telefon', walk_in: 'Beeső' }
 
-function StaffColumnsTimeline({
-  staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit, staffBreaks = {}, staffOffType = {}, isClosedToday = false,
-}: {
-  staff: StaffMember[]; active: Booking[]; hourMarks: number[]; openMin: number; closeMin: number
-  nowMin: number | null; card: string
-  onEdit: (b: Booking) => void
-  staffBreaks?: Record<string, { start: string; end: string }>
-  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
-  isClosedToday?: boolean
-}) {
-  // Óránként EGY közös nyitó-gomb (a bal tengelyen, az idő alatt — mint mobilon), nem
-  // szakemberenként külön — kattintásra az adott óra MINDEN oszlopában megjelennek az extrák.
-  const [expandedHours, setExpandedHours] = useState<Set<number>>(() => new Set())
-  const toggleHour = (m: number) =>
-    setExpandedHours((prev) => { const n = new Set(prev); n.has(m) ? n.delete(m) : n.add(m); return n })
+/** A megnyitott szalon-foglalás (design 6.7) tartalma és gyors műveletei: függőnél jóváhagyás / elutasítás, késésnél
+ *  megérkezett / nem jött el, mindig hívás és áthelyezés (a szerkesztő), megerősítettnél lemondás (6.10 ablakkal). */
+export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false, onsite, onClose, onEdit }: { b: Booking; date: string; canManage: boolean; /** Fizetés a helyszínen (design 6.7.1) — bekapcsolva a megkezdett foglalás első gombja a „Fizetés” */ onsite?: OnsiteSettings | null; /** a nyilatkozat be van kapcsolva — ha a vendég még nem írta alá, helyszíni aláíratás */ consentEnabled?: boolean; onClose: () => void; onEdit: () => void }) {
+  const router = useRouter()
+  const nowMin = useNowMinutes(date)
+  const [busy, setBusy] = useState(false)
+  const [confirm, setConfirm] = useState<null | 'cancel' | 'decline'>(null)
+  const [checkout, setCheckout] = useState(false)
+  const svc = serviceOf(b)
+  const st = staffOf(b)
+  const lateMin = b.status === 'confirmed' && nowMin != null ? nowMin - hhmmToMinutes(b.start_time) : 0
+  const late = lateMin > 0
+  const price = b.price_snapshot ?? svc?.price ?? null
+  const today = ymdLocal(new Date())
+  const when = `${date === today ? 'ma' : date.slice(5).replace('-', '. ') + '.'} ${b.start_time}–${b.end_time}`
 
-  // Szakemberenként/óránként előre kiszámolt foglalás-lista — ez adja a tartalom-cellákat ÉS
-  // az összevont üres szakaszok határait is.
-  const perStaffHourBookings = useMemo(
-    () =>
-      staff.map((t) =>
-        hourMarks.map((m, i) => {
-          const lo = i === 0 ? openMin : m
-          const hi = i < hourMarks.length - 1 ? hourMarks[i + 1] : closeMin + 1
-          const rows = active
-            .filter((b) => {
-              if (idOf(b.staff) !== String(t.id)) return false
-              const s = hhmmToMinutes(b.start_time)
-              return s >= lo && s < hi
-            })
-            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-          return groupOverlaps(rows)
-        }),
-      ),
-    [staff, active, hourMarks, openMin, closeMin],
-  )
-
-  // Egy korábbi óra-sávban INDULÓ, de a szolgáltatás hossza miatt ebbe az óra-sávba is átnyúló
-  // foglalás — ha van ilyen, ebben a cellában (ahol maga nem indul semmi új) is ki kell rajzolni
-  // ugyanazt a kártyát, hogy a több órás foglalás vizuálisan minden érintett órában megjelenjen,
-  // ne csak a kezdő-sávjában (ld. felhasználói visszajelzés: pl. egy 10:00–14:40-es Balayage
-  // korábban csak a 10:00-s sorban látszott, 11–14 között üresnek tűnt, pedig foglalt volt).
-  const perStaffHourContinuation = useMemo(
-    () =>
-      staff.map((t) =>
-        hourMarks.map((m, i) => {
-          const lo = i === 0 ? openMin : m
-          return (
-            active.find((b) => {
-              if (idOf(b.staff) !== String(t.id)) return false
-              const s = hhmmToMinutes(b.start_time)
-              const e = hhmmToMinutes(b.end_time)
-              return s < lo && e > lo
-            }) ?? null
-          )
-        }),
-      ),
-    [staff, active, hourMarks, openMin],
-  )
-
-  // Napi szünet (Shifts.break_start/end) — UGYANAZ a minta, mint a foglalásoknál: "indul ebben az
-  // órában" vs. "korábbi órából átnyúlik ide" — hogy egy 2 órás szünet is egybefüggő, folytonos
-  // sávként jelenjen meg (mint egy több órás foglalás), ne külön-külön hatch-cellaként.
-  const perStaffHourBreak = useMemo(
-    () =>
-      staff.map((t) => {
-        const brk = staffBreaks[String(t.id)]
-        return hourMarks.map((m, i) => {
-          if (!brk) return false
-          const lo = i === 0 ? openMin : m
-          const hi = i < hourMarks.length - 1 ? hourMarks[i + 1] : closeMin + 1
-          const s = hhmmToMinutes(brk.start)
-          return s >= lo && s < hi
-        })
-      }),
-    [staff, staffBreaks, hourMarks, openMin, closeMin],
-  )
-  const perStaffBreakContinuation = useMemo(
-    () =>
-      staff.map((t) => {
-        const brk = staffBreaks[String(t.id)]
-        return hourMarks.map((m, i) => {
-          if (!brk) return false
-          const lo = i === 0 ? openMin : m
-          const s = hhmmToMinutes(brk.start)
-          const e = hhmmToMinutes(brk.end)
-          return s < lo && e > lo
-        })
-      }),
-    [staff, staffBreaks, hourMarks, openMin],
-  )
-  const BreakCard = () => (
-    <div
-      className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[rgba(192,86,74,.22)] text-[#B0453F]"
-      style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}
-    >
-      <Coffee className="h-3.5 w-3.5" strokeWidth={1.8} />
-      <span className="text-[10.5px] font-semibold">Szünet</span>
-    </div>
-  )
+  const set = async (status: Booking['status'], msg: string, decline = false) => {
+    setBusy(true)
+    try {
+      await setBookingStatus({ restaurant: false, id: b.id, status, decline })
+      toast.success(msg)
+      markLocalMutation()
+      router.refresh()
+      onClose()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Hiba történt')
+    } finally {
+      setBusy(false)
+      setConfirm(null)
+    }
+  }
+  // a foglalás elkezdődött (vagy múltbeli) és még nincs lezárva fizetéssel → „Fizetés” (ha a szalonnál be van kapcsolva)
+  const started = date < today || (date === today && nowMin != null && nowMin >= hhmmToMinutes(b.start_time))
+  const canCheckout = canManage && !!onsite?.enabled && b.status === 'confirmed' && started && !b.paid_at
+  const call = b.customer_phone ? { label: 'Hívás', icon: Phone, href: `tel:${b.customer_phone.replace(/\s/g, '')}` } : null
+  const move = { label: 'Áthelyezés', onClick: onEdit }
+  const pay: DrawerAction = { label: 'Fizetés', icon: Wallet, variant: 'dark', onClick: () => setCheckout(true), disabled: busy }
+  const base: DrawerAction[] = canCheckout ? [pay, { label: 'Nem jött el', onClick: () => set('no_show', 'Lezárva — nem jött'), disabled: busy }, ...(call ? [call] : []), move]
+    : !canManage ? (call ? [call] : []) : b.status === 'pending'
+    ? [{ label: 'Jóváhagyom', icon: Check, variant: 'dark', onClick: () => set('confirmed', 'Elfogadva — a vendég megkapta a visszaigazolást'), disabled: busy }, { label: 'Elutasítom', onClick: () => setConfirm('decline'), disabled: busy }, ...(call ? [call] : []), move]
+    : late
+      ? [{ label: 'Megérkezett', icon: Check, variant: 'dark', onClick: () => set('completed', 'Lezárva — megjelent'), disabled: busy }, { label: 'Nem jött el', onClick: () => set('no_show', 'Lezárva — nem jött'), disabled: busy }, ...(call ? [call] : []), move]
+      : b.status === 'confirmed'
+        ? [...(call ? [call] : []), move, { label: 'Lemondás', onClick: () => setConfirm('cancel'), disabled: busy }]
+        : (call ? [call] : [])
+  const consent = canManage && consentEnabled && !b.consent_accepted && b.status !== 'cancelled'
+  const actions: DrawerAction[] = consent ? [...base, { label: 'Nyilatkozat aláíratása', icon: FileSignature, href: `/dashboard/bookings/consent/${b.id}` }] : base
 
   return (
-    <div className={`${card} p-[18px] sm:p-[20px_22px_22px]`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="text-[17px] font-medium text-ink">Napi időbeosztás</div>
-        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-          {[
-            { c: '#1D1C19', l: 'Megerősített' },
-            { c: '#F1CE45', l: 'Függő' },
-            { c: 'repeating-linear-gradient(115deg,#f3efe4 0 3px,#e8e4d8 3px 5px)', l: 'Befejezett' },
-            { c: CANCEL_RED, l: 'Lemondva' },
-          ].map((x) => (
-            <div key={x.l} className="flex items-center gap-[7px]">
-              <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
-              <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {staff.length === 0 ? (
-        <div className="py-10 text-center text-[13px] text-ink-soft">Nincs aktív szakember. Vegyél fel szakembert a foglalások idővonalához.</div>
-      ) : (
-        // UGYANAZ a minta, mint a vízszintesen görgetett bal oszlopnál (lásd étterem DailyView):
-        // a fejléc-sor egy KÜLÖN, saját fa — NEM a görgő konténer gyereke —, ezért nem kell
-        // sticky-vel/háttérszín-egyeztetéssel bajlódni, egyszerűen nem tud alá csúszni semmi.
-        // A vízszintes görgetés az egészet (fejléc+tartalom) EGYÜTT mozgatja (közös `overflow-x-
-        // auto`), a függőleges görgetés viszont KIZÁRÓLAG a tartalom-rácsra vonatkozik.
-        <div className="overflow-x-auto">
-          {(() => {
-            // 4 szakemberig kényelmes 220px oszlop; afölött fokozatosan keskenyedik (de 160px
-            // alá sosem megy, hogy az avatar+név+idő tartalom még olvasható maradjon) — így a
-            // rács nem nő korlátlanul szélesre, amikor sok szakember dolgozik egyszerre.
-            const colMin = staff.length <= 4 ? 220 : Math.max(160, Math.round(880 / staff.length))
-            const gridTemplateColumns = `62px repeat(${staff.length}, minmax(${colMin}px, 1fr))`
-            const minWidth = 62 + staff.length * colMin
-            return (
-              <div style={{ minWidth }}>
-                {/* Fejléc-sor: üres bal sarok (a tengely fölött) + szakember-fejlécek — saját,
-                    NEM görgő rács, mindig látszik. */}
-                <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
-                  <div />
-                  {staff.map((t, ci) => {
-                    const url = avatarUrlOf(t)
-                    const off = staffOffType[String(t.id)]
-                    return (
-                      <div
-                        key={String(t.id)}
-                        style={{ gridColumn: ci + 2 }}
-                        className="flex items-center gap-2.5 border-b border-line pb-3"
-                      >
-                        <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
-                        <div className="min-w-0">
-                          <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
-                          {off ? (
-                            <span className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none" style={{ background: OFF_TYPE_STYLE[off].badgeBg, color: OFF_TYPE_STYLE[off].badgeFg }}>{OFF_TYPE_LABEL[off]}</span>
-                          ) : (
-                            t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — hosszú
-                    nyitvatartásnál (sok óra-sor) ez görgethető belül, nem az egész oldal nő meg. */}
-                <div className="max-h-[65vh] overflow-y-auto pt-1">
-                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
-            {/* Bal tengely — EGY időpont-pill óránként, alatta (mint mobilon) a nyitó "+" gomb,
-                ha ANY szakembernél van extra foglalás abban az órában; kattintásra minden
-                érintett oszlopban egyszerre nyílnak ki az extrák. */}
-            {hourMarks.map((m, i) => {
-              const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
-              const last = i === hourMarks.length - 1
-              const anyInHour = perStaffHourBookings.some((rows) => rows[i].length > 0)
-              const extraTotal = perStaffHourBookings.reduce((sum, rows) => sum + Math.max(0, rows[i].length - 1), 0)
-              const isOpen = expandedHours.has(m)
-              const pillCls = isNow ? 'bg-ink-dark text-white' : anyInHour ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
-              return (
-                <div
-                  key={m}
-                  style={{ gridColumn: 1, gridRow: i + 1 }}
-                  className="flex flex-col items-center"
-                >
-                  <span className={`flex h-9 w-full items-center justify-center rounded-full px-2 text-[13px] font-semibold tabular-nums ${pillCls}`}>
-                    {minutesToHHMMWrapped(m)}
-                  </span>
-                  {!last ? (
-                    <div className="relative min-h-[16px] flex-1 py-1">
-                      {/* A szaggatott vonal folytonosan fut a konténer teljes magasságában — a +
-                          gomb ráülő "gyöngyként" fedi, nem szakítja meg. */}
-                      <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l-2 border-dotted border-line-strong" />
-                      {extraTotal > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => toggleHour(m)}
-                          aria-label={`még ${extraTotal} foglalás ${minutesToHHMMWrapped(m)}-kor`}
-                          className={`absolute left-1/2 top-1 z-10 flex h-5 w-5 -translate-x-1/2 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                        >
-                          +{extraTotal}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    extraTotal > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => toggleHour(m)}
-                        aria-label={`még ${extraTotal} foglalás ${minutesToHHMMWrapped(m)}-kor`}
-                        className={`relative z-10 mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                      >
-                        +{extraTotal}
-                      </button>
-                    )
-                  )}
-                </div>
-              )
-            })}
-
-            {/* Tartalom-cellák óránként — minden órának KÜLÖN sávja van (nincs függőleges
-                összevonás a szomszédos órák közt). Amelyik órában több EGYMÁS MELLETTI
-                szakember-oszlop is üres, azok VÍZSZINTESEN olvadnak egy folytonos,
-                szegély/rés nélküli sraffozott sávvá. A grid `items-start`-tal fut (ld. fent) —
-                így ha egy oszlop kinyílva magasabb lesz, a SZOMSZÉD (üres/foglalt) cellák NEM
-                nyúlnak meg vele, a saját természetes magasságukban maradnak a sor tetején. */}
-            {hourMarks.flatMap((m, i) => {
-              const cells: React.ReactNode[] = []
-              const isOpen = expandedHours.has(m)
-              // A legtöbb extra (2., 3., ... foglalás) sorszáma, ami BÁRMELYIK szakembernél
-              // előfordul ebben az órában — ennyi üres/foglalt extra sávnak kell megjelennie
-              // MINDEN oszlopban kinyitáskor, hogy a sorok egy vonalban maradjanak.
-              const maxExtra = Math.max(0, ...staff.map((_, ci) => perStaffHourBookings[ci][i].length - 1))
-              const HatchBand = () =>
-                isClosedToday ? (
-                  <ClosedBand />
-                ) : (
-                  <div
-                    aria-hidden
-                    className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                    style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                  />
-                )
-              let ci = 0
-              while (ci < staff.length) {
-                const off = staffOffType[String(staff[ci].id)]
-                const rows = perStaffHourBookings[ci][i]
-                if (off) {
-                  // Aznap szabadnapos/szabadságon/beteg — a TELJES napi oszlopa ez alapján
-                  // jelenik meg, minden óra-sorban, nem olvad össze más (üres) oszloppal.
-                  const t = staff[ci]
-                  const st = OFF_TYPE_STYLE[off]
-                  cells.push(
-                    <div key={`off-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
-                      {i > 0 && (
-                        <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                      )}
-                      <div className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] border" style={{ background: st.hatch, color: st.fg, borderColor: st.border }}>
-                        <span className="text-[10.5px] font-semibold">{OFF_TYPE_LABEL[off]}</span>
-                      </div>
-                    </div>,
-                  )
-                  ci += 1
-                } else if (rows.length > 0) {
-                  const t = staff[ci]
-                  const hatchNeeded = maxExtra - (rows.length - 1)
-                  cells.push(
-                    <div key={`${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
-                      {renderCellItem(rows[0], onEdit, false, nowMin)}
-                      <AnimatePresence initial={false}>
-                        {isOpen && maxExtra > 0 && (
-                          <motion.div
-                            key="extra"
-                            className="overflow-hidden"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                          >
-                            <div className="space-y-2 pt-2">
-                              {rows.slice(1).map((item) => (
-                                <div key={cellKey(item)}>{renderCellItem(item, onEdit, false, nowMin)}</div>
-                              ))}
-                              {/* Nincs több valódi extra ebben az oszlopban, DE a saját (rows[0])
-                                  foglalása még mindig tart — az ismétlése tölti ki a maradék
-                                  helyet, hogy egyértelmű legyen: ez nem szabad idő. */}
-                              {Array.from({ length: hatchNeeded }).map((_, hi) => (
-                                <div key={`repeat-${hi}`} className="relative">
-                                  <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                                  {renderCellItem(rows[0], onEdit, false, nowMin)}
-                                </div>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>,
-                  )
-                  ci += 1
-                } else if (perStaffHourContinuation[ci][i]) {
-                  // Korábbi órában induló, ide is átnyúló foglalás — ugyanaz a kártya jelenik
-                  // meg itt is, a fölötte lévő sorral szaggatott vonallal vizuálisan összekötve.
-                  const t = staff[ci]
-                  const continuing = perStaffHourContinuation[ci][i]!
-                  cells.push(
-                    <div key={`cont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
-                      <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                      {renderBookingCard(continuing, onEdit, false, nowMin)}
-                      {/* Ha ez az óra ki van nyitva (mert EGY MÁSIK oszlopnál extra foglalás van),
-                          ez az oszlop is kapjon ugyanannyi hatch-töltőt, hogy a sor magassága
-                          minden oszlopban egyezzen — különben "lyuk" marad a folytatás alatt. */}
-                      <AnimatePresence initial={false}>
-                        {isOpen && maxExtra > 0 && (
-                          <motion.div
-                            key="extra"
-                            className="overflow-hidden"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                          >
-                            <div className="space-y-2 pt-2">
-                              {/* A folytatódó foglalás ismétlése tölti ki a helyet — nem szabad
-                                  idő, ezért nem hatch-mintás, hanem maga a kártya. */}
-                              {Array.from({ length: maxExtra }).map((_, hi) => (
-                                <div key={`repeat-${hi}`} className="relative">
-                                  <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                                  {renderBookingCard(continuing, onEdit, false, nowMin)}
-                                </div>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>,
-                  )
-                  ci += 1
-                } else if (perStaffHourBreak[ci][i]) {
-                  // Napi szünet, ebben az órában induló — "zárva" stílusú kártya, mint egy
-                  // foglalás: saját oszlop, nem olvad össze a szomszédos üres oszlopokkal.
-                  const t = staff[ci]
-                  cells.push(
-                    <div key={`brk-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
-                      <BreakCard />
-                    </div>,
-                  )
-                  ci += 1
-                } else if (perStaffBreakContinuation[ci][i]) {
-                  // Korábbi órában induló szünet, ide is átnyúlik — ugyanaz a folytonos-sáv minta,
-                  // mint egy több órás foglalásnál (szaggatott vonallal összekötve).
-                  const t = staff[ci]
-                  cells.push(
-                    <div key={`brkcont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
-                      <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                      <BreakCard />
-                    </div>,
-                  )
-                  ci += 1
-                } else {
-                  const start = ci
-                  while (ci < staff.length && !staffOffType[String(staff[ci].id)] && perStaffHourBookings[ci][i].length === 0 && !perStaffHourContinuation[ci][i] && !perStaffHourBreak[ci][i] && !perStaffBreakContinuation[ci][i]) ci += 1
-                  const span = ci - start
-                  cells.push(
-                    <div
-                      key={`gap-${m}-${start}`}
-                      style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 1 }}
-                      className="pb-3"
-                    >
-                      <HatchBand />
-                      <AnimatePresence initial={false}>
-                        {isOpen && maxExtra > 0 && (
-                          <motion.div
-                            key="extra"
-                            className="overflow-hidden"
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                          >
-                            <div className="space-y-2 pt-2">
-                              {/* Itt tényleg nincs semmi — marad a szokásos "szabad" hatch-minta. */}
-                              {Array.from({ length: maxExtra }).map((_, hi) => (
-                                <HatchBand key={`hatch-${hi}`} />
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>,
-                  )
-                }
-              }
-              return cells
-            })}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-        </div>
+    <>
+      <BookingDrawer
+        open
+        onClose={onClose}
+        onEdit={canManage ? onEdit : undefined}
+        when={when}
+        title={b.customer_name || 'Vendég'}
+        guest={{ email: b.customer_email, phone: b.customer_phone, name: b.customer_name }}
+        city={b.customer_city}
+        alert={b.status === 'pending' ? { tone: 'pending', text: 'Jóváhagyásra vár' } : paymentDue(b, !!onsite?.enabled, date, nowMin) ? { tone: 'pending', text: 'Fizetésre vár — zárd le a fizetéssel' } : late && !canCheckout ? { tone: 'bad', text: `${lateMin} perce késik` } : null}
+        actions={actions}
+      >
+        <BookingFacts
+          service={svc?.name ?? 'Szolgáltatás'}
+          detail={[`${durationOf(b)} perc`, st?.name].filter(Boolean).join(' · ')}
+          price={price ? `${price.toLocaleString('hu-HU')} Ft` : '—'}
+          img={avatarUrlOf(st)}
+          name={st?.name}
+          rows={([
+            ['Állapot', b.status === 'confirmed' || b.status === 'pending' ? null : statusOf(b.status).label],
+            ['Telefon', b.customer_phone],
+            ['E-mail', b.customer_email],
+            ['Forrás', SOURCE_LABEL[b.source ?? ''] ?? b.source],
+            ['Sorozat', b.series_id ? 'Ismétlődő foglalás' : null],
+            ['Előleg', b.payment_status === 'paid' ? 'fizetve' : b.payment_status === 'failed' ? 'sikertelen fizetés' : null],
+            ['Helyben fizetve', b.paid_at ? `${Math.round(Number(b.paid_amount_huf ?? 0)).toLocaleString('hu-HU')} Ft · ${({ cash: 'készpénz', card: 'bankkártya', transfer: 'átutalás', link: 'fizetési link' } as Record<string, string>)[b.pay_method ?? ''] ?? '—'}${b.pay_receipt === 'manual' ? ' · végszámla kézzel' : b.pay_receipt === 'register' ? ' · pénztárgép' : ''}` : null],
+            ['Fizetés', b.voucher_code ? `Utalvánnyal · ${b.voucher_code}` : null],
+            ['Megjegyzés', b.notes],
+          ] as [string, string | null | undefined][]).filter((r): r is [string, string] => !!r[1])}
+          ok={b.payment_status === 'paid' ? ['Előleg'] : []}
+        />
+      </BookingDrawer>
+      {canCheckout && onsite && (
+        <BookingCheckout open={checkout} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); markLocalMutation(); router.refresh(); onClose() }}
+          settings={onsite} settingsHref="/dashboard/settings?tab=payments"
+          booking={{
+            id: b.id, customerName: b.customer_name || 'Vendég', customerEmail: b.customer_email, customerCity: b.customer_city, customerAddress: b.customer_address,
+            when, service: { name: svc?.name ?? 'Szolgáltatás', meta: [`${durationOf(b)} perc`, st?.name].filter(Boolean).join(' · '), price: Math.round(Number(price ?? 0)) },
+            deposit: b.payment_status === 'paid' ? Math.round(Number(b.deposit_amount_huf ?? 0)) : 0, depositInvoice: b.invoice_number,
+            voucher: Math.round(Number(b.voucher_discount_huf ?? 0)), voucherCode: b.voucher_code,
+          }} />
       )}
-    </div>
+      <ConfirmDialog
+        open={confirm === 'cancel'}
+        icon={X}
+        title="Lemondod a foglalást?"
+        description={`${b.customer_name} · ${b.start_time}${svc ? ` · ${svc.name}` : ''}`}
+        confirmLabel="Lemondás"
+        busy={busy}
+        onConfirm={() => set('cancelled', 'Foglalás lemondva')}
+        onCancel={() => setConfirm(null)}
+        zIndexClass="z-[95]"
+      >
+        {b.customer_email && <FieldRow boxed label="Értesítés" hint={`${b.customer_name} e-mailt kap`}><Check className="h-4 w-4 text-ui-ok" /></FieldRow>}
+        <FieldRow boxed label="Az időpont" hint="Felszabadul, újra foglalható"><Check className="h-4 w-4 text-ui-ok" /></FieldRow>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirm === 'decline'}
+        icon={X}
+        title="Elutasítod a foglalást?"
+        description={`${b.customer_name} · ${b.start_time}${svc ? ` · ${svc.name}` : ''}`}
+        confirmLabel="Elutasítom"
+        busy={busy}
+        onConfirm={() => set('cancelled', 'Elutasítva — a vendég e-mailben értesült', true)}
+        onCancel={() => setConfirm(null)}
+        zIndexClass="z-[95]"
+      >
+        {b.customer_email && <FieldRow boxed label="Értesítés" hint={`${b.customer_name} e-mailt kap az elutasításról`}><Check className="h-4 w-4 text-ui-ok" /></FieldRow>}
+      </ConfirmDialog>
+    </>
   )
 }
-

@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { format, addDays, isToday, isTomorrow } from 'date-fns'
-import { CalendarClock } from 'lucide-react'
+import { Clock } from 'lucide-react'
+import { Button } from '@/components/ui-kit'
+import { ON_PHOTO } from '@/components/blocks/public'
 import { t, dfLocale, type Locale } from '@/lib/i18n'
 
 /**
@@ -62,19 +63,13 @@ export function HeroNextSlot({ slug, source, locale = 'hu' }: { slug: string; so
   const ds = format(date, 'yyyy-MM-dd')
   const q = new URLSearchParams({ date: ds, time })
   if (source.kind === 'restaurant' && source.pax) q.set('pax', String(source.pax))
+  // az étterem kártyája a `book=1`-re nyílik ki a megadott idővel (a /book átirányít ide)
+  if (source.kind === 'restaurant') q.set('book', '1')
 
+  // design 21.1: sötét üveg gomb a fotón, óra-ikonnal — „Legközelebbi szabad: ma · 14:30”
   return (
-    <Link
-      href={`/${slug}/book?${q}`}
-      className="group inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white py-2 pl-2 pr-4 shadow-[0_2px_16px_rgba(0,0,0,0.18)] transition-colors hover:bg-white"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/30 text-ink transition-transform group-hover:scale-105">
-        <CalendarClock className="h-[16px] w-[16px]" strokeWidth={2} />
-      </span>
-      <span className="leading-tight">
-        <span className="block text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink/50">{t(locale, 'nextSlots.heading')}</span>
-        <span className="block text-[13px] font-semibold text-ink">{dayLabel(date, locale)} · {time}</span>
-      </span>
-    </Link>
+    <Button size="lg" variant="onDark" icon={Clock} href={`/${slug}/book?${q}`} className={`px-6 ${ON_PHOTO} border-0`}>
+      {t(locale, 'nextSlots.heading')}: {dayLabel(date, locale)} · {time}
+    </Button>
   )
 }

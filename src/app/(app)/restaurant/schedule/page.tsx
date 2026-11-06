@@ -2,10 +2,8 @@ import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
-import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/components/dashboard/ScheduleView'
-import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
-import { StatusPills } from '@/components/dashboard/StatusPills'
-import { PageHeader } from '@/components/ui/page-header'
+import { CalendarView } from '@/components/dashboard/CalendarView'
+import type { StaffVM, ShiftVM, ShiftType } from '@/lib/schedule'
 import { roleLabel } from '@/lib/permissions'
 import { fixMediaUrl } from '@/lib/utils'
 import type { Membership, Shift, User, Role, OpeningHoursException } from '@/payload/payload-types'
@@ -25,7 +23,7 @@ function mediaUrl(m: unknown): string | null {
 }
 
 /**
- * ÉTTEREM BEOSZTÁS — a csapat-tagok (memberships) havi műszakjai. A ScheduleView-t
+ * ÉTTEREM BEOSZTÁS — a csapat-tagok (memberships) havi műszakjai. A Naptár nézetet (CalendarView)
  * étterem-variánsban használjuk: a „staff" itt a memberships-lista, a shift-CRUD
  * `member`+`restaurant` párral megy az /api/shifts-en. SMS sehol.
  */
@@ -53,7 +51,8 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
       collection: 'shifts',
       where: { restaurant: { equals: restaurant.id } },
       sort: 'date',
-      depth: 0,
+      // depth 1: a táppénzes papír neve / mérete (a tag is objektumként jön — a staffId ezt kezeli)
+      depth: 1,
       limit: 5000,
       overrideAccess: true,
     }),
@@ -102,9 +101,11 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
       birthday: m.birthday ? toYmd(m.birthday) : null,
       join_date: m.join_date ? toYmd(m.join_date) : m.createdAt ? toYmd(m.createdAt) : null,
       weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : null,
+      annual_leave_days: typeof m.annual_leave_days === 'number' ? m.annual_leave_days : null,
       phone: m.phone ?? null,
       documents: [],
       pending: m.status !== 'active',
+      tipEligible: !!m.tip_eligible,
     }
   })
 
@@ -114,6 +115,8 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
   const ownerName = ownerUser?.name || ownerUser?.email || 'Tulajdonos'
   const ownerStaff: StaffVM = { id: 'owner', name: ownerName, ini: initials(ownerName), avatarUrl: fixMediaUrl(ownerUser?.avatar_url), role: 'Tulajdonos', birthday: ownerUser?.birthday ? toYmd(ownerUser.birthday) : null, join_date: ownerUser?.join_date ? toYmd(ownerUser.join_date) : null, weekly_hours: ownerUser?.weekly_hours ?? null, phone: ownerUser?.phone ?? null, documents: [] }
   const staff: StaffVM[] = [ownerStaff, ...members]
+  // bérköltség: a tag napidíja vagy órabére (a tulajdonosnak nincs)
+  const pay = Object.fromEntries((membersRes.docs as Membership[]).filter((m) => typeof m.pay_rate === 'number' && m.pay_rate > 0).map((m) => [String(m.id), { type: (m.pay_type === 'hourly' ? 'hourly' : 'daily') as 'hourly' | 'daily', rate: m.pay_rate as number }]))
 
   const shifts: ShiftVM[] = (shiftsRes.docs as Shift[]).map((sh) => ({
     id: String(sh.id),
@@ -123,10 +126,12 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
     start_time: sh.start_time ?? null,
     end_time: sh.end_time ?? null,
     hours: typeof sh.hours === 'number' ? sh.hours : null,
-    breaks: [],
+    breaks: sh.breaks ?? [],
     note: sh.note ?? null,
     left_early_at: sh.left_early_at ?? null,
     left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
+    paid: !!sh.paid,
+    sickNote: sh.sick_note && typeof sh.sick_note === 'object' ? { filename: sh.sick_note.filename ?? 'táppénzes papír', mimeType: sh.sick_note.mimeType ?? null, filesize: sh.sick_note.filesize ?? null } : null,
   }))
 
   // Napi központi borravaló: dátum → összeg (a nap-szerkesztő bevitele + a profil havi összegzése).
@@ -136,55 +141,19 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
     if (d && typeof t.amount === 'number') dailyTips[d] = t.amount
   }
 
-  const now = new Date()
-
-  // ── Havi KPI-k (valós adat a shift-ekből) — fejléc-pillérek animált számokkal ──
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const monthShifts = shifts.filter((s) => s.date.startsWith(ym))
-  const workedHours = Math.round(monthShifts.filter((s) => s.type === 'shift').reduce((a, s) => a + (s.hours ?? 0), 0))
-  const offDays = monthShifts.filter((s) => s.type === 'leave' || s.type === 'sick' || s.type === 'vacation').length
-
-  // StatusPills: a havi beosztás típus-megoszlása (mint az Áttekintés/Statisztikák fejléce).
-  const total = monthShifts.length || 1
-  const pct = (n: number) => Math.round((n / total) * 100)
-  const nShift = monthShifts.filter((s) => s.type === 'shift').length
-  const nVac = monthShifts.filter((s) => s.type === 'leave' || s.type === 'vacation').length
-  const nSick = monthShifts.filter((s) => s.type === 'sick').length
-  const pills = [
-    { label: 'Műszak', pct: pct(nShift), background: '#1D1C19', color: '#fff' },
-    { label: 'Szabadság', pct: pct(nVac), background: '#F1CE45', color: '#1D1C19' },
-    {
-      label: 'Betegszab.',
-      pct: pct(nSick),
-      background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)',
-      color: '#57564f',
-      border: '1px solid var(--dav-line-strong)',
-      align: 'end' as const,
-    },
-  ]
-
   return (
-    <div className="space-y-6">
-      <div className="px-4 pt-4 lg:px-0 lg:pt-0">
-        <PageHeader eyebrow="Csapat" title="Naptár" />
-        <div className="mt-0 flex flex-col gap-6 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
-          <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
-          <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-            <CountUpKpi icon="users" value={members.length} label="Csapattag" />
-            <CountUpKpi icon="clock" value={workedHours} label="Ledolgozott óra (hó)" />
-            <CountUpKpi icon="off" value={offDays} label="Szabadság / hiányzás" />
-          </div>
-        </div>
-      </div>
-      <ScheduleView
+    <div>
+      <CalendarView
         variant="restaurant"
         staffPageHref={can(capabilities, 'staff.view') || can(capabilities, 'staff.manage') ? '/restaurant/staff' : null}
         restaurantId={String(restaurant.id)}
         staff={staff}
         shifts={shifts}
-        year={now.getFullYear()}
-        month={now.getMonth()}
         dailyTips={dailyTips}
+        // a bér csak a csapatot kezelőnek megy le a böngészőbe
+        pay={canManage ? pay : {}}
+        // a bér- és borravaló-összesítő (11.3) egyelőre rejtve — még nincs eldöntve, hová kerül
+        showPayroll={false}
         closedDates={closedDates}
         closedWeekdays={closedWeekdays}
         canManage={canManage}

@@ -5,7 +5,7 @@ import { assertCapability } from '@/lib/apiCapability'
 import { notifyShiftMember, notifyShiftStaff } from '@/lib/notifyShift'
 
 /**
- * Beosztás — műszak LÉTREHOZÁSA. A ScheduleView ide POST-ol
+ * Beosztás — műszak LÉTREHOZÁSA. A Naptár (CalendarView) ide POST-ol
  * (`{ member/staff, restaurant/salon, date, type, start_time, end_time, hours, note }`).
  * A relationship id-k STRING-ként érkeznek → SZÁM-ra coerce (Postgres).
  * RBAC: `schedule.manage` (owner + manager) az adott üzletben (szalon/étterem).
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     hours: body.hours ?? null,
     breaks: Array.isArray(body.breaks) ? body.breaks : [],
     note: body.note ?? null,
+    ...('paid' in body ? { paid: !!body.paid } : {}),
     ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
     ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),
     ...(body.owner_shift ? { owner_shift: true } : {}),

@@ -1,5 +1,5 @@
-import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { CalendarSkeleton } from '@/components/shared/CalendarSkeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return <CalendarSkeleton />
 }

@@ -12,7 +12,7 @@ import type { Booking, Salon, Service, StaffMember } from '@/payload/payload-typ
  * route az APP-auth-ot használja (getCurrentUser) + a `bookings.manage` képességet ellenőrzi, majd
  * overrideAccess-szel ír — az étteremi /api/restaurant/reservation-status párja.
  */
-const ALLOWED: Booking['status'][] = ['confirmed', 'completed', 'cancelled']
+const ALLOWED: Booking['status'][] = ['confirmed', 'completed', 'cancelled', 'no_show']
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
