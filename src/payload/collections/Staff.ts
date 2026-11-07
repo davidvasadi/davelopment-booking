@@ -119,6 +119,13 @@ export const Staff: CollectionConfig = {
       admin: { placeholder: 'Műszakvezető · Pincér' },
     },
     {
+      name: 'show_role_title',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Pozíció a foglalásnál',
+      admin: { description: 'A foglalóoldalon a munkatárs neve alatt (Foglalóoldal-szerkesztő › Szakember).' },
+    },
+    {
       name: 'department',
       type: 'text',
       label: 'Részleg',

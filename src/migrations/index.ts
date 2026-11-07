@@ -82,6 +82,14 @@ import * as migration_20261106_130000_booking_paylink from './20261106_130000_bo
 import * as migration_20261106_140000_perf_indexes from './20261106_140000_perf_indexes';
 import * as migration_20261106_150000_privacy_url from './20261106_150000_privacy_url';
 import * as migration_20261107_010000_auth_session_device_id from './20261107_010000_auth_session_device_id';
+import * as migration_20261107_200000_inline_editor from './20261107_200000_inline_editor';
+import * as migration_20261107_210000_text_colors from './20261107_210000_text_colors';
+import * as migration_20261107_220000_field_placeholders from './20261107_220000_field_placeholders';
+import * as migration_20261107_230000_hero_order from './20261107_230000_hero_order';
+import * as migration_20261107_240000_city_placeholder from './20261107_240000_city_placeholder';
+import * as migration_20261107_250000_page_texts from './20261107_250000_page_texts';
+import * as migration_20261107_260000_cover_color from './20261107_260000_cover_color';
+import * as migration_20261107_270000_name_style from './20261107_270000_name_style';
 
 export const migrations = [
   {
@@ -503,5 +511,45 @@ export const migrations = [
     up: migration_20261107_010000_auth_session_device_id.up,
     down: migration_20261107_010000_auth_session_device_id.down,
     name: '20261107_010000_auth_session_device_id',
+  },
+  {
+    up: migration_20261107_200000_inline_editor.up,
+    down: migration_20261107_200000_inline_editor.down,
+    name: '20261107_200000_inline_editor',
+  },
+  {
+    up: migration_20261107_210000_text_colors.up,
+    down: migration_20261107_210000_text_colors.down,
+    name: '20261107_210000_text_colors',
+  },
+  {
+    up: migration_20261107_220000_field_placeholders.up,
+    down: migration_20261107_220000_field_placeholders.down,
+    name: '20261107_220000_field_placeholders',
+  },
+  {
+    up: migration_20261107_230000_hero_order.up,
+    down: migration_20261107_230000_hero_order.down,
+    name: '20261107_230000_hero_order',
+  },
+  {
+    up: migration_20261107_240000_city_placeholder.up,
+    down: migration_20261107_240000_city_placeholder.down,
+    name: '20261107_240000_city_placeholder',
+  },
+  {
+    up: migration_20261107_250000_page_texts.up,
+    down: migration_20261107_250000_page_texts.down,
+    name: '20261107_250000_page_texts',
+  },
+  {
+    up: migration_20261107_260000_cover_color.up,
+    down: migration_20261107_260000_cover_color.down,
+    name: '20261107_260000_cover_color',
+  },
+  {
+    up: migration_20261107_270000_name_style.up,
+    down: migration_20261107_270000_name_style.down,
+    name: '20261107_270000_name_style',
   },
 ];

@@ -280,6 +280,23 @@ export interface Restaurant {
     rating_opens?: boolean | null
     show_social?: boolean | null
     cta_label?: string | null
+    button_text_color?: string | null
+    desc_color?: string | null
+    name_color?: string | null
+    address_color?: string | null
+    hero_order?: string | null
+    cover_color?: string | null
+    name_style?: string | null
+    ph_name?: string | null
+    ph_email?: string | null
+    ph_address?: string | null
+    ph_city?: string | null
+    texts?: string | null
+    ph_notes?: string | null
+    desc_size?: string | null
+    desc_full_mobile?: boolean | null
+    success_title?: string | null
+    success_title_color?: string | null
     cta_next_free?: boolean | null
     cta_deposit_badge?: boolean | null
     services_filter?: boolean | null
@@ -1026,6 +1043,23 @@ export interface Salon {
     rating_opens?: boolean | null
     show_social?: boolean | null
     cta_label?: string | null
+    button_text_color?: string | null
+    desc_color?: string | null
+    name_color?: string | null
+    address_color?: string | null
+    hero_order?: string | null
+    cover_color?: string | null
+    name_style?: string | null
+    ph_name?: string | null
+    ph_email?: string | null
+    ph_address?: string | null
+    ph_city?: string | null
+    texts?: string | null
+    ph_notes?: string | null
+    desc_size?: string | null
+    desc_full_mobile?: boolean | null
+    success_title?: string | null
+    success_title_color?: string | null
     cta_next_free?: boolean | null
     cta_deposit_badge?: boolean | null
     services_filter?: boolean | null
@@ -1063,6 +1097,7 @@ export interface StaffMember {
   /** Import hozta létre, a tulaj még nem nézte át (az első szerkesztés törli). */
   import_review?: boolean | null
   role_title?: string | null
+  show_role_title?: boolean | null
   department?: string | null
   salary?: number | null
   birthday?: string | null
