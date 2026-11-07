@@ -1060,10 +1060,7 @@ export function SettingsHub({
   // a téma-lista (desktop kártya és mobil lap ugyanaz): csoportonként, a keresés szűri, zárolt előfizetésnél lakat
   const navNorm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   // mobilon teljes oldalként nyíló témák (a sok soros listák — kereső és szűrők a fejlécben)
-  // mobilon MINDEN téma teljes oldalként, jobbról becsúszva nyílik (mint a Számlák) — felcsúszó lap (popup) nincs;
-  // a fejlécben kereső / szűrő csak ott, ahol a témának van ilyen (Számlák, Audit-napló)
-  const pageTopic = true
-  const pageTools = active === 'invoices' || active === 'audit'
+  const pageTopic = active === 'invoices' || active === 'audit'
   const openTopic = (id: RailId) => { setActive(id); setMobileSheet(true) }
   // a téma-lista adatai (desktop SettingsNav és mobil SettingsMobileList ugyanebből): a keresés szűri, teendőnél pötty,
   // lejárt előfizetésnél lakat (az Előfizetés kivétel)
@@ -1120,8 +1117,8 @@ export function SettingsHub({
             <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center gap-2 bg-white px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
               <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" onClick={() => setMobileSheet(false)} />
               <MarqueeText className="flex-1 text-ui-title text-ui-text">{RAIL_LABELS[active]}</MarqueeText>
-              {pageTools && <IconButton icon={Search} label="Keresés" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-search`))} />}
-              {pageTools && <IconButton icon={Settings2} label="Szűrők" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-filter`))} />}
+              <IconButton icon={Search} label="Keresés" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-search`))} />
+              <IconButton icon={Settings2} label="Szűrők" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-filter`))} />
             </div>
           )}
           <div className={`sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden ${pageTopic ? 'hidden' : ''}`}>
