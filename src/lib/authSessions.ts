@@ -16,10 +16,15 @@ export function deviceLabel(ua: string | null): string {
   return os ? `${browser} · ${os}` : browser
 }
 
-export async function createSession(userId: number | string, ua: string | null, ip: string | null): Promise<string> {
+/** A böngésző tartós azonosítójának sütije: ugyanarról a böngészőről újra belépve a régi munkamenet lezárul (egy sor / böngésző). */
+export const DEVICE_COOKIE = 'dav-device'
+
+export async function createSession(userId: number | string, ua: string | null, ip: string | null, deviceId: string | null = null): Promise<string> {
   const id = crypto.randomUUID()
-  await authQuery(sql`INSERT INTO auth_sessions (id, user_id, device, ip, expires_at)
-    VALUES (${id}, ${Number(userId)}, ${deviceLabel(ua)}, ${ip}, now() + make_interval(days => ${SESSION_DAYS}))`)
+  // ugyanennek a böngészőnek a még élő munkamenete(i) lezárulnak — az eszközlistában böngészőnként egy sor marad
+  if (deviceId) await authQuery(sql`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = ${Number(userId)} AND device_id = ${deviceId} AND revoked_at IS NULL`)
+  await authQuery(sql`INSERT INTO auth_sessions (id, user_id, device, ip, expires_at, device_id)
+    VALUES (${id}, ${Number(userId)}, ${deviceLabel(ua)}, ${ip}, now() + make_interval(days => ${SESSION_DAYS}), ${deviceId})`)
   return id
 }
 

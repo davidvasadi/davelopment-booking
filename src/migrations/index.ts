@@ -81,6 +81,7 @@ import * as migration_20261106_120000_attention_prefs from './20261106_120000_at
 import * as migration_20261106_130000_booking_paylink from './20261106_130000_booking_paylink';
 import * as migration_20261106_140000_perf_indexes from './20261106_140000_perf_indexes';
 import * as migration_20261106_150000_privacy_url from './20261106_150000_privacy_url';
+import * as migration_20261107_010000_auth_session_device_id from './20261107_010000_auth_session_device_id';
 
 export const migrations = [
   {
@@ -497,5 +498,10 @@ export const migrations = [
     up: migration_20261106_150000_privacy_url.up,
     down: migration_20261106_150000_privacy_url.down,
     name: '20261106_150000_privacy_url',
+  },
+  {
+    up: migration_20261107_010000_auth_session_device_id.up,
+    down: migration_20261107_010000_auth_session_device_id.down,
+    name: '20261107_010000_auth_session_device_id',
   },
 ];

@@ -60,6 +60,7 @@ export default function CookiesPage() {
         <p><S>Szükséges</S></p>
         <ul className="list-disc space-y-2 pl-6">
           <Item name="payload-token" who="davelopment booking" what="a bejelentkezett munkamenet azonosítója a vállalkozói felületen." ttl="a bejelentkezés idejére, kilépéskor törlődik" />
+          <Item name="dav-device" who="davelopment booking" what="a böngésző véletlen azonosítója, hogy az Aktív eszközök listájában böngészőnként egy bejelentkezés szerepeljen (biztonsági funkció)." ttl="400 nap" />
           <Item name="authjs.session-token, __Secure-authjs.session-token, authjs.csrf-token, authjs.callback-url" who="davelopment booking" what="a Google-fiókkal való belépés lebonyolítása és biztonsága." ttl="a belépés idejére" />
           <Item name="davelopment-pending-reg" who="davelopment booking" what="a félbehagyott regisztráció adatai az e-mail-cím megerősítéséig." ttl="15 perc" />
           <Item name="davelopment_active_business" who="davelopment booking" what="több üzlet esetén megjegyzi, melyik üzlet van kiválasztva." ttl="1 év" />
