@@ -1,5 +1,5 @@
 import { Check, Copy, Gift, Link2, Mail, MessageCircle, MousePointerClick, QrCode, Send, UserPlus, BadgeCheck, type LucideIcon } from 'lucide-react'
-import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Meta, Pill, StatusPill, Table, Td, Th, Tr } from '@/components/ui-kit'
+import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Meta, Pill, StatusPill, Table, Td, Th, Tr, MarqueeText } from '@/components/ui-kit'
 import { ReferralCard } from './brand'
 
 /* Ajánló program — saját aloldal (design 20.x, végleges terv): /dashboard/ajanlo és /restaurant/ajanlo. A szabály FIX:
@@ -48,7 +48,7 @@ export function ReferralHero({ url, onCopy, share, className = '' }: { url: stri
       <div className="text-ui-sub font-light leading-tight">Ajánld egy vállalkozónak —<br />minden előfizetőért +1 hónap ingyen.</div>
       <Meta dark className="mt-2 leading-relaxed">Ha egy vállalkozás a linkeddel regisztrál, és a próbaidő után előfizet, te kapsz egy hónapot ingyen. Nincs felső határ: ahány előfizető, annyi ingyen hónap.</Meta>
       <div className="mt-6 flex items-center gap-1.5 rounded-full bg-white/10 py-1 pl-4 pr-1 text-ui-body text-white/85">
-        <Link2 className="h-4 w-4 shrink-0 text-white/55" /><span className="min-w-0 flex-1 truncate">{url.replace(/^https?:\/\//, '')}</span>
+        <Link2 className="h-4 w-4 shrink-0 text-white/55" /><MarqueeText className="flex-1">{url.replace(/^https?:\/\//, '')}</MarqueeText>
         <Button variant="yellow" size="sm" icon={Copy} onClick={onCopy}>Másolás</Button>
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">

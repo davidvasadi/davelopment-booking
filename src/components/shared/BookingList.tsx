@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowUpRight, CalendarDays, Footprints, Globe as Globe2, HandCoins, Phone, Repeat } from 'lucide-react'
-import { Avatar, Card, EmptyState, IconButton, ListRow, Pill, StatusPill, type Status } from '@/components/ui-kit'
+import { Avatar, Card, EmptyState, IconButton, ListRow, Pill, StatusPill, type Status, MarqueeText } from '@/components/ui-kit'
 import { hhmmToMinutes } from '@/lib/utils'
 
 /** Egy sor a foglalás-listában — a hívó állítja elő (szalon: Booking, étterem: Reservation). */
@@ -52,7 +52,7 @@ export function BookingRow({ t, n, sv, status, who, src, dep, occ, open = false,
       leading={<span className="w-11 shrink-0 text-ui-body text-ui-text">{t}</span>}
       title={draft || series || cancelled ? (
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className={`truncate ${cancelled ? 'line-through' : ''}`}>{n}</span>
+          <MarqueeText className={`${cancelled ? 'line-through' : ''}`}>{n}</MarqueeText>
           {draft && <Pill tone="yellow" size="sm">Vázlat</Pill>}
           {series && <Repeat className="h-3.5 w-3.5 shrink-0 text-ui-muted" aria-label="Sorozat" />}
         </span>
@@ -60,7 +60,7 @@ export function BookingRow({ t, n, sv, status, who, src, dep, occ, open = false,
       meta={sv}
       trailing={
         <span className="flex items-center gap-1.5">
-          {who && <span className="hidden w-28 items-center gap-2 text-ui-meta text-ui-text md:flex"><Avatar size="xs" src={who.img ?? null} name={who.name} /><span className="truncate">{who.name}</span></span>}
+          {who && <span className="hidden w-28 items-center gap-2 text-ui-meta text-ui-text md:flex print:!flex"><Avatar size="xs" src={who.img ?? null} name={who.name} /><MarqueeText>{who.name}</MarqueeText></span>}
           {Src && <Pill tone="white" size="sm" icon={Src.icon} className="max-sm:hidden">{Src.l}</Pill>}
           {dep && <Pill tone="white" size="sm" icon={HandCoins} className={`max-sm:hidden ${dep === 'failed' ? 'text-ui-bad' : ''}`}>{dep === 'paid' ? 'előleg' : 'sikertelen fizetés'}</Pill>}
           {occ}
@@ -113,7 +113,7 @@ export function BookingList({ items, openId, onOpen, mobileTop }: { items: ListI
 
   return (
     <>
-      <Card pad="sm" className="max-lg:hidden">
+      <Card pad="sm" className="max-lg:hidden print:!block">
         {sorted.length === 0 ? empty : groupBy(sorted, (x) => `${x.start.slice(0, 2)}:00`).map((g) => (
           <div key={g.h} className="mb-2">
             <BookingGroupHead h={g.h} count={g.items.length} pax={restaurant ? g.items.reduce((a, x) => a + (x.pax ?? 0), 0) : undefined} />
@@ -121,7 +121,7 @@ export function BookingList({ items, openId, onOpen, mobileTop }: { items: ListI
           </div>
         ))}
       </Card>
-      <Card className="lg:hidden">
+      <Card className="lg:hidden print:!hidden">
         {mobileTop}
         {sorted.length === 0 ? <div className="mt-4">{empty}</div> : groupBy(sorted, (x) => x.group ?? daypart(x.start)).map((g) => (
           <div key={g.h} className="mt-4">

@@ -1,5 +1,5 @@
 import { Bell, Briefcase, ChevronLeft, ChevronRight, Wallet, Cake, CalendarDays, Check, Heart, Link2, Mail, Minus, MoreHorizontal, Plus, UserRound, WifiOff, Wine, X } from 'lucide-react'
-import { Avatar, Button, Card, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Note, OptionCard, Panel, Pill, Segmented, StatusPill, Toast, blockTone } from '@/components/ui-kit'
+import { Avatar, Button, Card, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Note, OptionCard, Panel, Pill, Segmented, StatusPill, Toast, blockTone, MarqueeText } from '@/components/ui-kit'
 
 /* Összetett, „élő kinézetű” foglalás-darabok a kit elemeiből — EGY helyen. A /design oldal és a landing
  * (funkció-oldalak képei helyett) is ezeket mutatja, így a kettő nem tud eltérni. Csak megjelenítés, adat nélkül. */
@@ -18,7 +18,7 @@ export function BookingFacts({ service, detail, price, who = 'viktoria', img, na
       <ListRow filled className="bg-ui-cell" leading={<Avatar size={compact ? 'sm' : 'md'} src={src} name={name} />} title={service} meta={detail} trailing={<span className={`${compact ? 'text-ui-body' : 'text-ui-title'} font-light text-ui-text`}>{price}</span>} />
       <div className="mt-1">
         {rows.map(([k, v]) => (
-          <ListRow key={k} className="px-0" title={<span className="text-ui-muted">{k}</span>} trailing={<span className={`max-w-[220px] truncate text-ui-body ${ok.includes(k) ? 'text-ui-ok' : 'text-ui-text'}`}>{v}</span>} />
+          <ListRow key={k} className="px-0" title={<span className="text-ui-muted">{k}</span>} trailing={<MarqueeText className={`max-w-[220px] text-ui-body ${ok.includes(k) ? 'text-ui-ok' : 'text-ui-text'}`}>{v}</MarqueeText>} />
         ))}
       </div>
     </div>
@@ -30,7 +30,7 @@ export function BookingFacts({ service, detail, price, who = 'viktoria', img, na
 export function TimelineBlock({ left, width, t, d, st, occ, children }: { left: number; width: number; t: string; d: string; st: string; occ?: Occ; children?: React.ReactNode }) {
   return (
     <span className={`absolute inset-y-1 flex items-center justify-between gap-2 overflow-hidden rounded-ui-control px-2.5 ${blockTone(st)}`} style={{ left: `${left}%`, width: `calc(${width}% - 4px)` }}>
-      <span className="min-w-0"><span className="block truncate text-ui-meta font-medium">{t}</span><span className="block truncate text-ui-label opacity-60">{d}</span></span>
+      <span className="min-w-0"><MarqueeText className="text-ui-meta font-medium">{t}</MarqueeText><MarqueeText className="text-ui-label opacity-60">{d}</MarqueeText></span>
       {occ && <OccBadge occ={occ} />}
       {children}
     </span>
@@ -73,7 +73,7 @@ export function DayGrid({ h0, h1, now, nowLabel, rows, legend, className = '' }:
 
 /** Idővonal-sor címkéje: avatar, név, alatta egy adat (heti óra, pozíció). */
 export const GridPerson = ({ img, n, sub }: { img: string; n: string; sub: string }) => (
-  <span className="flex items-center gap-2.5"><Avatar size="sm" src={`/landing/funkciok/csapat/avatar/${img}.webp`} /><span className="min-w-0"><span className="block text-ui-body text-ui-text">{n}</span><span className="block truncate text-ui-label text-ui-muted">{sub}</span></span></span>
+  <span className="flex items-center gap-2.5"><Avatar size="sm" src={`/landing/funkciok/csapat/avatar/${img}.webp`} /><span className="min-w-0"><span className="block text-ui-body text-ui-text">{n}</span><MarqueeText className="text-ui-label text-ui-muted">{sub}</MarqueeText></span></span>
 )
 
 /** Idővonal-jelmagyarázat: blokk-színek (állapot) és pöttyök (riasztás). Szalon (6.1) és étterem (6.13); `items`
@@ -198,7 +198,7 @@ export function TablePanel({ name = 'T5', sub = 'Terem · 6 fő', status = { ton
   const cur = current && (
     <Card tone="dark" inner pad="sm" className="mt-4">
       <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0"><span className="block truncate text-ui-body font-medium">{current.title}</span><span className="block truncate text-ui-label text-white/55">{current.meta}</span></span>
+        <span className="min-w-0"><MarqueeText className="text-ui-body font-medium">{current.title}</MarqueeText><MarqueeText className="text-ui-label text-white/55">{current.meta}</MarqueeText></span>
         {current.occ}
       </div>
       <div className="mt-3 flex h-[6px] overflow-hidden rounded-full bg-white/15"><span className="h-full rounded-full bg-ui-yellow" style={{ width: `${current.pct}%` }} /></div>
@@ -349,7 +349,7 @@ export function DayPicker({ className = '', cell = 'bg-ui-cell text-ui-text', on
     <div className={`flex items-stretch gap-1 ${scroll ? 'snap-x overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : ''} ${className}`}>
       {days.map((x) => {
         const cls = `flex ${scroll ? 'w-14 shrink-0 snap-start' : 'flex-1'} flex-col items-center rounded-ui-control py-1.5 ${x.on ? onClass : x.off ? offClass : cell} ${x.today && !x.on ? todayClass : ''}`
-        const inner = <><span className={`text-ui-label opacity-60 ${scroll ? 'max-w-full truncate px-0.5' : ''}`}>{x.d}</span><span className="text-ui-row font-light">{x.n}</span></>
+        const inner = <><MarqueeText className={`text-ui-label opacity-60 ${scroll ? 'max-w-full px-0.5' : ''}`}>{x.d}</MarqueeText><span className="text-ui-row font-light">{x.n}</span></>
         return onPick
           ? <button key={x.key} type="button" onClick={() => onPick(x.key)} aria-pressed={!!x.on} title={x.title} className={`${cls} outline-none transition-[filter] hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ui-dark/20`}>{inner}</button>
           : <span key={x.key} className={cls}>{inner}</span>
@@ -533,8 +533,8 @@ export function AttentionBar({ kind = 'pending', count = 1, who = 'Juhász Hanna
     <div role="status" className={`inline-flex max-w-full items-center gap-3 rounded-full bg-ui-dark py-2 pl-2 pr-2 text-white shadow-ui-float ${className}`}>
       {kind !== 'trial' && one && img ? <Avatar src={img} name={who} size="sm" /> : <IconCircle tone="yellow" icon={kind === 'pending' ? Bell : kind === 'trial' ? CalendarDays : Wallet} />}
       <span className="min-w-0">
-        <span className="block truncate text-ui-body">{title}</span>
-        <span className="block truncate text-ui-label text-white/55">{kind === 'trial' ? when : one ? `${who} · ${when}` : 'a legrégebbi elöl'}</span>
+        <MarqueeText className="text-ui-body">{title}</MarqueeText>
+        <MarqueeText className="text-ui-label text-white/55">{kind === 'trial' ? when : one ? `${who} · ${when}` : 'a legrégebbi elöl'}</MarqueeText>
       </span>
       <Button variant="yellow" size="sm" onClick={onOpen} href={href}>{kind === 'pending' ? 'Megnézem' : kind === 'trial' ? 'Beállítom' : 'Lezárom'}</Button>
       <IconButton icon={X} label="Elrejtés" variant="onDark" size="sm" onClick={onDismiss} />

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { BarChart3, CalendarDays, Clock, Download, SlidersHorizontal, Globe as Globe2, Link2, Users, Wallet } from 'lucide-react'
+import { BarChart3, CalendarDays, Clock, Download, Settings2, Globe as Globe2, Link2, Users, Wallet } from 'lucide-react'
 import { Button, EmptyState, IconButton, Kpi, Meta, Modal, Note, PageHead, SegmentBar, Segmented } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { ExportDialog } from '@/components/shared/ExportDialog'
@@ -109,7 +109,7 @@ export function StatsView({ vm, preset, base, bizName, scope, canGuests = true, 
     <>
       {scope?.canSwitch && <Segmented options={['Üzlet', 'Saját munka']} active={scope.own ? 1 : 0} onSelect={(i) => router.push(`${base}/analytics?${new URLSearchParams({ ...(preset ? { period: String(preset) } : { from: vm.from, to: vm.to }), ...(i ? { scope: 'own' } : {}) })}`)} />}
       <Segmented options={['7 nap', '30 nap', 'Negyedév', 'Év']} active={presetIdx} onSelect={pickPreset} />
-      <IconButton icon={SlidersHorizontal} label="Egyedi időszak" onClick={openPeriod} variant={preset == null ? 'dark' : undefined} />
+      <IconButton icon={Settings2} label="Egyedi időszak" onClick={openPeriod} variant={preset == null ? 'dark' : undefined} />
       <Button variant="glass" icon={Download} onClick={() => setExp(true)}>Export</Button>
     </>
   )

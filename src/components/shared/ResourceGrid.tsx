@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowRight, Link2, type LucideIcon } from 'lucide-react'
-import { Card, Pill, StatusPill } from '@/components/ui-kit'
+import { Card, Pill, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { minutesToHHMM, minutesToHHMMWrapped } from '@/lib/utils'
 
@@ -255,8 +255,8 @@ export function ResourceGrid<S>({
       >
         {!draft && !isDragging && access.dot?.(s) && <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ${access.dot(s)}`} />}
         <span className="min-w-0">
-          <span className="block truncate pr-3 text-ui-meta font-medium">{draft ? '✎ ' : ''}{info.title}</span>
-          {info.sub && <span className="block truncate text-ui-label opacity-60">{info.sub}</span>}
+          <MarqueeText className="pr-3 text-ui-meta font-medium">{draft ? '✎ ' : ''}{info.title}</MarqueeText>
+          {info.sub && <MarqueeText className="text-ui-label opacity-60">{info.sub}</MarqueeText>}
           {/* az összevonás jelölése: sötét blokkon áttetsző, világos (függő, hamarosan) blokkon fehér */}
           {caption && <Pill tone={access.tone(s).includes('bg-ui-dark') ? 'onDark' : 'white'} size="sm" icon={Link2} className="mt-1.5 w-fit">{caption}</Pill>}
         </span>
@@ -282,7 +282,7 @@ export function ResourceGrid<S>({
         data-grid-row={row.id}
         data-no-drop={row.noDrop ? '1' : undefined}
         className={`relative h-14 min-w-0 flex-1 rounded-ui-inner transition-colors ${
-          target ? (small ? 'bg-ui-bad-bg ring-1 ring-inset ring-ui-bad-dot' : 'bg-ui-yellow/30') : closed ? 'ui-hatch bg-ui-bad-bg' : row.off ? 'ui-hatch-cell' : 'ui-hatch'
+          target ? (small ? 'bg-ui-bad-bg ring-1 ring-inset ring-ui-bad-dot' : 'bg-ui-yellow/30') : closed ? 'ui-hatch-cell' : row.off ? 'ui-hatch-cell' : 'ui-hatch'
         } ${drag && small && !target ? 'opacity-45' : ''}`}
       >
         {row.off && !items.length && <span className="absolute inset-0 flex items-center justify-center text-ui-meta text-ui-muted">{row.off}</span>}
@@ -291,7 +291,7 @@ export function ResourceGrid<S>({
           return (
             // szünet: ugyanolyan blokk, mint a foglalás (tömör fehér, a csík nem üt át rajta); keskenyen csak az ikon marad
             <span key={`${b.start}-${b.label}`} title={b.label} className="pointer-events-none absolute top-1 flex h-12 min-w-0 items-center gap-1.5 overflow-hidden rounded-ui-control bg-white px-2.5 text-ui-meta text-ui-muted" style={{ left: `calc(${pos(b.start)} + 2px)`, width: `calc(${len(b.end - b.start)} - 4px)` }}>
-              {Icon && <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />}<span className="min-w-0 truncate pr-3">{b.label}</span>
+              {Icon && <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />}<MarqueeText className="pr-3">{b.label}</MarqueeText>
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-ui-bad-dot" />
             </span>
           )
@@ -342,13 +342,15 @@ export function ResourceGrid<S>({
         {head}
         {/* óra-vonalzó — külön fa, vízszintesen a tartalommal szinkronban görget */}
         <div className="flex">
-          <div className="shrink-0" style={{ width: LABEL_W }} />
+          {/* zárt nap: a piros „Zárva” címke (ugyanez a mobil nézetben is) */}
+          <div className="flex shrink-0 items-end pb-1" style={{ width: LABEL_W }}>{closed && <StatusPill status="bad">Zárva</StatusPill>}</div>
           <div ref={axisRef} onScroll={() => sync(axisRef.current, gridRef.current)} className={`min-w-0 flex-1 ${fit ? '' : 'no-scrollbar overflow-x-auto'}`}>
             <div className="relative h-9" style={{ width: axisWidth }}>
               {hourMarks.filter((m) => !(closeMin < end && Math.abs(m - closeMin) < 45)).map((m, i) => (
                 <span key={m} className={`absolute bottom-1 text-ui-label tabular-nums text-ui-muted ${i === 0 ? '' : '-translate-x-1/2'}`} style={{ left: pos(m) }}>{minutesToHHMMWrapped(m)}</span>
               ))}
-              {closeMin < end && <span className="absolute bottom-1 whitespace-nowrap text-ui-label font-medium tabular-nums text-ui-bad" style={{ left: `calc(${pos(closeMin)} + 6px)` }}>Zárás {minutesToHHMMWrapped(closeMin)}</span>}
+              {/* a zárás: csak az időpont, pirosan, a vonal fölé középre (mint a többi óra) — a „Zárás” szó nélkül, hogy kiférjen */}
+              {closeMin < end && <span title="Zárás" className="absolute bottom-1 -translate-x-1/2 whitespace-nowrap text-ui-label font-medium tabular-nums text-ui-bad" style={{ left: pos(closeMin) }}>{minutesToHHMMWrapped(closeMin)}</span>}
               {nowVisible && <span className="absolute top-0 z-20 -translate-x-1/2" style={{ left: pos(nowMin!) }}><Pill tone="yellow" size="sm">{minutesToHHMM(nowMin!)}</Pill></span>}
             </div>
           </div>
@@ -393,13 +395,13 @@ export function ResourceGrid<S>({
               <div className="rounded-ui-inner p-3 text-ui-muted ui-hatch-cell">
                 <div className="text-ui-label">Eredeti</div>
                 <div className="text-ui-title font-light line-through">{minutesToHHMM(access.start(pending.s))}</div>
-                <div className="truncate text-ui-label">{rowName(pending.fromRow)}</div>
+                <MarqueeText className="text-ui-label">{rowName(pending.fromRow)}</MarqueeText>
               </div>
               <ArrowRight className="h-4 w-4 text-ui-muted" />
               <div className="rounded-ui-inner bg-ui-dark p-3 text-white">
                 <div className="text-ui-label text-white/55">Új</div>
                 <div className="text-ui-title font-light">{minutesToHHMM(pending.start)}</div>
-                <div className="truncate text-ui-label text-white/70">{rowName(pending.rowId)}</div>
+                <MarqueeText className="text-ui-label text-white/70">{rowName(pending.rowId)}</MarqueeText>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -421,8 +423,8 @@ export function ResourceGrid<S>({
           </Pill>
           <div className="flex h-14 -rotate-1 items-center rounded-ui-control bg-ui-dark px-2.5 text-white shadow-ui-float">
             <span className="min-w-0">
-              <span className="block truncate text-ui-meta font-medium">{access.dragLabel(drag.s)}</span>
-              <span className="block truncate text-ui-label opacity-60">{minutesToHHMM(drag.previewMin)}–{minutesToHHMM(drag.previewMin + drag.dur)}</span>
+              <MarqueeText className="text-ui-meta font-medium">{access.dragLabel(drag.s)}</MarqueeText>
+              <MarqueeText className="text-ui-label opacity-60">{minutesToHHMM(drag.previewMin)}–{minutesToHHMM(drag.previewMin + drag.dur)}</MarqueeText>
             </span>
           </div>
         </div>,

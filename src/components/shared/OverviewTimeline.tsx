@@ -4,7 +4,7 @@ import { statusBlockClass, statusCard } from '@/components/shared/statusColors'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
-import { Avatar, Card, CardTitle, IconButton, Meta } from '@/components/ui-kit'
+import { Avatar, Card, CardTitle, IconButton, Meta, MarqueeText } from '@/components/ui-kit'
 import { MobileDayTimeline, type DayRow } from '@/components/blocks/day-timeline'
 import { OccasionBadge } from './OccasionBadge'
 
@@ -271,7 +271,7 @@ export function OverviewTimeline({
       <div className="hidden items-start justify-between sm:flex">
         <IconButton icon={ArrowLeft} label="Korábbi óra" onClick={() => { userNavRef.current = true; setWinStart((s) => Math.max(hourMin, s - 1)) }} disabled={!canPrev} className="disabled:opacity-40" />
         <div className="min-w-0 text-center">
-          <div className="truncate text-ui-title font-normal text-ui-text">{title}</div>
+          <MarqueeText className="text-ui-title font-normal text-ui-text">{title}</MarqueeText>
           <div className="relative overflow-hidden text-ui-meta text-ui-muted">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span key={`${winStart}-${win}`} initial={{ y: 7, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -7, opacity: 0 }} transition={{ duration: 0.18, ease: [0.42, 0, 0.58, 1] }} className="inline-block">
@@ -367,7 +367,7 @@ function ReservationBlock({ b, left, width, freedEarly, badge }: { b: TimelineBl
       title={freedEarly ? `${b.name} · korán befejezve, felszabadult` : [b.name, b.subline ?? `${b.pax} fő · ${fmt(b.startMin)}`].join(' · ')}
     >
       {!freedEarly && <span className={`absolute right-2 top-1.5 h-2 w-2 rounded-full ${statusCard(STATUS_KEY[b.status] ?? b.status).dot}`} />}
-      <span className={`truncate ${freedEarly ? 'line-through' : ''}`}>{b.name}</span>
+      <MarqueeText className={`${freedEarly ? 'line-through' : ''}`}>{b.name}</MarqueeText>
       <span className="flex shrink-0 items-center gap-1.5">
         {b.occasion && <OccasionBadge occasion={b.occasion} icon={b.occasionIcon} />}
         <span className="opacity-60">{badge === 'duration' ? fmtDur(b.endMin - b.startMin) : `${b.pax} fő`}</span>

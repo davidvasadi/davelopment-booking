@@ -1,5 +1,5 @@
 import { ArrowRight, Banknote, Bell, Cake, CalendarDays, Clock, Moon, Sun, Users, Wallet } from 'lucide-react'
-import { Avatar, Button, Card, IconCircle, ListRow, Meta, Pill, StatusPill } from '@/components/ui-kit'
+import { Avatar, Button, Card, IconCircle, ListRow, Meta, Pill, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { ShareRow } from './charts'
 
 /* Napi összefoglaló (design 22.x) — reggel: mi vár ma; este: hogy ment a nap, mi maradt, mi jön holnap. Szalonnál és
@@ -93,7 +93,7 @@ export function DigestNotice({ data = SAMPLE_DIGEST_MORNING, time = '07:30', unr
       <span className="min-w-0 flex-1">
         <span className="block text-ui-body font-medium text-ui-text">{morning ? 'Reggeli összefoglaló' : 'Esti összefoglaló'}</span>
         <span className="block text-ui-label text-ui-muted">{data.day} · {time}</span>
-        <span className="mt-1 block truncate text-ui-meta text-ui-text">{data.stats.map((s) => s.label).join(' · ')}</span>
+        <MarqueeText className="mt-1 text-ui-meta text-ui-text">{data.stats.map((s) => s.label).join(' · ')}</MarqueeText>
       </span>
       {unread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ui-yellow" />}
     </button>
@@ -132,7 +132,7 @@ export function DigestBody({ data = SAMPLE_DIGEST_MORNING, wide = false, onTodo,
         <div className="flex flex-wrap gap-1.5">
           <StatusPill status="ok">{data.outcome.done} teljesült</StatusPill>
           <StatusPill status="bad">{data.outcome.cancelled} lemondva</StatusPill>
-          <StatusPill status="neutral">{data.outcome.noShow} nem jött el</StatusPill>
+          <StatusPill status="bad">{data.outcome.noShow} nem jött el</StatusPill>
         </div>
       </>}
 

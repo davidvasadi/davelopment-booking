@@ -3,7 +3,7 @@ import { socialIconDataUri, type SocialPlatform } from '@/lib/socialLinks'
 import { BIZ_LOGO, PoweredBy } from './brand'
 import QRCode from 'qrcode'
 import { Download, Printer } from 'lucide-react'
-import { Button, Card, CardTitle, Checkbox, Meta } from '@/components/ui-kit'
+import { Button, Card, CardTitle, Checkbox, Meta, MarqueeText } from '@/components/ui-kit'
 
 /* A foglalóoldal QR-kódja (a /design 16.11, a landing Marketing oldala). Külön fájl, hogy a qrcode
  * könyvtár csak ott töltődjön be, ahol QR van (pl. ne a nav borítóival minden oldalra). */
@@ -85,7 +85,7 @@ export function QrPrintSheet({ name = 'Fodrászat Budapest', subtitle = 'Foglalj
       <div className={print ? 'text-[26pt] font-medium leading-tight text-ui-text' : 'text-ui-sub font-medium text-ui-text'}>{name}</div>
       <Meta className={print ? 'text-[14pt]' : 'text-ui-body'}>{subtitle}</Meta>
       <QrSvg url={url} logo={logo ? logoImg(logo) : undefined} className={print ? 'my-[6mm] h-[80mm] w-[80mm]' : 'my-2 h-36 w-36'} />
-      <span className={`max-w-full truncate whitespace-nowrap text-ui-text ${print ? 'text-[11pt]' : 'text-ui-label'}`}>{short}</span>
+      <MarqueeText className={`max-w-full whitespace-nowrap text-ui-text ${print ? 'text-[11pt]' : 'text-ui-label'}`}>{short}</MarqueeText>
       {(h.length > 0 || so.length > 0) && (
         <div className={`w-full border-t border-dashed border-ui-divider ${print ? 'mt-[4mm] pt-[5mm]' : 'mt-2 pt-3'}`}>
           {h.length > 0 && (

@@ -77,15 +77,15 @@ export function VoucherQrScanner({ onDetected }: { onDetected: (code: string) =>
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-[16px] bg-ui-cell px-4 py-8 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-ui-inner bg-ui-cell px-4 py-8 text-center">
         <CameraOff className="h-6 w-6 text-ui-muted" />
-        <p className="text-[13px] text-ui-muted">{error}</p>
+        <p className="text-ui-body text-ui-muted">{error}</p>
       </div>
     )
   }
 
   return (
-    <div className="relative overflow-hidden rounded-[16px] bg-black">
+    <div className="relative overflow-hidden rounded-ui-inner bg-ui-dark">
       <video ref={videoRef} muted playsInline className="aspect-square w-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
       {!ready && (
@@ -93,7 +93,7 @@ export function VoucherQrScanner({ onDetected }: { onDetected: (code: string) =>
           <Loader2 className="h-6 w-6 animate-spin text-white/70" />
         </div>
       )}
-      <div className="pointer-events-none absolute inset-8 rounded-[16px] border-2 border-white/50" />
+      <div className="pointer-events-none absolute inset-8 rounded-ui-inner border-2 border-ui-yellow/80" />
     </div>
   )
 }

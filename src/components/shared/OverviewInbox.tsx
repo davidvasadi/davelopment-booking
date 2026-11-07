@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowUpRight, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, IconButton, Meta } from '@/components/ui-kit'
+import { Button, IconButton, Meta, MarqueeText } from '@/components/ui-kit'
 import { setBookingStatus } from '@/components/dashboard/ApprovalActions'
 import type { InboxRow, OverviewInbox as Inbox } from '@/lib/overviewInbox'
 import { OverviewAccordion } from './OverviewPanels'
@@ -41,7 +41,7 @@ export function OverviewInbox({ inbox, restaurant, base }: { inbox: Inbox; resta
       <div className="space-y-1">
         {rows.map((r) => (
           <div key={r.id} className="flex items-center gap-2 rounded-ui-control bg-white/80 px-2.5 py-2">
-            <span className="min-w-0 flex-1"><span className="block truncate text-ui-meta text-ui-text">{r.title}</span><span className="block truncate text-ui-label text-ui-muted">{r.meta}</span></span>
+            <span className="min-w-0 flex-1"><MarqueeText className="text-ui-meta text-ui-text">{r.title}</MarqueeText><MarqueeText className="text-ui-label text-ui-muted">{r.meta}</MarqueeText></span>
             {actions(r)}
           </div>
         ))}

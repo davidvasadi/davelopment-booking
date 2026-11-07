@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback } from 'react'
 
 /**
  * Az étterem-dashboard kliens-oldali UI állapota. A Foglalások oldalon a

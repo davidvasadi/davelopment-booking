@@ -7,7 +7,7 @@ import { hhmmToMinutes, ymdLocal } from '@/lib/utils'
 import { BookingEditSheet, type EditTarget } from '@/components/dashboard/BookingEditSheet'
 import { BookingsHead, EMPTY_FILTER, applyBookingFilter, type BookingFilter } from '@/components/shared/BookingsHead'
 import { segments, thousands } from '@/components/dashboard/OverviewLayout'
-import { Avatar, Kpi } from '@/components/ui-kit'
+import { Avatar, Kpi, MarqueeText } from '@/components/ui-kit'
 import { MonthGrid, StaffSwitch, WeekChips, WeekGrid, WeekHours, chipTone } from '@/components/shared/RangeGrids'
 import type { BookingsRange } from '@/components/shared/BookingsDateNav'
 import { ACTIVE, SalonBookingDrawer, avatarUrlOf, staffOf, isDraft, draftToBooking, groupOverlaps, idOf, OFF_TYPE_LABEL } from '@/components/dashboard/SalonDailyView'
@@ -198,7 +198,7 @@ export function SalonScheduleView({
             id: String(s.id),
             label: (
               <button type="button" onClick={() => setFilter({ ...filter, who: [String(s.id)] })} className="flex items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20" title="Az ő hete óránként">
-                <Avatar size="sm" src={avatarUrlOf(s)} name={s.name} /><span className="min-w-0 truncate text-ui-body text-ui-text max-sm:hidden">{s.name}</span>
+                <Avatar size="sm" src={avatarUrlOf(s)} name={s.name} /><MarqueeText className="text-ui-body text-ui-text max-sm:hidden">{s.name}</MarqueeText>
               </button>
             ),
             total: perStaffDayBookings[ci].reduce((sum, cell) => sum + cell.flat().filter((b) => b.status !== 'cancelled').length, 0),

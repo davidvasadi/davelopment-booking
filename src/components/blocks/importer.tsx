@@ -1,5 +1,5 @@
 import { ArrowRight, Check, CircleAlert, CircleCheck, CirclePlus, Download, FileSpreadsheet, FileText, RotateCcw, ShieldCheck, Upload, X } from 'lucide-react'
-import { Button, Card, Checkbox, IconButton, IconCircle, Meta, Pill, Select, StatusPill, Table, Td, Th, Tr, UploadBox } from '@/components/ui-kit'
+import { Button, Card, Checkbox, IconButton, IconCircle, Meta, Pill, Select, StatusPill, Table, Td, Th, Tr, UploadBox, MarqueeText } from '@/components/ui-kit'
 import { Steps } from './steps'
 
 /* Import (design 23.x) — Beállítások › Integrációk › „Adatok importálása” popup belseje, és ugyanezek a darabok a
@@ -49,7 +49,7 @@ export function ImportFileBar({ name = 'salonic-export-2026.xlsx', rows = 248, t
     <div className={`rounded-ui-inner bg-ui-cell p-3 ${className}`}>
       <div className="flex items-center gap-3">
         <IconCircle tone="white" size="lg" icon={name.endsWith('.csv') ? FileText : FileSpreadsheet} />
-        <span className="min-w-0 flex-1"><span className="block truncate text-ui-row text-ui-text">{name}</span>{rows != null && <Meta>{rows.toLocaleString('hu-HU')} sor</Meta>}</span>
+        <span className="min-w-0 flex-1"><MarqueeText className="text-ui-row text-ui-text">{name}</MarqueeText>{rows != null && <Meta>{rows.toLocaleString('hu-HU')} sor</Meta>}</span>
         <IconButton icon={X} label="Fájl eltávolítása" variant="ghost" size="sm" onClick={onRemove} />
       </div>
       {types.length > 0 && (
@@ -97,7 +97,7 @@ export function ImportSheets({ sheets = SAMPLE_SHEETS, active, onSheet, onAll, a
         {sheets.map((s) => {
           const row = (
             <div className={`flex items-center gap-3 rounded-ui-inner px-3 py-2.5 ${active === s.name ? 'bg-white ring-2 ring-ui-dark' : 'bg-ui-cell'}`}>
-              <span className="min-w-0 flex-1"><span className="block truncate text-ui-row text-ui-text">{s.name}</span><Meta>{s.rows.toLocaleString('hu-HU')} sor</Meta></span>
+              <span className="min-w-0 flex-1"><MarqueeText className="text-ui-row text-ui-text">{s.name}</MarqueeText><Meta>{s.rows.toLocaleString('hu-HU')} sor</Meta></span>
               <Pill size="sm" tone="white">{s.type}</Pill>
               {s.done != null ? <StatusPill status="ok">{s.done} db</StatusPill> : null}
             </div>
@@ -135,8 +135,8 @@ export function ImportMapping({ rows = SAMPLE_MAP, fields = SAMPLE_FIELDS, onFie
         {rows.map((r, i) => (
           <div key={r.key ?? i} className="contents">
             <span className={`min-w-0 rounded-ui-control px-3 py-2 ${r.field ? 'bg-ui-cell' : 'ui-hatch-cell'}`}>
-              <span className="block truncate text-ui-body text-ui-text" title={r.header}>{r.header}</span>
-              {r.sample && <span className="block truncate text-ui-label text-ui-muted">{r.sample}</span>}
+              <span title={r.header}><MarqueeText className="text-ui-body text-ui-text">{r.header}</MarqueeText></span>
+              {r.sample && <MarqueeText className="text-ui-label text-ui-muted">{r.sample}</MarqueeText>}
             </span>
             <ArrowRight className={`h-4 w-4 ${r.field ? 'text-ui-text' : 'text-ui-muted'}`} />
             <Select value={onField ? r.field : undefined} defaultValue={onField ? undefined : r.field} onChange={onField ? (e) => onField(r.key ?? i, e.target.value) : undefined}>
@@ -198,7 +198,7 @@ export function ImportMatch({ groups = SAMPLE_MATCH, onChoice, note = 'Amit újk
       <div className="flex flex-wrap gap-1.5">
         {n('exact') > 0 && <StatusPill status="ok">{n('exact')} egyezik</StatusPill>}
         {n('probable') > 0 && <StatusPill status="warn">{n('probable')} javaslat</StatusPill>}
-        {n('none') > 0 && <StatusPill status="neutral">{n('none')} új</StatusPill>}
+        {n('none') > 0 && <StatusPill status="ok">{n('none')} új</StatusPill>}
       </div>
       <div className="mt-4 space-y-5">
         {groups.map((g) => (
@@ -210,7 +210,7 @@ export function ImportMatch({ groups = SAMPLE_MATCH, onChoice, note = 'Amit újk
                 return (
                   <div key={it.value} className={`grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 rounded-ui-inner px-3 py-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] ${it.status === 'probable' ? 'bg-ui-warn-bg' : 'bg-ui-cell'}`}>
                     <IconCircle tone={m.tone} size="sm" icon={m.icon} />
-                    <span className="min-w-0"><span className="block truncate text-ui-body text-ui-text" title={it.value}>{it.value}</span><span className="block truncate text-ui-label text-ui-muted">{it.sub}</span></span>
+                    <span className="min-w-0"><span title={it.value}><MarqueeText className="text-ui-body text-ui-text">{it.value}</MarqueeText></span><MarqueeText className="text-ui-label text-ui-muted">{it.sub}</MarqueeText></span>
                     <Select className="col-span-2 sm:col-span-1" value={onChoice ? it.choice : undefined} defaultValue={onChoice ? undefined : it.choice} onChange={onChoice ? (e) => onChoice(g.key ?? g.title, it.value, e.target.value) : undefined}>
                       {it.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </Select>

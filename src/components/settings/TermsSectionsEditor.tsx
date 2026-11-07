@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Plus, Trash2, GripVertical, Pencil } from 'lucide-react'
-import { Button, IconButton, Input, Meta, Pill, Textarea } from '@/components/ui-kit'
+import { Button, IconButton, Input, Meta, Pill, Textarea, MarqueeText } from '@/components/ui-kit'
 import type { Locale } from '@/lib/i18n'
 import { termsTemplate } from './contentTemplates'
 
@@ -117,8 +117,8 @@ function SectionRow({ section: s, open, onToggle, onChange, onRemove }: { sectio
       <div className={`flex items-center gap-3 rounded-ui-inner px-3 py-2.5 ${open ? 'bg-ui-yellow' : 'bg-ui-cell/60'}`}>
         <span onPointerDown={(e) => dragControls.start(e)} title="Húzd az átrendezéshez" className="cursor-grab text-ui-muted active:cursor-grabbing"><GripVertical className="h-4 w-4 shrink-0" /></span>
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left outline-none">
-          <span className="block truncate text-ui-body text-ui-text">{s.title || 'Cím nélküli szakasz'}</span>
-          {s.body && <span className="block truncate text-ui-label text-ui-muted">{s.body}</span>}
+          <MarqueeText className="text-ui-body text-ui-text">{s.title || 'Cím nélküli szakasz'}</MarqueeText>
+          {s.body && <MarqueeText className="text-ui-label text-ui-muted">{s.body}</MarqueeText>}
         </button>
         <IconButton icon={Pencil} label="Szerkesztés" size="sm" variant={open ? 'glass' : 'cell'} onClick={onToggle} />
       </div>

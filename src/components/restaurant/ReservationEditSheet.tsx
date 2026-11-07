@@ -647,7 +647,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                             </span>
                           )}
                           {reservation?.payment_status === 'failed' && <StatusPill status="bad">Sikertelen előleg-fizetés</StatusPill>}
-                          {reservation?.payment_status === 'refunded' && <StatusPill status="neutral">Előleg visszatérítve</StatusPill>}
+                          {reservation?.payment_status === 'refunded' && <StatusPill status="warn">Előleg visszatérítve</StatusPill>}
                         </>
                       )}
                       {/* Alkalom — a választott esemény-típus ikonjával és saját színével */}
@@ -780,7 +780,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
           <ChoicePills options={statusOptions.map((o) => ({ value: o.value, label: o.label }))} value={status} onPick={(v) => { setStatus(v as Reservation['status']); setStatusTouched(true) }} />
         </StepRow>
         <StepRow label="Megjegyzés">
-          <Input size="sm" className="w-[220px] max-w-full" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
+          <Input size="sm" hug className="min-w-[220px] max-w-[min(100%,520px)]" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
         </StepRow>
       </PopupModal>
 

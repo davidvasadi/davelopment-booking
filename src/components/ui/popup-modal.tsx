@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
-import { IconButton, SheetHandle } from '@/components/ui-kit'
+import { IconButton, MarqueeText, SheetHandle } from '@/components/ui-kit'
 import { SHEET_MOBILE } from '@/lib/motion'
 
 // Az avatar-menü (UserMenu) „genie" belépője — ugyanaz az érzés, mint a foglalás-panelnél
@@ -121,7 +121,7 @@ export function PopupModal({
             {/* Fejléc (fix) */}
             <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 px-6 pt-4 sm:pt-6">
               <div className="min-w-0">
-                <h2 className="truncate text-ui-sub font-light text-ui-text">{title}</h2>
+                <h2 className="text-ui-sub font-light text-ui-text"><MarqueeText>{title}</MarqueeText></h2>
                 {subtitle && <p className="mt-0.5 text-ui-meta text-ui-muted">{subtitle}</p>}
                 {headerExtra && <div className="mt-2 flex flex-wrap items-center gap-1.5">{headerExtra}</div>}
               </div>

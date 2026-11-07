@@ -241,7 +241,7 @@ export function SearchField({ children = 'Keresés…', value, onChange, autoFoc
   return (
     <span className={cn('inline-flex h-11 items-center gap-2 rounded-full bg-white px-4 text-ui-body text-ui-muted', className)}>
       <Search className="h-4 w-4 shrink-0" strokeWidth={1.8} />
-      <span className="truncate">{children}</span>
+      <MarqueeText>{children}</MarqueeText>
     </span>
   )
 }
@@ -306,7 +306,7 @@ export function NavItem({ icon: Icon, active = false, trailing, children, classN
   return (
     <div className={cn('flex items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-3 text-ui-body', active ? 'bg-ui-dark text-white' : 'text-ui-text', className)}>
       {Icon && <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full', active ? 'bg-white/15' : 'bg-white/70')}><Icon className="h-3.5 w-3.5" strokeWidth={1.8} /></span>}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <TextLine className="flex-1">{children}</TextLine>
       {trailing}
     </div>
   )
@@ -371,8 +371,8 @@ export function ListRow({ leading, title, meta, trailing, filled = false, open =
     <div className={cn('flex items-center gap-3 px-3 py-2.5', filled || open ? cn('rounded-ui-inner', open ? 'bg-ui-yellow' : 'bg-white/70') : 'border-t border-dashed border-ui-divider first:border-t-0', className)}>
       {leading}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-ui-body text-ui-text">{title}</span>
-        {meta && <span className="block truncate text-ui-label text-ui-muted">{meta}</span>}
+        <TextLine className="text-ui-body text-ui-text">{title}</TextLine>
+        {meta && <TextLine className="text-ui-label text-ui-muted">{meta}</TextLine>}
       </span>
       {trailing}
     </div>
@@ -381,15 +381,15 @@ export function ListRow({ leading, title, meta, trailing, filled = false, open =
 
 /** Feladat-sor sötét kártyán (Crextio „Onboarding Task”): ikon-kör (kész = sötét, teendő = fehér), cím + idő,
  *  jobbra sárga pipa (kész) vagy szürke pötty (teendő). A kész sor címe áthúzott, halvány. */
-export function TaskRow({ icon: Icon, lead, title, meta, done = false, light = false, trailing, className }: { icon: LucideIcon; /** az ikon helyén más (pl. zászló) */ lead?: React.ReactNode; title: React.ReactNode; meta?: React.ReactNode; done?: boolean; /** világos kártyán (pl. a Teendők „Holnapi” lapja) */ light?: boolean; trailing?: React.ReactNode; className?: string }) {
+export function TaskRow({ icon: Icon, lead, title, meta, done = false, light = false, trailing, className }: { icon: LucideIcon; /** az ikon helyén más (pl. zászló) — ilyenkor kör-háttér nélkül */ lead?: React.ReactNode; title: React.ReactNode; meta?: React.ReactNode; done?: boolean; /** világos kártyán (pl. a Teendők „Holnapi” lapja) */ light?: boolean; trailing?: React.ReactNode; className?: string }) {
   return (
     <div className={cn('flex items-center gap-3 py-1.5', className)}>
-      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', done ? (light ? 'bg-ui-dark/10 text-ui-muted' : 'bg-white/10 text-white/70') : 'bg-white text-ui-dark', done && lead && 'opacity-60')}>
+      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', lead ? '' : done ? (light ? 'bg-ui-dark/10 text-ui-muted' : 'bg-white/10 text-white/70') : 'bg-white text-ui-dark', done && lead && 'opacity-60')}>
         {lead ?? <Icon className="h-4 w-4" strokeWidth={1.8} />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn('block truncate text-ui-body', done ? (light ? 'text-ui-muted line-through' : 'text-white/45 line-through') : light ? 'text-ui-text' : 'text-white')}>{title}</span>
-        {meta && <span className={cn('block truncate text-ui-label', light ? 'text-ui-muted' : 'text-white/45')}>{meta}</span>}
+        <TextLine className={cn('text-ui-body', done ? (light ? 'text-ui-muted line-through' : 'text-white/45 line-through') : light ? 'text-ui-text' : 'text-white')}>{title}</TextLine>
+        {meta && <TextLine className={cn('text-ui-label', light ? 'text-ui-muted' : 'text-white/45')}>{meta}</TextLine>}
       </span>
       {trailing ?? (done
         ? <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ui-yellow text-ui-dark"><Check className="h-3 w-3" strokeWidth={3} /></span>
@@ -431,8 +431,8 @@ export type RowState = keyof typeof ROW_STATE
 export function Tr({ state = 'default', onClick, children, className }: Children & { state?: RowState; /** élőben: a sor megnyitása */ onClick?: () => void }) {
   return <tr onClick={onClick} className={cn('text-ui-body text-ui-text', ROW_STATE[state], onClick && 'cursor-pointer [&:hover>td]:bg-white/60', className)}>{children}</tr>
 }
-export function Td({ children, className }: Children) {
-  return <td className={cn('whitespace-nowrap px-3 py-3 first:rounded-l-ui-inner last:rounded-r-ui-inner', className)}>{children}</td>
+export function Td({ children, className, colSpan }: Children & { colSpan?: number }) {
+  return <td colSpan={colSpan} className={cn('whitespace-nowrap px-3 py-3 first:rounded-l-ui-inner last:rounded-r-ui-inner', className)}>{children}</td>
 }
 /** Jelölőnégyzet a táblázat első oszlopához. */
 export function RowCheck({ checked = false, onToggle, label = 'Kijelölés' }: { checked?: boolean; /** élőben: kattintható (a sor megnyitása nélkül) */ onToggle?: () => void; label?: string }) {
@@ -565,6 +565,13 @@ export function Marquee({ children, className }: Children) {
   )
 }
 
+/** Egysoros szöveg a kit elemeiben (listasor, teendő-sor, menüpont): ha sima szöveget kap, görgő (MarqueeText); ha már
+ *  összetett tartalmat (saját görgőt, pilleket), azt érintetlenül, levágva teszi ki — két görgő egymásban eltüntetné a szöveget. */
+function TextLine({ children, className }: Children) {
+  const plain = typeof children === 'string' || typeof children === 'number' || (Array.isArray(children) && children.every((c) => typeof c === 'string' || typeof c === 'number'))
+  return plain ? <MarqueeText className={className}>{children}</MarqueeText> : <span className={cn('block min-w-0 truncate', className)}>{children}</span>
+}
+
 /** A `truncate` helyett mindenhol ez: egysoros szöveg, ami ha nem fér ki, elúszik (szalagcím), ha kifér, áll. Bármilyen
  *  rugalmas sorban működik — a láthatatlan példány adja a természetes szélességét (a sima Marquee egy tartalom-szélességű
  *  dobozban 0 szélesre esne), `min-w-0`-val annyira megy össze, amennyi hely van. A szöveg-osztályok a `className`-be. */
@@ -689,7 +696,7 @@ export function MenuItem({ icon: Icon, active = false, danger = false, trailing,
   return (
     <button type="button" {...rest} className={cn('flex w-full items-center gap-2.5 rounded-ui-control px-3 py-2.5 text-left text-ui-body transition-colors hover:bg-ui-cell', active && 'bg-ui-cell', danger ? 'text-ui-bad' : 'text-ui-text', className)}>
       {Icon && <Icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <TextLine className="flex-1">{children}</TextLine>
       {trailing && <span className="shrink-0 text-ui-meta text-ui-muted">{trailing}</span>}
     </button>
   )
@@ -709,7 +716,7 @@ export function Toast({ status = 'ok', title, children, action, className }: Chi
   return (
     <div className={cn('inline-flex max-w-[460px] items-center gap-2.5 rounded-full bg-ui-dark py-2 pl-2 pr-4 text-ui-body text-white shadow-ui-float', action && 'pr-2', className)}>
       <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', t.cls)}><t.icon className="h-3.5 w-3.5" strokeWidth={3} /></span>
-      <span className="min-w-0 truncate">{title}{children && <span className="ml-1.5 text-white/55">{children}</span>}</span>
+      <span className="block min-w-0 truncate">{title}{children && <span className="ml-1.5 text-white/55">{children}</span>}</span>
       {action}
     </div>
   )

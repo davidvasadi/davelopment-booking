@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { BrandLogo } from '@/components/BrandLogo'
-import { TicketCheck, WifiOff, ChevronLeft, SlidersHorizontal, Pencil, Plus, Download, Building2, UserRound, Sparkles, Search , type LucideIcon } from 'lucide-react'
+import { TicketCheck, WifiOff, ChevronLeft, Settings2, Plus, Download, Building2, UserRound, Sparkles, Search, Settings, type LucideIcon } from 'lucide-react'
 import { IconButton, IconCircle } from '@/components/ui-kit'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import { can, type Capability } from '@/lib/permissions'
@@ -90,22 +90,20 @@ export function DashboardNav({
   const fire = (ev: string) => () => window.dispatchEvent(new Event(ev))
   const pageTools: Tool[] = []
   const at = (sfx: string) => pathname.endsWith(sfx)
-  if (pathname.startsWith(settingsHref)) pageTools.push({ icon: Search, label: 'Beállítás keresése', onClick: fire('davelopment:open-settings-search') }, { icon: SlidersHorizontal, label: 'Beállítások menü', onClick: fire('davelopment:open-settings-nav') })
-  if (pathname.startsWith(notificationsHref)) pageTools.push({ icon: SlidersHorizontal, label: 'Értesítési beállítások', onClick: fire('davelopment:open-notifications-tabs') })
-  if (at('/tips')) pageTools.push({ icon: SlidersHorizontal, label: 'Kategória szűrő', onClick: fire('davelopment:open-tips-filter') })
+  if (pathname.startsWith(settingsHref)) pageTools.push({ icon: Search, label: 'Beállítás keresése', onClick: fire('davelopment:open-settings-search') }, { icon: Settings2, label: 'Beállítások menü', onClick: fire('davelopment:open-settings-nav') })
+  if (pathname.startsWith(notificationsHref)) pageTools.push({ icon: Settings2, label: 'Szűrők', onClick: fire('davelopment:open-notifications-filter') }, { icon: Settings, label: 'Értesítési beállítások', onClick: fire('davelopment:open-notifications-tabs') })
+  if (at('/tips')) pageTools.push({ icon: Settings2, label: 'Kategória szűrő', onClick: fire('davelopment:open-tips-filter') })
   if (at('/guests')) pageTools.push({ icon: Download, label: 'Export', onClick: fire('davelopment:open-guests-export') })
   if (at('/schedule')) pageTools.push(
-    { icon: SlidersHorizontal, label: 'Szűrők', onClick: fire('davelopment:open-schedule-filter') },
+    { icon: Settings2, label: 'Szűrők', onClick: fire('davelopment:open-schedule-filter') },
     { icon: Search, label: 'Munkatárs keresése', onClick: fire('davelopment:open-schedule-search') },
-    { icon: Download, label: 'Export (a hónap, CSV)', onClick: fire('davelopment:export-schedule') },
-    { icon: Pencil, label: 'Szerkesztés', onClick: fire('davelopment:open-schedule-edit') },
     { icon: Plus, label: 'Beosztás', onClick: fire('davelopment:open-schedule-add'), dark: true },
   )
   // Áttekintés: „Új foglalás” — átvisz a Foglalásokra és rögtön megnyitja az új-foglalás panelt (`?new=1`)
   if (pathname === '/dashboard' || pathname === '/restaurant') pageTools.push({ icon: Plus, label: 'Új foglalás', href: `${pathname}/bookings?new=1`, dark: true })
   if (at('/help')) pageTools.push({ icon: Sparkles, label: 'Bevezető indítása', onClick: fire('davelopment:open-onboarding'), dark: true, yellow: true })
   if (at('/bookings')) pageTools.push(
-    { icon: SlidersHorizontal, label: 'Nézet és szűrők', onClick: fire('davelopment:open-bookings-view') },
+    { icon: Settings2, label: 'Nézet és szűrők', onClick: fire('davelopment:open-bookings-view') },
     { icon: Search, label: 'Keresés (vendég, telefon)', onClick: fire('davelopment:open-bookings-search') },
     { icon: Download, label: 'Foglalások letöltése (CSV)', onClick: fire('davelopment:export-bookings-day') },
     { icon: Plus, label: 'Új foglalás', onClick: fire('davelopment:open-bookings-create'), dark: true },
@@ -121,25 +119,27 @@ export function DashboardNav({
     }
     pageTools.push(
       // mobil: az időszak (7 nap / 30 nap / Negyedév / Év / Egyedi) a szűrő-ikonról nyíló lapon — mint a többi oldal szűrője
-      { icon: SlidersHorizontal, label: 'Időszak', onClick: fire('davelopment:open-analytics-daterange') },
+      { icon: Settings2, label: 'Időszak', onClick: fire('davelopment:open-analytics-daterange') },
       { icon: Download, label: 'CSV export', onClick: fire('davelopment:open-analytics-csv') },
     )
   }
   // Szolgáltatások (design 8.5): a szűrő-ikon a kategória-lapot nyitja, a „+” az új szolgáltatást
-  if (at('/services')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés kategóriára', onClick: fire('davelopment:open-services-filter') })
+  if (at('/services')) pageTools.push({ icon: Settings2, label: 'Szűrés kategóriára', onClick: fire('davelopment:open-services-filter') })
   // Asztalok (design 9.5): új asztal a fejléc „+” gombjával
   if (at('/services') && can(capabilities, 'catalog.manage')) pageTools.push({ icon: Plus, label: 'Új szolgáltatás', onClick: fire('davelopment:open-services-add'), dark: true })
   // Munkatársak (design 10.5): a fejléc „+” gombja a meghívót nyitja
   if (at('/staff')) pageTools.push({ icon: Search, label: 'Munkatárs keresése', onClick: fire('davelopment:open-staff-search') })
+  // Súgó: mobilon a kereső a fejléc nagyítójáról nyílik (mint a Munkatársaknál)
+  if (at('/help')) pageTools.push({ icon: Search, label: 'Keresés a súgóban', onClick: fire('davelopment:open-help-search') })
   if (at('/staff') && can(capabilities, 'staff.manage')) pageTools.push({ icon: Plus, label: 'Munkatárs meghívása', onClick: fire('davelopment:open-staff-add'), dark: true })
   // Utalványok (design 12.8): a szűrő-ikon az állapot / fizetési mód lapját nyitja, mellette a beváltás (QR), a „+” az új utalvány
-  if (at('/vouchers')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés', onClick: fire('davelopment:open-vouchers-filter') })
+  if (at('/vouchers')) pageTools.push({ icon: Settings2, label: 'Szűrés', onClick: fire('davelopment:open-vouchers-filter') })
   if (at('/vouchers') && can(capabilities, 'vouchers.manage')) pageTools.push(
     { icon: TicketCheck, label: 'Utalvány beváltása', onClick: fire('davelopment:open-vouchers-redeem') },
     { icon: Plus, label: 'Új utalvány', onClick: fire('davelopment:open-vouchers-create'), dark: true },
   )
   // Marketing (design 13.7): a szűrő-ikon a kampányok szűrő-lapját nyitja, a „+” az új kampányt
-  if (at('/marketing')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés', onClick: fire('davelopment:open-marketing-filter') })
+  if (at('/marketing')) pageTools.push({ icon: Settings2, label: 'Szűrés', onClick: fire('davelopment:open-marketing-filter') })
   if (at('/marketing') && can(capabilities, 'marketing.manage')) pageTools.push({ icon: Plus, label: 'Új kampány', onClick: fire('davelopment:open-marketing-composer'), dark: true })
 
   return (
@@ -148,7 +148,7 @@ export function DashboardNav({
       {/* Crextio-stílus: NINCS tömör sáv/határvonal — a fejléc a krém gradiensen ül, a
           gombok lebegő fehér KÖRÖK (üveg + lágy árnyék + blur), mint a referencia „←" ikon.
           A cím középen marad (kompakt sáv-elrendezés). */}
-      <header className="lg:hidden relative z-40 px-3 h-16 flex items-center justify-between gap-2 shrink-0">
+      <header className="lg:hidden print:hidden relative z-40 px-3 h-16 flex items-center justify-between gap-2 shrink-0">
         {isTopLevel ? (
           <Link href={navItems[0]?.href ?? '/'} aria-label="davelopment booking" className="flex shrink-0 items-center px-1">
             <BrandLogo variant="light" className="h-6" />
@@ -169,7 +169,6 @@ export function DashboardNav({
           {pathname.startsWith(settingsHref) && <div id="settings-subnav-slot" className="relative flex shrink-0 items-center gap-2" />}
           {/* az oldal saját eszközei (a design szerint: 48px kerek gombok; a fő „+” sötét) — oldalanként egy lista */}
           {pageTools.map((t) => <IconButton key={t.label} icon={t.icon} label={t.label} size="lg" variant={t.dark ? 'dark' : 'glass'} href={t.href} download={t.download} onClick={t.onClick} className={t.yellow ? 'text-ui-yellow' : undefined} />)}
-          {/* a Súgó keresője az oldalon van (design 15.3), nem a fejlécben */}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
           {!isBackstage && (

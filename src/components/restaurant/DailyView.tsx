@@ -10,7 +10,7 @@ import { OccasionBadge } from '@/components/shared/OccasionBadge'
 import { idOf } from '@/components/dashboard/SalonDailyView'
 import { BookingsHead, EmptyDayBar, EMPTY_FILTER, type NextBooking, applyBookingFilter, type BookingFilter } from '@/components/shared/BookingsHead'
 import { segments } from '@/components/dashboard/OverviewLayout'
-import { Button, Card, FieldRow, IconCircle, Kpi, Meta, Note, Pill, StatusPill } from '@/components/ui-kit'
+import { Button, Card, FieldRow, IconCircle, Kpi, Meta, Pill, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { BookingDrawer, type DrawerAction } from '@/components/shared/BookingDrawer'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { setBookingStatus } from '@/components/dashboard/ApprovalActions'
@@ -524,7 +524,8 @@ export function RestaurantDayGrid({ reservations: active, rooms, tables, openMin
           return {
             id: String(t.id),
             name: t.name,
-            label: <span className="flex items-center gap-2"><IconCircle tone="white" size="md">{t.name}</IconCircle>{!none && <span className="text-ui-label text-ui-muted">{t.capacity} fő</span>}</span>,
+            // rövid név (M2, F1) a design köre; hosszabb (Terasz 2, VIP 2) nem törik, hanem fehér pillben görög
+            label: <span className="flex min-w-0 items-center gap-2">{t.name.length <= 3 ? <IconCircle tone="white" size="md">{t.name}</IconCircle> : <Pill tone="white" className="h-9 min-w-0 max-w-[96px]"><MarqueeText>{t.name}</MarqueeText></Pill>}{!none && <span className="shrink-0 text-ui-label text-ui-muted">{t.capacity} fő</span>}</span>,
             items: (none ? active.filter((r) => tableIdsOf(r).length === 0) : active.filter((r) => tableIdsOf(r).includes(String(t.id)))).filter((r) => !skip.includes(r)),
             capacity: none ? undefined : t.capacity,
             noDrop: none,
@@ -693,7 +694,7 @@ function MobileTimeline({ date, active, openMin, closeMin, nowMin, onEdit, isClo
   return (
     <Card>
       <DayStrip base="/restaurant" date={date} />
-      {isClosedToday && <Note className="mt-3">Ezen a napon zárva vagytok.</Note>}
+      {isClosedToday && <StatusPill status="bad" className="mt-3">Zárva</StatusPill>}
       <MobileDayTimeline rows={rows} more={false} onOpen={(k) => { const r = byKey.get(k); if (r) onEdit(r) }} />
     </Card>
   )

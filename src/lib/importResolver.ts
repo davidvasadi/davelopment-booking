@@ -42,15 +42,11 @@ export class ImportResolver {
   constructor(
     private payload: Payload,
     private businessId: number,
-    private isRestaurant: boolean,
+    _isRestaurant: boolean, // jelenleg nem használt (a hívók átadják)
     private entityMap: EntityMap | undefined,
     // katalógus-importnál az új elem aktív, mellékhatásként létrehozottnál inaktív
     private createActive: boolean,
   ) {}
-
-  private get ownerField(): 'salon' | 'restaurant' {
-    return this.isRestaurant ? 'restaurant' : 'salon'
-  }
 
   async loadCandidates(kind: EntityKind): Promise<Candidate[]> {
     if (this.candidates[kind]) return this.candidates[kind]!

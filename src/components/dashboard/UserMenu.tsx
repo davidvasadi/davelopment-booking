@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Bell, LogOut, CreditCard, Settings, X, Check, Loader2, ArrowRight, ArrowUpRight, Globe, Plus, Gift } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button, IconButton, IconCircle, Pill, Segmented, SheetHandle } from '@/components/ui-kit'
+import { Button, IconButton, IconCircle, Pill, Segmented, SheetHandle, MarqueeText } from '@/components/ui-kit'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification, type DigestMetadata } from '@/lib/useNotifications'
 import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
@@ -16,6 +16,7 @@ import { OPEN_BROADCAST_EVENT } from './BroadcastAutoPopup'
 import type { SwitcherBusiness } from './switcherTypes'
 import type { Capability } from '@/lib/permissions'
 import { ApprovalActions, isAwaitingApproval } from './ApprovalActions'
+import { useExclusivePopover } from '@/lib/exclusivePopover'
 
 /** A panel gyerek-elemeinek „folyami" belépője (a genie-spring stagger alá). */
 const PANEL_ITEM = {
@@ -68,6 +69,7 @@ export function UserMenu({
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
+  useExclusivePopover(open, () => setOpen(false))
   const anchorRef = useRef<HTMLDivElement>(null)
   // A popovert a body-ra portáljuk (a sidebar overflow-ja különben levágja).
   // `sheet`: mobilon (lg alatt) alulról felcsúszó lap a design szerint (17.1, 17.2) — ilyenkor nincs pozíció
@@ -157,7 +159,7 @@ export function UserMenu({
               {/* Háttér: desktopon átlátszó (csak a kattintásra zárást fogja meg, a design szerint nincs elmosás); mobilon a lap mögött sötétít, mint a kit Overlay-e. */}
               <motion.div
                 key="um-backdrop"
-                className={cn('fixed inset-0 z-[99]', pos.sheet && 'ui-blur-only backdrop-blur-sm')}
+                className={cn('fixed inset-0 z-[99]', pos.sheet && 'backdrop-blur-sm')}
                 onClick={() => setOpen(false)}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -204,8 +206,8 @@ export function UserMenu({
               >
                 <UserAvatar name={name} src={avatarUrl} size={40} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-ui-body text-ui-text">{name ?? 'Fiók'}</span>
-                  <span className="block truncate text-ui-label text-ui-muted">{email ? `${email} · Saját profil` : 'Saját profil'}</span>
+                  <MarqueeText className="text-ui-body text-ui-text">{name ?? 'Fiók'}</MarqueeText>
+                  <MarqueeText className="text-ui-label text-ui-muted">{email ? `${email} · Saját profil` : 'Saját profil'}</MarqueeText>
                 </span>
                 <ArrowUpRight className="h-4 w-4 shrink-0 text-ui-muted" strokeWidth={1.8} />
               </Link>
@@ -291,11 +293,15 @@ export function UserMenu({
                         disabled={isBusy || isActive}
                         className={cn('flex w-full items-center gap-2.5 rounded-ui-control px-3 py-2 text-left transition-colors', isActive ? 'cursor-default bg-ui-cell' : 'hover:bg-ui-cell')}
                       >
-                        {/* a design (17.1) szerint a kezdőbetű körben — a feltöltött logó (fekvő felirat, sötét négyzet) 28px-es
-                            körben olvashatatlan volt */}
-                        <IconCircle size="sm" tone={isActive ? 'dark' : 'cell'}>{mono}</IconCircle>
+                        {/* a design (17.1) köre: benne az üzlet logója, ha van; különben a kezdőbetű */}
+                        <IconCircle size="sm" tone={b.logoUrl ? 'white' : isActive ? 'dark' : 'cell'} className="overflow-hidden">
+                          {b.logoUrl
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={b.logoUrl} alt="" className="h-full w-full object-contain p-1" />
+                            : mono}
+                        </IconCircle>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-ui-body text-ui-text">{b.name}</span>
+                          <MarqueeText className="text-ui-body text-ui-text">{b.name}</MarqueeText>
                           <span className="block text-ui-label text-ui-muted">{b.type === 'restaurant' ? 'Étterem' : 'Szalon'}</span>
                         </span>
                         {isBusy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-ui-muted" /> : isActive ? <Check className="h-4 w-4 shrink-0 text-ui-dark" strokeWidth={2.5} /> : null}

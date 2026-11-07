@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { IconCircle } from '@/components/ui-kit'
+import { IconCircle, MarqueeText } from '@/components/ui-kit'
 import { LogOut, MoreHorizontal, Lock, Plus, Loader2, CreditCard } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
@@ -162,7 +162,7 @@ const [moreOpen, setMoreOpen] = useState(false)
         <>
           <motion.div
             key="mob-backdrop"
-            className="ui-blur-only lg:hidden fixed inset-0 z-50 backdrop-blur-sm"
+            className="lg:hidden fixed inset-0 z-50 backdrop-blur-sm"
             onClick={() => setMoreOpen(false)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -216,8 +216,8 @@ const [moreOpen, setMoreOpen] = useState(false)
                   </IconCircle>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-ui-row text-ui-text">{userName ?? 'Fiók'}</span>
-                  <span className="block truncate text-ui-meta text-ui-muted">{uploadingAvatar ? 'Feltöltés…' : (userEmail ?? '')}</span>
+                  <MarqueeText className="text-ui-row text-ui-text">{userName ?? 'Fiók'}</MarqueeText>
+                  <MarqueeText className="text-ui-meta text-ui-muted">{uploadingAvatar ? 'Feltöltés…' : (userEmail ?? '')}</MarqueeText>
                 </span>
               </button>
 

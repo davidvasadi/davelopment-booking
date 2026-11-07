@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Search, CornerDownLeft, Calendar, User as UserIcon, Store, CreditCard, type LucideIcon } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import type { SearchHit } from '@/app/api/search/route'
-import { Input, MenuItem, Meta, Panel, Pill } from '@/components/ui-kit'
+import { Input, MenuItem, Meta, Panel, Pill, MarqueeText } from '@/components/ui-kit'
 
 type Cmd = { id: string; label: string; sub?: string; href: string; icon: LucideIcon }
 
@@ -152,8 +152,8 @@ function Row({ cmd, active, onClick }: { cmd: Cmd; active: boolean; onClick: () 
   const { icon, label, sub } = cmd
   return (
     <MenuItem icon={icon} active={active} onClick={onClick} trailing={active && <CornerDownLeft className="h-3.5 w-3.5" />}>
-      <span className="block truncate">{label}</span>
-      {sub && <span className="block truncate text-ui-meta text-ui-muted">{sub}</span>}
+      <MarqueeText>{label}</MarqueeText>
+      {sub && <MarqueeText className="text-ui-meta text-ui-muted">{sub}</MarqueeText>}
     </MenuItem>
   )
 }

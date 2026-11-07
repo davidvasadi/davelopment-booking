@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { Card, ListRow } from '@/components/ui-kit'
+import { Card, ListRow, MarqueeText } from '@/components/ui-kit'
 
 /**
  * Az új / szerkesztett foglalás jobb oszlopa (a /design 6.9 / 6.18): a vendég, a kiválasztott időpont sötét
@@ -31,7 +31,7 @@ export function BookingSummary({ title = 'Összegzés', name, sub, day, time, un
         {until && <div className="mt-1 text-ui-meta text-white/70">{until}</div>}
       </Card>
       <div className="mt-1">
-        {rows.map(([k, v]) => <ListRow key={k} className="px-0" title={<span className="text-ui-muted">{k}</span>} trailing={<span className="max-w-[160px] truncate text-right text-ui-body text-ui-text">{v}</span>} />)}
+        {rows.map(([k, v]) => <ListRow key={k} className="px-0" title={<span className="text-ui-muted">{k}</span>} trailing={<MarqueeText className="max-w-[160px] text-right text-ui-body text-ui-text">{v}</MarqueeText>} />)}
       </div>
       {total && <div className="mt-3 flex items-baseline justify-between"><span className="text-ui-meta text-ui-muted">Összesen</span><span className="text-ui-sub font-light text-ui-text">{total}</span></div>}
       {confirmNote && <div className="mt-2 flex items-center gap-1.5 text-ui-label text-ui-muted"><Check className="h-3.5 w-3.5 text-ui-ok" />{confirmNote}</div>}

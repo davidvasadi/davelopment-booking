@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Sparkles } from 'lucide-react'
-import { Button, EmptyState, PageHead, SearchField } from '@/components/ui-kit'
+import { Search, Sparkles, X } from 'lucide-react'
+import { Button, EmptyState, IconButton, PageHead, SearchField } from '@/components/ui-kit'
 import { HelpGroups } from '@/components/blocks/help'
 import { helpGroups, type HelpVariant } from '@/lib/helpTopics'
 import type { Capability } from '@/lib/permissions'
@@ -14,6 +14,14 @@ import type { Capability } from '@/lib/permissions'
 export function HelpView({ variant, capabilities }: { variant: HelpVariant; capabilities?: Capability[] }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState<string[]>([])
+  // mobil: a fejléc kereső-ikonja nyitja a keresőmezőt (mint a Munkatársaknál)
+  const [mobileSearch, setMobileSearch] = useState(false)
+  useEffect(() => {
+    // a nagyító ki-be kapcsol: másodszorra törli és bezárja (mint az X)
+    const on = () => setMobileSearch((v) => { if (v) setQuery(''); return !v })
+    window.addEventListener('davelopment:open-help-search', on)
+    return () => window.removeEventListener('davelopment:open-help-search', on)
+  }, [])
   const groups = useMemo(() => helpGroups(variant, capabilities ?? null, query), [variant, capabilities, query])
   const toggle = (id: string) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]))
   const tour = () => window.dispatchEvent(new Event('davelopment:open-onboarding'))
@@ -38,7 +46,12 @@ export function HelpView({ variant, capabilities }: { variant: HelpVariant; capa
       </div>
       <div className="mb-4 lg:hidden">
         <div className="text-ui-num font-light leading-none text-ui-text">Súgó</div>
-        <SearchField className="mt-3 w-full" value={query} onChange={setQuery}>Keresés a súgóban</SearchField>
+        {mobileSearch && (
+          <div className="ui-pop-in mt-4 flex items-center gap-1.5">
+            <SearchField autoFocus className="min-w-0 flex-1" value={query} onChange={setQuery}>Keresés a súgóban</SearchField>
+            <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { setQuery(''); setMobileSearch(false) }} />
+          </div>
+        )}
       </div>
       {body}
       <Button className="mt-4 w-full lg:hidden" icon={Sparkles} onClick={tour}>Bevezető indítása</Button>

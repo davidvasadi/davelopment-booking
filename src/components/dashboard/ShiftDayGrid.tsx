@@ -1,6 +1,6 @@
 'use client'
 
-import { Avatar, Meta } from '@/components/ui-kit'
+import { Avatar, Meta, MarqueeText } from '@/components/ui-kit'
 import { BlockLegend } from '@/components/blocks/booking'
 import { ResourceGrid, type GridRow } from '@/components/shared/ResourceGrid'
 import { TYPE_LABEL, absenceRun, fmtH, posOf, rangeLabel, shiftHours, shiftLabel, type ShiftVM, type StaffVM } from '@/lib/schedule'
@@ -51,7 +51,7 @@ export function ShiftDayGrid({ staff, shifts, date, restaurant = false, nowMin, 
       label: (
         <span className="flex items-center gap-2.5">
           <Avatar size="sm" src={st.avatarUrl ?? null} name={st.name} />
-          <span className="min-w-0"><span className="block truncate text-ui-body text-ui-text">{st.name}</span><span className="block truncate text-ui-label text-ui-muted">{[posOf(st), h ? fmtH(h) : off ? 'szabadnap' : null].filter(Boolean).join(' · ')}</span></span>
+          <span className="min-w-0"><MarqueeText className="text-ui-body text-ui-text">{st.name}</MarqueeText><MarqueeText className="text-ui-label text-ui-muted">{[posOf(st), h ? fmtH(h) : off ? 'szabadnap' : null].filter(Boolean).join(' · ')}</MarqueeText></span>
         </span>
       ),
       items: mine.flatMap(segsOf),

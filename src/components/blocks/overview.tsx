@@ -4,7 +4,7 @@ import { OverviewTimeline } from '@/components/shared/OverviewTimeline'
 import { WeekBars, type WeekBar } from './charts'
 import { MobileDayTimeline } from './day-timeline'
 export { MobileDayTimeline, type DayRow } from './day-timeline'
-import { Avatar, Button, Card, IconButton, IconCircle, Input, ListRow, Pill, TaskRow, Meta, SegmentBar, Kpi, CardTitle } from '@/components/ui-kit'
+import { Avatar, Button, Card, IconButton, IconCircle, Input, ListRow, Pill, TaskRow, Meta, SegmentBar, Kpi, CardTitle, MarqueeText } from '@/components/ui-kit'
 import { CountText } from '@/components/ui-kit'
 
 /* Az Áttekintés kártyái — a /design (4.1, 4.4) és a landing hero („Foglalás” funkció-oldal) is ezeket mutatja. */
@@ -129,7 +129,7 @@ export function PhotoCard({ img, logo, title, sub, action, className = '' }: { i
       <div className="absolute inset-x-0 bottom-0 p-4">
         {img && <div className="ui-photo-veil pointer-events-none absolute inset-x-0 bottom-0 top-[-56px]" />}
         <div className="ui-photo-text relative flex items-center justify-between gap-2 text-white">
-          <div className="min-w-0"><div className="truncate text-ui-title font-medium">{title}</div>{sub && <div className="text-ui-meta text-white/85">{sub}</div>}</div>
+          <div className="min-w-0"><MarqueeText className="text-ui-title font-medium">{title}</MarqueeText>{sub && <div className="text-ui-meta text-white/85">{sub}</div>}</div>
           {action ?? <IconButton icon={ArrowUpRight} label="Megnyitás" variant="onDark" />}
         </div>
       </div>

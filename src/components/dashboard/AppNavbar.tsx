@@ -14,6 +14,7 @@ import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 import type { SwitcherBusiness } from './switcherTypes'
 import { buttonHover } from '@/lib/motion'
+import { useExclusivePopover } from '@/lib/exclusivePopover'
 
 const MotionLink = motion.create(Link)
 
@@ -92,6 +93,7 @@ export function AppNavbar({
   const pillItems = PRIMARY ? PRIMARY.map((sfx) => allPill.find((it) => it.href === base + sfx)).filter((x): x is (typeof allPill)[number] => !!x) : allPill.slice(0, 4)
   const overflowItems = allPill.filter((it) => !pillItems.includes(it))
   const [moreOpen, setMoreOpen] = useState(false)
+  useExclusivePopover(moreOpen, () => setMoreOpen(false))
   const overflowActiveItem = overflowItems.find((it) => isActive(it.href, it.exact))
   const overflowActive = !!overflowActiveItem
   // a „Több" panel csoportjai (a design szerint); ami nincs benne, az „Egyéb"
@@ -119,7 +121,7 @@ export function AppNavbar({
     {moreOpen && (
       <div className="fixed inset-0 z-[49]" aria-hidden onClick={() => setMoreOpen(false)} />
     )}
-    <div className="relative z-50 hidden lg:flex items-center justify-between gap-4">
+    <div className="relative z-50 hidden lg:flex print:!hidden items-center justify-between gap-4">
       {/* Bal: brand */}
       <Link
         href={items[0]?.href ?? '/'}

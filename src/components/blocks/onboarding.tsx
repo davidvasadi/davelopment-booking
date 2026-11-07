@@ -1,5 +1,5 @@
 import { ArrowRight, Check, Gift, Link2, Scissors, Upload, UtensilsCrossed } from 'lucide-react'
-import { Button, Card, Checkbox, EmptyState, Field, IconButton, IconCircle, Input, Meta, OptionCard, Pill, StatusPill } from '@/components/ui-kit'
+import { Button, Card, Checkbox, EmptyState, Field, IconButton, IconCircle, Input, Meta, OptionCard, Pill, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { AuthOr } from './auth'
 import { GLASS_FIELD } from './public'
 
@@ -89,7 +89,7 @@ export function AccountStep({ kind = 'salon', values = SAMPLE_ACCOUNT, onChange,
   return (
     <form className={className} noValidate onSubmit={onSubmit ? (e) => { e.preventDefault(); onSubmit() } : undefined}>
       <Steps active={1} dark={dark} />
-      {referral?.status === 'ok' && referral.by && <Pill tone="yellow" className="mb-3 max-w-full"><Gift className="h-4 w-4 shrink-0" /><span className="truncate">{referral.by} ajánlott</span></Pill>}
+      {referral?.status === 'ok' && referral.by && <Pill tone="yellow" className="mb-3 max-w-full"><Gift className="h-4 w-4 shrink-0" /><MarqueeText>{referral.by} ajánlott</MarqueeText></Pill>}
       <div className={`text-ui-title ${dark ? 'text-white ui-photo-text' : 'text-ui-text'}`}>Hozd létre a fiókodat</div>
       <div className="mt-4 space-y-4">
         <F dark={dark} label={kind === 'salon' ? 'Szalon neve' : 'Étterem neve'} hint={values.placeName.trim() ? <span className="flex flex-wrap items-center gap-1.5">{slugUrl} {pill}</span> : undefined}>
@@ -150,7 +150,7 @@ export function ReadyCard({ kind = 'salon', url = 'booking.davelopment.hu/anna-f
         {items.map((t) => <div key={t} className="flex items-center gap-2.5 text-ui-body"><IconCircle tone="yellow" size="sm" icon={Check} />{t}</div>)}
       </div>
       <div className="mb-1.5 mt-6 flex items-center gap-1.5 rounded-full bg-white/10 py-1 pl-4 pr-1 text-ui-meta text-white/80">
-        <span className="min-w-0 flex-1 truncate">{url}</span>
+        <MarqueeText className="flex-1">{url}</MarqueeText>
         <IconButton icon={Link2} label="Link másolása" variant="yellow" size="sm" onClick={onCopy} />
       </div>
       <Button variant="yellow" className="mt-auto w-full" href={href}>Irány a dashboard</Button>

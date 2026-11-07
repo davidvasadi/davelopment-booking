@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Banknote, CalendarDays, Users } from 'lucide-react'
-import { Avatar, Button, Card, ListRow, Meta, Pill, StatusPill } from '@/components/ui-kit'
+import { Avatar, Button, Card, ListRow, Meta, Pill, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { EASE } from '@/lib/motion'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
@@ -80,7 +80,7 @@ function CountryDonut({ countries }: { countries: Record<string, number> }) {
                 <div className="mt-3 space-y-1.5 border-t border-dashed border-ui-divider pt-3">
                   {sorted.map(([code, cnt]) => (
                     <div key={code} className="flex items-center justify-between gap-2 text-ui-body text-ui-text">
-                      <span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{flagEmoji(code)}</span><span className="truncate">{COUNTRY_BY_CODE[code]?.name ?? code}</span></span>
+                      <span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{flagEmoji(code)}</span><MarqueeText>{COUNTRY_BY_CODE[code]?.name ?? code}</MarqueeText></span>
                       <span className="shrink-0 tabular-nums text-ui-muted">{cnt}</span>
                     </div>
                   ))}
@@ -222,7 +222,7 @@ export function DigestSheet({ n, open, onClose }: { n: Notification; open: boole
             <div className="flex flex-wrap gap-1.5">
               {meta.status.completed != null && <StatusPill status="ok">{meta.status.completed} teljesült</StatusPill>}
               {meta.status.cancelled != null && <StatusPill status="bad">{meta.status.cancelled} lemondva</StatusPill>}
-              {meta.status.no_show != null && <StatusPill status="neutral">{meta.status.no_show} nem jött</StatusPill>}
+              {meta.status.no_show != null && <StatusPill status="bad">{meta.status.no_show} nem jött</StatusPill>}
             </div>
           </Block>
         )}

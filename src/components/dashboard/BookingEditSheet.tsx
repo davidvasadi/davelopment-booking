@@ -534,7 +534,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         </span>
                       )}
                       {target?.booking?.payment_status === 'failed' && <StatusPill status="bad">Sikertelen előleg-fizetés</StatusPill>}
-                      {target?.booking?.payment_status === 'refunded' && <StatusPill status="neutral">Előleg visszatérítve</StatusPill>}
+                      {target?.booking?.payment_status === 'refunded' && <StatusPill status="warn">Előleg visszatérítve</StatusPill>}
                       {/* Ajándékutalvánnyal (részben) kifizetett foglalás — a beváltott kód és a fedezett összeg. */}
                       {target?.booking?.voucher_code && (
                         <span title={`Utalvány-kód: ${target.booking.voucher_code}`}>
@@ -672,7 +672,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
           <ChoicePills options={sourceOptions.map((o) => ({ value: o.value ?? '', label: o.label }))} value={source ?? null} onPick={(v) => setSource(v as Booking['source'])} />
         </StepRow>
         <StepRow label="Megjegyzés">
-          <Input size="sm" className="w-[220px] max-w-full" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. hosszú haj" />
+          <Input size="sm" hug className="min-w-[220px] max-w-[min(100%,520px)]" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. hosszú haj" />
         </StepRow>
         <StepRow label="Státusz">
           <ChoicePills options={statusOptions.map((o) => ({ value: o.value, label: o.label }))} value={status} onPick={(v) => { setStatus(v as Booking['status']); setStatusTouched(true) }} />

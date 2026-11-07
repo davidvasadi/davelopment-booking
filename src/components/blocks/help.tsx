@@ -1,5 +1,5 @@
 import { ArrowRight, ChevronDown } from 'lucide-react'
-import { Button, Card, Collapse, IconCircle } from '@/components/ui-kit'
+import { Button, Card, Collapse, IconCircle, MarqueeText } from '@/components/ui-kit'
 import { helpGroups, type HelpTopic } from '@/lib/helpTopics'
 
 /* A Súgó darabjai — a /design 15.x és az élő HelpView is ezeket rendereli. A témák (lib/helpTopics) három
@@ -14,7 +14,7 @@ function HelpRow({ topic, tone, open, onToggle }: { topic: HelpTopic; tone: Help
   const head = (
     <>
       <IconCircle tone={tone} size="lg" icon={topic.icon} />
-      <span className="min-w-0 flex-1"><span className="block text-ui-row text-ui-text">{topic.title}</span><span className={`block text-ui-meta text-ui-muted ${open ? '' : 'truncate'}`}>{topic.body}</span></span>
+      <span className="min-w-0 flex-1"><span className="block text-ui-row text-ui-text">{topic.title}</span><MarqueeText className={`text-ui-meta text-ui-muted ${open ? '' : ''}`}>{topic.body}</MarqueeText></span>
       <ChevronDown className={`h-4 w-4 shrink-0 text-ui-muted transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
     </>
   )

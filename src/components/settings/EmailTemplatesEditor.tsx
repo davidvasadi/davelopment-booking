@@ -189,7 +189,7 @@ function GuestEmails({ variant, loc, onPreview, sender, logo }: { variant: 'rest
           times={sel === 'reminder' ? [['t48', '2 nappal', r.t48], ['t24', '24 órával', r.t24], ['t3', '3 órával', r.t3]] : null}
           onTime={(k) => ctl.setReminder({ [k]: !r[k as 't48' | 't24' | 't3'] })}
           channels={null}
-          language={<LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />}
+          language={<LocaleEditBar tone="glass" available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />}
           sender={sender} />
       }
       settings={

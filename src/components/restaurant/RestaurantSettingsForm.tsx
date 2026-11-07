@@ -3,8 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
-import { Loader2, Eye, FileText } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { openEmailPreview } from '@/components/settings/emailPreviewUrl'
 import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { SettingsGroup } from '@/components/blocks/settings'
@@ -22,55 +21,7 @@ import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { DeleteBusinessConfirm, DeleteBusinessPage } from '@/components/blocks/settings'
 
-/** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás.
- *  Opcionális `onPreview` esetén a Mentés mellett egy „Előnézet" gomb is megjelenik. */
-function SaveBar({ dirty, submitting, onSave, onPreview }: { dirty: boolean; submitting: boolean; onSave: () => void; onPreview?: () => void }) {
-  return (
-    <div className="sticky bottom-3 z-20 flex flex-wrap items-center gap-2.5 rounded-[20px] border border-ui-divider bg-white/70 p-2.5 backdrop-blur sm:static sm:flex-nowrap sm:gap-3 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none">
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={!dirty || submitting}
-        className="flex h-12 flex-1 items-center justify-center gap-2 px-6 rounded-full bg-ui-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-70 sm:h-11 sm:flex-none"
-      >
-        {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-        {submitting ? 'Mentés...' : 'Mentés'}
-      </button>
-      {onPreview && (
-        <button
-          type="button"
-          onClick={onPreview}
-          className="h-12 px-5 rounded-full border border-ui-divider text-ui-text hover:bg-ui-cell font-semibold text-sm transition-colors inline-flex items-center justify-center gap-2 sm:h-11"
-        >
-          <Eye className="h-4 w-4" />
-          Előnézet
-        </button>
-      )}
-      {dirty && <span className="w-full text-center text-xs font-medium text-ui-yellow sm:w-auto sm:text-left">Mentetlen változások</span>}
-    </div>
-  )
-}
 
-/** davelopment fül-navigáció (üveg konténer, aktív = ink pill). */
-function TabsNav({ tabs, active, onSelect }: { tabs: { id: string; label: string; dirty?: boolean }[]; active: string; onSelect: (id: string) => void }) {
-  return (
-    <div className="-mx-5 flex gap-1 overflow-x-auto rounded-none border-y border-ui-divider bg-white/60 px-5 py-1.5 no-scrollbar sm:mx-0 sm:rounded-2xl sm:border sm:px-1 sm:py-1">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          onClick={() => onSelect(t.id)}
-          className={`relative flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-semibold transition-colors sm:py-2 ${
-            active === t.id ? 'bg-ui-dark text-white' : 'text-ui-muted hover:text-ui-text'
-          }`}
-        >
-          {t.label}
-          {t.dirty && <span title="Mentetlen változás" className="h-1.5 w-1.5 shrink-0 rounded-full bg-ui-yellow" />}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 
 type Settings = {
@@ -121,9 +72,6 @@ type Settings = {
   description: string
 }
 
-// Crextio/Apple mező: tiszta fehér + meleg hajszálvékony keret + arany fókusz-gyűrű (NINCS krém fill).
-const inputClass =
-  'h-[50px] w-full rounded-[14px] bg-white border border-ui-divider text-ui-text transition-colors focus-visible:ring-2'
 
 
 export function RestaurantSettingsForm({
@@ -134,7 +82,6 @@ export function RestaurantSettingsForm({
   initial,
   supportedLocales,
   controlledTab,
-  hideTabsNav = false,
 }: {
   restaurantId: number | string
   restaurantName: string
@@ -145,7 +92,6 @@ export function RestaurantSettingsForm({
   supportedLocales?: (Locale | string)[] | null
   /** Ha megadva, a Beállítások-hub bal listája vezérli az aktív fület (nincs belső fül-sor). */
   controlledTab?: string
-  hideTabsNav?: boolean
 }) {
   // Több-üzlet: ha a fióknak több üzlete van, csak EZT az éttermet töröljük (a fiók marad).
   const isLastBusiness = businessCount <= 1
@@ -291,23 +237,10 @@ export function RestaurantSettingsForm({
     if (LOC_TABS.has(tab)) loc.discardLocale()
   }
 
-  // Fülváltás: ha az aktuális fülön van mentetlen változás, rákérdezünk.
-  const requestTab = (id: string) => {
-    if (id === activeTab) return
-    if (tabDirty(activeTab)) setPendingTab(id)
-    else setActiveTab(id)
-  }
-
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     void saveAll()
   }
-
-  const tabs = [
-    { id: 'email', label: 'Email', dirty: tabDirty('email') },
-    { id: 'documents', label: 'Dokumentumok', dirty: tabDirty('documents') },
-    { id: 'danger', label: 'Veszélyzóna' },
-  ]
 
   // ── Beágyazott mód: az aktív fül mentetlen-állapotát FELFELÉ jelezzük a hub közös mentés-sávjának,
   //    és regisztráljuk a mentés/elvetés műveletet. A műveletek friss closure-t olvasnak ref-en át,
@@ -329,7 +262,6 @@ export function RestaurantSettingsForm({
   return (
     <>
     <form onSubmit={onSubmit} className="space-y-5">
-      {!embedded && !hideTabsNav && <TabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />}
 
 
       {/* Vendég e-mailek (design 16.6) — a hubban a háromhasábos szerkesztő; a levél
@@ -348,8 +280,6 @@ export function RestaurantSettingsForm({
           missing={loc.editLocale === 'hu' ? 0 : loc.current.terms_sections.filter((t) => !t.title.trim() || !t.body.trim()).length} />
       </SettingsGroup>
       <PrivacyUrlField value={form.privacy_url} onChange={(v) => setForm((f) => ({ ...f, privacy_url: v }))} />
-
-      {!embedded && <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />}
       </div>
       )}
 

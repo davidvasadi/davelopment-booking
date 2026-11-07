@@ -8,7 +8,7 @@ import { Check, Clock, Wallet, CalendarDays, Coffee, FileSignature, Phone, X } f
 import type { BookingsRange } from '@/components/shared/BookingsDateNav'
 import { BookingsHead, EmptyDayBar, EMPTY_FILTER, type NextBooking, applyBookingFilter, type BookingFilter } from '@/components/shared/BookingsHead'
 import { segments, thousands } from '@/components/dashboard/OverviewLayout'
-import { Avatar, Card, FieldRow, Kpi, Meta, Note, StatusPill } from '@/components/ui-kit'
+import { Avatar, Card, FieldRow, Kpi, Meta, Note, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { BookingDrawer, type DrawerAction } from '@/components/shared/BookingDrawer'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { setBookingStatus } from '@/components/dashboard/ApprovalActions'
@@ -462,7 +462,7 @@ export function SalonDayGrid({ bookings: active, staff, openMin, closeMin, staff
               label: (
                 <span className="flex items-center gap-2.5">
                   <Avatar size="sm" src={avatarUrlOf(t)} name={t.name} />
-                  <span className="min-w-0"><span className="block truncate text-ui-body text-ui-text">{t.name}</span><span className="block truncate text-ui-label text-ui-muted">{off ? OFF_TYPE_LABEL[off] : staffSub?.[String(t.id)] ?? t.role_title}</span></span>
+                  <span className="min-w-0"><MarqueeText className="text-ui-body text-ui-text">{t.name}</MarqueeText><MarqueeText className="text-ui-label text-ui-muted">{off ? OFF_TYPE_LABEL[off] : staffSub?.[String(t.id)] ?? t.role_title}</MarqueeText></span>
                 </span>
               ),
               items: active.filter((b) => idOf(b.staff) === String(t.id)),
@@ -627,7 +627,7 @@ function MobileTimeline({
   return (
     <Card>
       <DayStrip base="/dashboard" date={date} />
-      {(isClosedToday || off) && <Note className="mt-3">{isClosedToday ? 'Ezen a napon zárva vagytok.' : `${OFF_TYPE_LABEL[off!]} — ezen a napon nincs beosztásod.`}</Note>}
+      {isClosedToday ? <StatusPill status="bad" className="mt-3">Zárva</StatusPill> : off && <Note className="mt-3">{`${OFF_TYPE_LABEL[off]} — ezen a napon nincs beosztásod.`}</Note>}
       <MobileDayTimeline rows={rows} more={false} merged={single} onOpen={(k) => { const b = byKey.get(k); if (b) onEdit(b) }} />
     </Card>
   )

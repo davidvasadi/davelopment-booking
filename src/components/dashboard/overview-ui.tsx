@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronDown, type LucideIcon } from 'lucide-react'
+import { type LucideIcon } from 'lucide-react'
 
 /** Az Áttekintés (Overview) bento közös, prezentációs építőelemei — szalon ÉS étterem
  *  ugyanezeket használja (davelopment-design, Crextio bento). */
@@ -26,30 +26,6 @@ export function StatusPill({ label, value, className }: { label: string; value: 
     <div className="shrink-0">
       <p className="mb-2 text-xs font-medium text-ui-muted">{label}</p>
       <div className={`flex h-11 items-center rounded-[21px] px-5 text-sm font-semibold ${className}`}>{value}</div>
-    </div>
-  )
-}
-
-/** Jobb-felső kör-ikon a kártyákon (kifelé mutató nyíl). */
-export function CardIcon() {
-  return (
-    <div className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white shadow-[0_2px_6px_rgba(80,70,30,.07)]">
-      <ArrowUpRight className="h-[15px] w-[15px] text-ui-text" strokeWidth={1.8} />
-    </div>
-  )
-}
-
-/** Szaggatott elválasztó (Részletek-akkordeon). */
-export function Dashed() {
-  return <div className="border-t border-dashed" style={{ borderColor: 'rgba(120,110,70,.28)' }} />
-}
-
-/** Akkordeon-sor (cím + lefelé chevron). */
-export function AccRow({ label }: { label: string }) {
-  return (
-    <div className="flex items-center justify-between py-2.5">
-      <span className="text-[15px] font-medium text-ui-text">{label}</span>
-      <ChevronDown className="h-4 w-4 text-ui-muted" />
     </div>
   )
 }

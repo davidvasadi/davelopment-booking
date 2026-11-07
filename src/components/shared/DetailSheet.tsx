@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowUpRight, X } from 'lucide-react'
-import { IconButton } from '@/components/ui-kit'
+import { IconButton, MarqueeText } from '@/components/ui-kit'
 
 /**
  * Kártya-nyíl (↗) → jobb oldali SIDEBAR a bővebb infókért. A trigger a kártya fejlécében ülő
@@ -56,7 +56,7 @@ export function DetailSheet({
                 >
                   <div className="flex items-start justify-between gap-4 px-6 pb-2 pt-6">
                     <div className="min-w-0">
-                      <h2 className="truncate text-ui-sub font-light text-ui-text">{title}</h2>
+                      <h2 className="min-w-0 text-ui-sub font-light text-ui-text"><MarqueeText>{title}</MarqueeText></h2>
                       {subtitle ? <p className="mt-0.5 text-ui-meta text-ui-muted">{subtitle}</p> : null}
                     </div>
                     <IconButton icon={X} label="Bezárás" variant="cell" size="sm" onClick={() => setOpen(false)} />

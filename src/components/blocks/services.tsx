@@ -1,7 +1,7 @@
 import { AV } from './assets'
 import { ArrowUpRight, Check, Clock, GripVertical, Minus, Plus, X } from 'lucide-react'
 import { UploadTile, type UploadState } from './upload'
-import { Avatar, Button, Card, CardTitle, Field, FieldRow, IconButton, Input, ListRow, Meta, Panel, Pill, SearchField, Select, StatusPill, Textarea, UploadBox, IconCircle } from '@/components/ui-kit'
+import { Avatar, Button, Card, CardTitle, Field, FieldRow, IconButton, Input, ListRow, Meta, Panel, Pill, SearchField, Select, StatusPill, Textarea, UploadBox, IconCircle, MarqueeText } from '@/components/ui-kit'
 import { Switch } from '@/components/ui/toggle-switch'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { smooth } from './charts'
@@ -81,7 +81,7 @@ export function ServiceCard({ s = SAMPLE_CARDS[0], deposit = s.id === 'b' ? 'El�
       </div>
       <div className="mt-auto flex items-center justify-between pt-5">
         <span className="flex -space-x-2">{s.staff.map((a) => <Avatar key={a.id} size="sm" src={a.img ?? null} name={a.name} className="ring-2 ring-ui-cell" />)}</span>
-        <StatusPill status={s.online ? 'ok' : 'neutral'}>{s.online ? 'Online foglalható' : 'Csak helyben'}</StatusPill>
+        <StatusPill status={s.online ? 'ok' : 'warn'}>{s.online ? 'Online foglalható' : 'Csak helyben'}</StatusPill>
       </div>
     </Card>
   )
@@ -251,7 +251,8 @@ export function CategoryList({ rows = SAMPLE_CAT_ROWS, openId = 'f', onOpen, onC
         {rows.length === 0 && <Meta className="px-3 py-3">Még nincs kategória.</Meta>}
         {rows.map((r) => {
           const open = r.id === openId
-          const row = <ListRow filled open={open} leading={<GripVertical className={`h-4 w-4 shrink-0 text-ui-muted ${rowProps ? 'cursor-grab' : ''}`} />} title={r.name} meta={`${r.count} szolgáltatás`} trailing={r.durationLabel ? <Pill tone={open ? 'white' : 'cell'} size="sm"><Clock className="h-3 w-3" />{r.durationLabel}</Pill> : undefined} />
+          // a felugró ablakban (bare) a kit sima listája: szaggatott vonal a sorok közt, kitöltés nélkül (csak a kijelölt sárga)
+          const row = <ListRow filled={!bare} open={open} leading={<GripVertical className={`h-4 w-4 shrink-0 text-ui-muted ${rowProps ? 'cursor-grab' : ''}`} />} title={r.name} meta={`${r.count} szolgáltatás`} trailing={r.durationLabel ? <Pill tone={open ? 'white' : 'cell'} size="sm"><Clock className="h-3 w-3" />{r.durationLabel}</Pill> : undefined} />
           return onOpen
             ? <motion.div key={r.id} layout transition={{ type: 'spring', stiffness: 500, damping: 40 }} role="button" tabIndex={0}
                 onClick={() => onOpen(r.id)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(r.id) }} {...(rowProps?.(r.id) as object)}
@@ -323,13 +324,13 @@ export function ServiceRow({ s = SAMPLE_CARDS[0], popular, deposit, onOpen }: { 
       {s.img ? <img src={s.img} alt="" className="h-14 w-14 shrink-0 rounded-ui-inner object-cover" /> : <UploadBox className="h-14 w-14 shrink-0 px-0">{null}</UploadBox>}
       <span className="min-w-0 flex-1">
         {popular && <Pill tone="yellow" size="sm" className="mb-1">Legnépszerűbb</Pill>}
-        <span className={`block truncate text-ui-row ${dark ? 'text-white' : 'text-ui-text'}`}>{s.name}</span>
-        <span className={`block truncate text-ui-label ${dark ? 'text-white/55' : 'text-ui-muted'}`}>{popular ? `${popular.count} foglalás ${popular.month}` : meta}</span>
+        <MarqueeText className={`text-ui-row ${dark ? 'text-white' : 'text-ui-text'}`}>{s.name}</MarqueeText>
+        <MarqueeText className={`text-ui-label ${dark ? 'text-white/55' : 'text-ui-muted'}`}>{popular ? `${popular.count} foglalás ${popular.month}` : meta}</MarqueeText>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
         <span className={`text-ui-title font-light ${dark ? 'text-white' : 'text-ui-text'}`}>{priceLabel(s.price, s.currency)}</span>
         {popular && popular.trend.length > 1 && <svg viewBox="0 0 90 30" className="h-6 w-16"><path d={smooth(popular.trend, 90, 30, lo - (hi - lo || 1) * 0.2, hi + (hi - lo || 1) * 0.1)} fill="none" stroke="var(--ui-yellow)" strokeWidth="2" strokeLinecap="round" /></svg>}
-        {!popular && !s.online && <StatusPill status="neutral">Csak helyben</StatusPill>}
+        {!popular && !s.online && <StatusPill status="warn">Csak helyben</StatusPill>}
       </span>
     </Card>
   )

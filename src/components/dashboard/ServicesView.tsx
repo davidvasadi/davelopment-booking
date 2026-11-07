@@ -233,7 +233,14 @@ export function ServicesView({ salonId, services: initial, categories: initialCa
     if (!catEdit) return
     try { const m = await uploadMedia(file, setCatImageUp); setCatEdit((e) => (e ? { ...e, imageId: m.id, v: { ...e.v, img: m.url } } : e)); setCatImageUp(null) } catch (err) { toast.error(err instanceof Error ? err.message : 'A kép feltöltése nem sikerült'); setCatImageUp(null) }
   }
-  const catRows = catSort.order.map((id) => categories.find((c) => c.id === id)).filter((c): c is CategoryVM => !!c).map((c) => ({ id: c.id, name: c.name, durationLabel: c.durationLabel, count: services.filter((s) => s.categoryId === c.id).length }))
+  // ha a kategóriának nincs kézzel írt időtartam-felirata, a szolgáltatásai időtartamából (pl. „30–90 min”)
+  const durOf = (catId: string) => {
+    const ds = services.filter((s) => s.categoryId === catId).map((s) => Number(s.duration) || 0).filter((d) => d > 0)
+    if (!ds.length) return ''
+    const lo = Math.min(...ds), hi = Math.max(...ds)
+    return lo === hi ? `${lo} min` : `${lo}–${hi} min`
+  }
+  const catRows = catSort.order.map((id) => categories.find((c) => c.id === id)).filter((c): c is CategoryVM => !!c).map((c) => ({ id: c.id, name: c.name, durationLabel: c.durationLabel || durOf(c.id), count: services.filter((s) => s.categoryId === c.id).length }))
 
   // ── üres állapot (8.2): a szakma minta-szolgáltatásai ──
   const [tpl, setTpl] = useState(templates[0]?.[0] ?? '')
@@ -321,7 +328,7 @@ export function ServicesView({ salonId, services: initial, categories: initialCa
             </button>
           ))}
         </div>
-        {canManage && <Button variant="glass" icon={List} className="mt-4 w-full" onClick={() => { setCatSheet(false); setCatOpen(true) }}>Kategóriák kezelése</Button>}
+        {canManage && <Button variant="cell" icon={List} className="mt-4 w-full" onClick={() => { setCatSheet(false); setCatOpen(true) }}>Kategóriák kezelése</Button>}
       </PopupModal>
     </div>
   )

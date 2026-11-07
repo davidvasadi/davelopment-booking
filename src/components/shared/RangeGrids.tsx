@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { Avatar, Button, Card, IconButton, IconCircle, Pill, blockTone } from '@/components/ui-kit'
+import { Avatar, Button, Card, IconButton, IconCircle, Pill, blockTone, MarqueeText } from '@/components/ui-kit'
 import { MiniBar } from '@/components/blocks/charts'
 import { DayHead } from '@/components/blocks/calendar'
 import { hhmmToMinutes } from '@/lib/utils'
@@ -122,8 +122,9 @@ export function RoomWeekCell({ count, pax, pct, occasions, occIcon, onOpen }: { 
   return (
     <button type="button" onClick={onOpen} className="flex h-full w-full flex-col justify-between gap-2 text-left outline-none">
       <span className="flex w-full items-start justify-between gap-1">
-        <span><span className="block text-ui-body text-ui-text">{count} foglalás</span><span className="block text-ui-label text-ui-muted">{pax} fő</span></span>
-        {occasions > 0 && <span className="flex items-center gap-1 text-ui-label text-ui-muted">{occIcon}{occasions}</span>}
+        {/* keskeny (mobil) cellában a szöveg megy össze, az alkalom-jelzés a cellán belül marad (nem csúszik ki) */}
+        <span className="min-w-0"><span className="block text-ui-body text-ui-text">{count} foglalás</span><span className="block text-ui-label text-ui-muted">{pax} fő</span></span>
+        {occasions > 0 && <span className="flex shrink-0 items-center gap-0.5 text-ui-label text-ui-muted">{occIcon}{occasions > 1 && occasions}</span>}
       </span>
       {pct != null && <MiniBar pct={pct} hi={pct >= 95} className="w-full" />}
     </button>
@@ -137,7 +138,7 @@ export function WeekChips({ chips, onOpen, onMore }: { chips: WeekChip[]; onOpen
     <>
       {shown.map((c) => (
         <button key={c.id} type="button" onClick={() => onOpen(c.id)} className={`flex w-full items-center gap-1 overflow-hidden whitespace-nowrap rounded-ui-control px-1.5 py-1 text-left text-ui-label outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20 ${c.tone}`}>
-          <span className="opacity-60">{c.time}</span><span className="truncate">{c.name}</span>
+          <span className="opacity-60">{c.time}</span><MarqueeText>{c.name}</MarqueeText>
         </button>
       ))}
       {chips.length > 3 && <button type="button" onClick={onMore} className="block w-full"><Pill tone="cell" size="sm" className="w-full justify-center">+{chips.length - 2} további</Pill></button>}
@@ -198,7 +199,7 @@ export function WeekHours({ days, today, closed, items, openMin, closeMin, nowMi
                     className={`absolute z-[1] flex flex-col justify-between overflow-hidden rounded-ui-control p-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/30 ${x.tone}`}
                     style={{ top: `calc(${top(hhmmToMinutes(x.start))}% + 1px)`, height: `calc(${top(hhmmToMinutes(x.end)) - top(hhmmToMinutes(x.start))}% - 2px)`, left: lanes > 1 ? `calc(${(l / lanes) * 100}% + 3px)` : '3px', width: lanes > 1 ? `calc(${100 / lanes}% - 6px)` : 'calc(100% - 6px)' }}
                   >
-                    <span className="truncate text-ui-label font-medium">{x.title}</span>
+                    <MarqueeText className="text-ui-label font-medium">{x.title}</MarqueeText>
                     {x.who && <Avatar size="xs" src={x.who.img ?? null} name={x.who.name} className="h-4 w-4 ring-1 ring-white/60" />}
                   </button>
                 )

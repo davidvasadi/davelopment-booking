@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, CalendarDays, CalendarClock, Briefcase, Users, Clock, Settings, BarChart2, Lightbulb, HelpCircle, MapPin,
-  Store, TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone, Mail, Radio, Handshake,
+  TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone, Mail, Radio, Handshake,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type Capability } from '@/lib/permissions'

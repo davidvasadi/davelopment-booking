@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react'
 import { ArrowUpRight, Briefcase, CalendarDays, Clock, Coins, Megaphone, Wallet, X } from 'lucide-react'
-import { Avatar, Button, Card, CardTitle, IconButton, IconCircle, Kpi, ListRow, Meta, Note, Panel, Pill, SegmentBar, Segmented, SheetHandle, StatusPill } from '@/components/ui-kit'
+import { Avatar, Button, Card, CardTitle, IconButton, IconCircle, Kpi, ListRow, Meta, Note, Panel, Pill, SegmentBar, Segmented, SheetHandle, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { DarkLineChart, Legend, Ring, ShareRow, smooth, WeekBars, type WeekBar } from './charts'
 import type { StatsVM, Strip } from '@/lib/statsTypes'
 
@@ -333,7 +333,7 @@ export function BlockStrip({ cols, blocks, weights, className = '' }: Strip & { 
   return (
     <Card tone="cell" inner className={className}>
       <div className="grid gap-1.5 text-center" style={{ gridTemplateColumns: template }}>
-        {cols.map(([l, v]) => <div key={l} className="min-w-0"><div className="truncate text-ui-label text-ui-muted">{l}</div><div className="mt-1 truncate text-ui-title font-light text-ui-text">{v}</div></div>)}
+        {cols.map(([l, v]) => <div key={l} className="min-w-0"><MarqueeText className="text-ui-label text-ui-muted">{l}</MarqueeText><MarqueeText className="mt-1 text-ui-title font-light text-ui-text">{v}</MarqueeText></div>)}
       </div>
       <div className="mt-3 grid h-14 gap-1.5" style={{ gridTemplateColumns: template }}>
         {blocks.map((b, i) => <div key={`${b.text}-${i}`} className={`flex min-w-0 items-center justify-center overflow-hidden rounded-ui-inner px-1 text-center text-ui-label leading-tight ${tone[b.tone]}`} style={{ gridColumn: `span ${b.span}` }}>{b.text}</div>)}
