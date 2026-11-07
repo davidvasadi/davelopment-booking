@@ -1,6 +1,6 @@
 import { Banknote, Check, CreditCard, Download, Gift, Landmark, Link2, Mail, MoreHorizontal, Plus, TicketCheck, Wallet, X, ArrowUpRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Button, Card, CardTitle, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Note, OptionCard, Pagination, Panel, Pill, RowCheck, StatusPill, Table, Td, Textarea, Th, Tr, type Status } from '@/components/ui-kit'
+import { Button, Card, CardTitle, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Note, OptionCard, Pagination, Panel, Pill, RowCheck, StatusPill, Table, Td, Textarea, Th, Tr, type Status, MarqueeText } from '@/components/ui-kit'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { Switch } from '@/components/ui/toggle-switch'
 import { VCODE, VoucherCard, type VoucherBiz } from './money'
@@ -41,7 +41,7 @@ const SAMPLE_ROWS: VoucherTableRow[] = [
 
 /** 12.1: a táblázat — a kód alatt a típus, a vásárló alatt ki állította ki, az összeg előtt a fizetés ikonja; a függő sorban a
  *  link másolása. A megnyitott sor sárga, a kijelölt fehér. */
-export function VoucherTable({ rows = SAMPLE_ROWS, openKey = 'a', selected = [], onOpen, onToggle, onToggleAll, onCopyLink, page = 1, pages = 13, label = '1–5 / 64', onPage, empty, fill = false, th, className = '' }: {
+export function VoucherTable({ more, rows = SAMPLE_ROWS, openKey = 'a', selected = [], onOpen, onToggle, onToggleAll, onCopyLink, page = 1, pages = 13, label = '1–5 / 64', onPage, empty, fill = false, th, className = '' }: { /** görgetésre töltés a görgetett tábla végén (LoadMoreSentinel) */ more?: React.ReactNode;
   rows?: VoucherTableRow[]
   openKey?: string | null
   selected?: string[]
@@ -84,6 +84,7 @@ export function VoucherTable({ rows = SAMPLE_ROWS, openKey = 'a', selected = [],
                 </Tr>
               )
             })}
+            {more && <Tr><Td colSpan={10} className="p-0">{more}</Td></Tr>}
           </tbody>
         </Table>
       )}
@@ -125,7 +126,7 @@ export function VoucherDetail({ v = SAMPLE_DETAIL, restaurant = false, biz, onRe
       <Card className="mt-[5px]">
         <div className="flex items-center justify-between"><CardTitle>Részletek</CardTitle><StatusPill status={V_STATUS[v.status].pill}>{V_STATUS[v.status].label}</StatusPill></div>
         <div className="mt-2">
-          {v.rows.map(([k, val]) => <FieldRow key={k} label={k}><span className="block min-w-0 truncate text-right text-ui-body text-ui-text">{val}</span></FieldRow>)}
+          {v.rows.map(([k, val]) => <FieldRow key={k} label={k}><MarqueeText className="text-right text-ui-body text-ui-text">{val}</MarqueeText></FieldRow>)}
         </div>
         {extra}
         <div className="relative mt-3 flex gap-1.5">
@@ -366,7 +367,7 @@ export function WizPayStep({ stripe = true, invoicing = { ok: true, label: 'Öss
 export function WizConfirmStep({ rows = [['Utalvány', 'Ajándék 20 · 20 000 Ft'], ['Vásárló', 'Kovács Anna'], ['Megajándékozott', 'Kovács Lili'], ['Fizetés', 'Bankkártya, helyben']], invoice = true, onInvoice, invoiceHint = 'Számlázz.hu · e-mailben megy ki', invoiceDisabled = false }: { rows?: [string, React.ReactNode][]; invoice?: boolean; onInvoice?: (on: boolean) => void; invoiceHint?: string; invoiceDisabled?: boolean }) {
   return (
     <div>
-      {rows.map(([k, v]) => <FieldRow key={k} label={k}><span className="block min-w-0 truncate text-right text-ui-body text-ui-text">{v}</span></FieldRow>)}
+      {rows.map(([k, v]) => <FieldRow key={k} label={k}><MarqueeText className="text-right text-ui-body text-ui-text">{v}</MarqueeText></FieldRow>)}
       <FieldRow label="Számla" hint={invoiceHint}>{onInvoice ? <Switch checked={invoice} disabled={invoiceDisabled} onChange={onInvoice} ariaLabel="Számla" /> : <DesignSwitch defaultOn={invoice} />}</FieldRow>
     </div>
   )

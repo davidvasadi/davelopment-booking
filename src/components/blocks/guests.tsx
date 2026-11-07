@@ -1,7 +1,8 @@
 import { AV } from './assets'
 import { GuestTierPill } from './guest-tier'
+import { FilterPopover } from './filter-popover'
 import { Ban, CalendarDays, Clock, Download, FileText, Mail, MessageSquare, MoreHorizontal, Pencil, Phone, Star, Trash2, UserRound } from 'lucide-react'
-import { Avatar, Button, Card, CardTitle, Checkbox, Field, FieldRow, IconButton, Input, ListRow, Meta, Modal, Note, OptionCard, Pagination, Panel, Pill, RowCheck, SearchField, Segmented, Select, StatusPill, Table, TaskRow, Td, Textarea, Th, Tr } from '@/components/ui-kit'
+import { Button, Card, CardTitle, Checkbox, Field, FieldRow, IconButton, Input, ListRow, Meta, Modal, Note, OptionCard, Pagination, Panel, Pill, RowCheck, SearchField, Segmented, Select, StatusPill, Table, TaskRow, Td, Textarea, Th, Tr, MarqueeText } from '@/components/ui-kit'
 import GuestMapClient from '@/components/dashboard/GuestMapClient'
 import type { CountryBucket, GuestTier } from '@/lib/guests'
 import type { GuestVM } from '@/lib/guestsTypes'
@@ -17,7 +18,6 @@ import { OccasionBadge } from '@/components/shared/OccasionBadge'
 /* Vendégek kártyái — a /design 7.1–7.8, az élő Vendégek oldal és a landing „Vendégek” funkció-oldala is ezeket
  * mutatja. Props nélkül a mintaadattal; élőben az adatokkal és a kezelőkkel. */
 
-const TIER: Record<GuestTier, { label: string; tone: 'dark' | 'yellow' | 'cell' }> = { 3: { label: 'Törzsvendég', tone: 'dark' }, 2: { label: 'Visszatérő', tone: 'yellow' }, 1: { label: 'Új', tone: 'cell' } }
 const thousands = (n: number) => Math.round(n).toLocaleString('hu-HU')
 /** „Okt. 28.” */
 export const dayShort = (ymd: string | null) => { if (!ymd) return '—'; const [, m, d] = ymd.slice(0, 10).split('-').map(Number); return `${MONTHS_SHORT[m - 1]} ${d}.` }
@@ -143,18 +143,25 @@ export function GuestToolbar({ value, onChange, periodLabel, onExport }: { value
   const set = (p: Partial<GuestFilters>) => onChange?.({ ...v, ...p })
   const live = !!onChange
   return (
-    <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2">
-      <Segmented options={['Mind', 'Ebben a hónapban', periodLabel ?? 'Adott nap']} active={v.period} onSelect={live ? (i) => set({ period: i }) : undefined} />
-      {live ? <SearchField className="w-[220px]" value={v.query} onChange={(q) => set({ query: q })}>Név, telefon, e-mail, ország</SearchField> : <SearchField className="w-[220px]">Név, telefon, e-mail, ország</SearchField>}
-      <Select toolbar value={live ? v.tier : undefined} defaultValue={live ? undefined : v.tier} onChange={live ? (e) => set({ tier: e.target.value }) : undefined} className="w-[160px]" aria-label="Szint">
-        <option value="all">Minden szint</option><option value="3">Törzsvendég</option><option value="2">Visszatérő</option><option value="1">Új</option>
-      </Select>
-      <Select toolbar value={live ? v.status : undefined} defaultValue={live ? undefined : v.status} onChange={live ? (e) => set({ status: e.target.value }) : undefined} className="w-[160px]" aria-label="Állapot">
-        <option value="all">Minden állapot</option><option value="active">Aktív</option><option value="blocked">Tiltott</option>
-      </Select>
-      <Select toolbar value={live ? v.sort : undefined} defaultValue={live ? undefined : v.sort} onChange={live ? (e) => set({ sort: e.target.value }) : undefined} className="w-[190px]" aria-label="Rendezés">
-        <option value="last">Utolsó látogatás</option><option value="name">Név (A–Z)</option><option value="visits">Látogatásszám</option><option value="spend">Költés</option>
-      </Select>
+    // egy sor: kereső, mellette a szűrő-gomb (időszak, szint, állapot, rendezés a panelben), jobbra az export
+    <div className="flex items-center gap-1.5 px-2 pb-2">
+      {live ? <SearchField className="w-[280px] max-w-full" value={v.query} onChange={(q) => set({ query: q })}>Név, telefon, e-mail, ország</SearchField> : <SearchField className="w-[280px] max-w-full">Név, telefon, e-mail, ország</SearchField>}
+      <FilterPopover dot={v.period !== 0 || v.tier !== 'all' || v.status !== 'all'} onReset={live ? () => set({ period: 0, tier: 'all', status: 'all', sort: 'last' }) : undefined}>
+        <Meta>Időszak</Meta>
+        <Segmented full tone="cell" className="mt-1.5" options={['Mind', 'Ebben a hónapban', periodLabel ?? 'Adott nap']} active={v.period} onSelect={live ? (i) => set({ period: i }) : undefined} />
+        <Meta className="mt-4">Szint</Meta>
+        <Select value={live ? v.tier : undefined} defaultValue={live ? undefined : v.tier} onChange={live ? (e) => set({ tier: e.target.value }) : undefined} className="mt-1.5" aria-label="Szint">
+          <option value="all">Minden szint</option><option value="3">Törzsvendég</option><option value="2">Visszatérő</option><option value="1">Új</option>
+        </Select>
+        <Meta className="mt-4">Állapot</Meta>
+        <Select value={live ? v.status : undefined} defaultValue={live ? undefined : v.status} onChange={live ? (e) => set({ status: e.target.value }) : undefined} className="mt-1.5" aria-label="Állapot">
+          <option value="all">Minden állapot</option><option value="active">Aktív</option><option value="blocked">Tiltott</option>
+        </Select>
+        <Meta className="mt-4">Rendezés</Meta>
+        <Select value={live ? v.sort : undefined} defaultValue={live ? undefined : v.sort} onChange={live ? (e) => set({ sort: e.target.value }) : undefined} className="mt-1.5" aria-label="Rendezés">
+          <option value="last">Utolsó látogatás</option><option value="name">Név (A–Z)</option><option value="visits">Látogatásszám</option><option value="spend">Költés</option>
+        </Select>
+      </FilterPopover>
       <IconButton icon={Download} label="Export (CSV)" className="ml-auto" onClick={onExport} />
     </div>
   )
@@ -162,9 +169,11 @@ export function GuestToolbar({ value, onChange, periodLabel, onExport }: { value
 
 /** 7.2: a vendégtábla — szint pill (törzsvendég sötét, visszatérő sárga, új szürke), a tiltott halványan, piros jelzéssel;
  *  a megnyitott sor sárga, a kijelölt fehér; alul lapozó. Étteremnél a Költés helyett az átlagos létszám (7.8). */
-export function GuestTable({ rows = SAMPLE_GUESTS, toolbar, restaurant = false, openKey = 'h', selected = ['a'], onOpen, onToggle, onToggleAll, page = 1, pages = 129, label = '1–10 / 1 284', onPage, empty, fill = false, th, className = '' }: {
+export function GuestTable({ rows = SAMPLE_GUESTS, toolbar, restaurant = false, openKey = 'h', selected = ['a'], onOpen, onToggle, onToggleAll, page = 1, pages = 129, label = '1–10 / 1 284', onPage, empty, fill = false, th, more, className = '' }: {
   rows?: GuestTableRow[]
   toolbar?: React.ReactNode
+  /** a lista végére (a lapozó elé): görgetésre töltés (LoadMoreSentinel) */
+  more?: React.ReactNode
   /** rendezés az oszlopcímre kattintva (a szerver rendez, `/api/guests` `sort` + `dir`) */
   th?: (key: GuestSortKey) => { sort: 'asc' | 'desc' | null; onSort: () => void }
   restaurant?: boolean
@@ -193,7 +202,9 @@ export function GuestTable({ rows = SAMPLE_GUESTS, toolbar, restaurant = false, 
             {rows.map((g) => {
               const open = g.key === openKey
               return (
-                <Tr key={g.key} state={open ? 'open' : selected.includes(g.key) ? 'selected' : g.blocked ? 'muted' : 'default'} onClick={onOpen ? () => onOpen(g.key) : undefined}>
+                <Tr key={g.key} state={open ? 'open' : selected.includes(g.key) ? 'selected' : g.blocked ? 'muted' : 'default'} onClick={onOpen ? () => onOpen(g.key) : undefined}
+                  // fehér sorok, mint a Munkatársak listájában (a megnyitott sárga)
+                  className={open ? undefined : '[&>td]:bg-white [&:hover>td]:bg-white/60'}>
                   <Td><RowCheck checked={selected.includes(g.key)} onToggle={onToggle ? () => onToggle(g.key) : undefined} /></Td>
                   <Td><span className="flex items-center gap-2.5">{g.name}{g.blocked && <StatusPill status="bad">Tiltott</StatusPill>}</span></Td>
                   <Td><GuestTierPill tier={g.tier} /></Td>
@@ -202,6 +213,8 @@ export function GuestTable({ rows = SAMPLE_GUESTS, toolbar, restaurant = false, 
                 </Tr>
               )
             })}
+            {/* görgetésre töltés: a görgetett táblán BELÜL, az utolsó sor után */}
+            {more && <Tr><Td colSpan={8} className="p-0">{more}</Td></Tr>}
           </tbody>
         </Table>
       )}
@@ -239,7 +252,7 @@ export function GuestProfilePanel({ guest, restaurant = false, bare = false, act
   return (
     <Box className={className}>
       <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0"><CardTitle className="truncate">{g.name}</CardTitle><span className="mt-1 flex flex-wrap gap-1"><GuestTierPill tier={g.tier} />{g.blocked && <StatusPill status="bad">Tiltott</StatusPill>}</span></span>
+        <span className="min-w-0"><CardTitle><MarqueeText>{g.name}</MarqueeText></CardTitle><span className="mt-1 flex flex-wrap gap-1"><GuestTierPill tier={g.tier} />{g.blocked && <StatusPill status="bad">Tiltott</StatusPill>}</span></span>
         {actions ?? <span className="flex gap-1"><IconButton icon={Pencil} label="Szerkesztés" variant="ghost" size="sm" /><IconButton icon={MoreHorizontal} label="Továbbiak" variant="ghost" size="sm" /></span>}
       </div>
       {g.blocked && <Note warn className="mt-3">Tiltólistán{g.blockReason ? ` — ${g.blockReason}` : ''}. Nem tud online foglalni.</Note>}
@@ -249,11 +262,11 @@ export function GuestProfilePanel({ guest, restaurant = false, bare = false, act
         {!g.phone && !g.email && <Meta>Nincs elérhetőség</Meta>}
       </div>
       <div className="mt-4 grid grid-cols-3 gap-1.5">
-        {stats.map(([v, t]) => <Card key={t} tone="cell" inner pad="sm"><div className="truncate text-ui-title font-light text-ui-text">{v}</div><Meta className="text-ui-label">{t}</Meta></Card>)}
+        {stats.map(([v, t]) => <Card key={t} tone="cell" inner pad="sm"><MarqueeText className="text-ui-title font-light text-ui-text">{v}</MarqueeText><Meta className="text-ui-label">{t}</Meta></Card>)}
       </div>
       {g.next && (
         <Card tone="dark" inner pad="sm" className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="min-w-0"><Meta dark className="text-ui-label">Közelgő foglalás</Meta><span className="block truncate text-ui-body">{[dayLong(g.next.date), g.next.time, g.next.what].filter(Boolean).join(' · ')}</span>{g.next.note && <span className="mt-1 block text-ui-meta text-white/70">„{g.next.note}”</span>}</span>
+          <span className="min-w-0"><Meta dark className="text-ui-label">Közelgő foglalás</Meta><MarqueeText className="text-ui-body">{[dayLong(g.next.date), g.next.time, g.next.what].filter(Boolean).join(' · ')}</MarqueeText>{g.next.note && <span className="mt-1 block text-ui-meta text-white/70">„{g.next.note}”</span>}</span>
           {restaurant && g.next.occasion
             ? (guest ? <OccasionBadge occasion={g.next.occasion} icon={g.next.occasionIcon} /> : <OccBadge occ="evfordulo" />)
             : <IconButton icon={CalendarDays} label="Megnyitás" variant="onDark" size="sm" onClick={onOpenNext} />}
@@ -332,34 +345,35 @@ export function GuestEditModal({ stacked = false, guest, value, onChange, dateIn
           </div>
           <Field label="Belső jegyzet" hint="Csak a személyzet látja."><Textarea value={live ? v.note : undefined} defaultValue={live ? undefined : v.note} readOnly={!live} onChange={live ? (e) => set({ note: e.target.value }) : undefined} className="min-h-[72px]" /></Field>
           {live && v.billing ? (
-            <div className="space-y-3 rounded-ui-inner bg-ui-cell p-4">
-              <div className="flex items-center justify-between"><span className="text-ui-row text-ui-text">Számlázási profil</span><Button variant="ghost" size="sm" onClick={() => set({ billing: null })}>Törlés</Button></div>
+            // háttér nélkül (a szürke dobozban a szürke mezők szétestek) — fent szaggatott vonal választja el
+            <div className="space-y-3 border-t border-dashed border-ui-divider pt-4">
+              <div className="flex items-center justify-between"><span className="text-ui-row text-ui-text">Számlázási profil</span><Button variant="danger" size="sm" onClick={() => set({ billing: null })}>Törlés</Button></div>
               <div className="grid grid-cols-2 gap-3">{bill('name', 'Számlázási név')}{bill('taxNumber', 'Adószám')}</div>
               {bill('email', 'Számlaküldési e-mail')}
               <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">{bill('postalCode', 'Irányítószám')}{bill('city', 'Település')}</div>
               {bill('street', 'Utca, házszám')}
             </div>
           ) : (
-            <FieldRow boxed label="Számlázási profil" hint="Cégnek adószámmal — nincs megadva"><Button variant="glass" size="sm" onClick={live ? () => set({ billing: { name: '', taxNumber: '', email: '', postalCode: '', city: '', street: '' } }) : undefined}>Megadás</Button></FieldRow>
+            <FieldRow boxed label="Számlázási profil" hint="Cégnek adószámmal — nincs megadva"><Button variant="cell" size="sm" onClick={live ? () => set({ billing: { name: '', taxNumber: '', email: '', postalCode: '', city: '', street: '' } }) : undefined}>Megadás</Button></FieldRow>
           )}
         </div>
         <div className="space-y-[5px]">
           <Meta className="mb-1">A vendég</Meta>
+          {/* avatar nélkül (kérésre): név és szint */}
           <Card tone="cell" inner className="flex items-center gap-3">
-            <Avatar size="lg" src={g.avatarUrl} name={g.name} />
-            <span className="min-w-0"><span className="block truncate text-ui-row text-ui-text">{g.name}</span><GuestTierPill tier={g.tier} className="mt-1" /></span>
+            <span className="min-w-0"><MarqueeText className="text-ui-row text-ui-text">{g.name}</MarqueeText><GuestTierPill tier={g.tier} className="mt-1" /></span>
           </Card>
           <Card tone="dark" inner>
             <div className="grid grid-cols-3 gap-2">
               {([[String(g.visits), 'látogatás'], [g.spend ? g.spend.replace(/ 000 Ft$/, ' e') : g.avgPax ?? '—', g.spend ? 'költés' : 'átl. létszám'], [String(g.noShow), 'nem jött']] as const).map(([val, t]) => (
-                <div key={t}><div className="truncate text-ui-title font-light">{val}</div><Meta dark className="text-ui-label">{t}</Meta></div>
+                <div key={t}><MarqueeText className="text-ui-title font-light">{val}</MarqueeText><Meta dark className="text-ui-label">{t}</Meta></div>
               ))}
             </div>
             {g.next && <div className="mt-3 border-t border-white/10 pt-3 text-ui-meta text-white/70">Közelgő: {[dayLong(g.next.date), g.next.time].filter(Boolean).join(' · ')}</div>}
           </Card>
           {/* keskeny oszlop: egymás alatt (címke + magyarázat, alatta az érték), hogy ne törjön szét */}
-          <FieldRow boxed stacked label="Hírlevél" hint={nl.on ? `${nl.since ? `${nl.since.slice(0, 4)}. ${dayShort(nl.since)} óta` : 'Feliratkozott'} — a vendég adta meg` : 'Csak a vendég iratkozhat fel (a foglaláskor)'}><StatusPill status={nl.on ? 'ok' : 'neutral'}>{nl.on ? 'Feliratkozott' : 'Nem iratkozott fel'}</StatusPill></FieldRow>
-          {imp && <FieldRow boxed stacked label="Importból (más rendszerből)" hint={[imp.visits != null ? `${imp.visits} látogatás` : null, imp.cancels ? `${imp.cancels} lemondás` : null, imp.revenue ? `${thousands(imp.revenue)} Ft` : null].filter(Boolean).join(' · ')}><StatusPill status="neutral">Átvéve</StatusPill></FieldRow>}
+          <FieldRow boxed stacked label="Hírlevél" hint={nl.on ? `${nl.since ? `${nl.since.slice(0, 4)}. ${dayShort(nl.since)} óta` : 'Feliratkozott'} — a vendég adta meg` : 'Csak a vendég iratkozhat fel (a foglaláskor)'}><StatusPill status={nl.on ? 'ok' : 'bad'}>{nl.on ? 'Feliratkozott' : 'Nem iratkozott fel'}</StatusPill></FieldRow>
+          {imp && <FieldRow boxed stacked label="Importból (más rendszerből)" hint={[imp.visits != null ? `${imp.visits} látogatás` : null, imp.cancels ? `${imp.cancels} lemondás` : null, imp.revenue ? `${thousands(imp.revenue)} Ft` : null].filter(Boolean).join(' · ')}><StatusPill status="ok">Átvéve</StatusPill></FieldRow>}
         </div>
       </div>
     </Modal>

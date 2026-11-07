@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowRight, CalendarDays, GitCommitVertical, LayoutGrid, Link2, List, Plus, Search, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
-import { Avatar, Button, IconButton, IconCircle, Input, ListRow, Marquee, Meta, OptionCard, SearchField, PageHead, Panel, Pill, SegmentBar, Segmented, type Segment } from '@/components/ui-kit'
+import { ArrowRight, CalendarDays, Download, GitCommitVertical, LayoutGrid, Link2, List, Plus, Printer, Search, Settings2, X, type LucideIcon } from 'lucide-react'
+import { Avatar, Button, IconButton, IconCircle, ListRow, Marquee, Meta, OptionCard, SearchField, PageHead, Panel, Pill, SegmentBar, Segmented, type Segment } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { MonthPicker } from './DatePickerPopover'
 import { readSavedView, writeSavedView } from '@/lib/savedView'
 import type { BookingSearchHit } from '@/app/api/bookings/search/route'
 import type { BookingsRange } from './BookingsDateNav'
+import { useExclusivePopover } from '@/lib/exclusivePopover'
 
 /** Szűrő-állapot: munkatárs (szalon) vagy terem (étterem) id-k, státusz, forrás, keresés (vendég neve / telefon). */
 export type BookingFilter = { who: string[]; status: string | null; source: string | null; q: string }
@@ -77,7 +78,14 @@ export function BookingsHead({ dateNav, views, view, onView, range, onRange, dat
   kpis?: React.ReactNode
 }) {
   const [searchOpen, setSearchOpen] = useState(!!filter.q)
+  const searchOpenRef = useRef(searchOpen); searchOpenRef.current = searchOpen
+  const filterRef = useRef(filter); filterRef.current = filter
+  const onFilterRef = useRef(onFilter); onFilterRef.current = onFilter
   const [filtersOpen, setFiltersOpen] = useState(false)
+  useExclusivePopover(filtersOpen, () => setFiltersOpen(false))
+  const searchInput = useRef<HTMLInputElement>(null)
+  const filterAnchor = useRef<HTMLSpanElement>(null)
+  const [filterLeft, setFilterLeft] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   // „Egyedi” időszak: csak ekkor nyílik ki a naptár a lapon (egy napot választ)
   const [custom, setCustom] = useState(false)
@@ -142,11 +150,22 @@ export function BookingsHead({ dateNav, views, view, onView, range, onRange, dat
   // a felső sáv ikonja (mobil) is ezt a lapot nyitja
   useEffect(() => {
     const open = () => setSheetOpen(true)
-    const search = () => setSearchOpen(true)
+    // a nagyító ki-be kapcsol: másodszorra törli és bezárja (mint az X)
+    const search = () => { if (searchOpenRef.current) { onFilterRef.current({ ...filterRef.current, q: '' }); setSearchOpen(false) } else setSearchOpen(true) }
     window.addEventListener('davelopment:open-bookings-view', open)
     window.addEventListener('davelopment:open-bookings-search', search)
     return () => { window.removeEventListener('davelopment:open-bookings-view', open); window.removeEventListener('davelopment:open-bookings-search', search) }
   }, [])
+
+  // nyomtatás: mindig a Lista nézet (az információ számít, nem a design) — előtte átvált, utána visszaáll
+  const printList = () => {
+    const li = views?.indexOf('Lista') ?? -1
+    if (!onView || li < 0 || view === li) { setTimeout(() => window.print(), 50); return }
+    const prev = view ?? 0
+    onView(li)
+    window.addEventListener('afterprint', () => onView(prev), { once: true })
+    setTimeout(() => window.print(), 600)
+  }
 
   return (
     <>
@@ -154,43 +173,67 @@ export function BookingsHead({ dateNav, views, view, onView, range, onRange, dat
         title="Foglalások"
         actions={<>
           {/* mobilon napi nézetben a dátum a napcsíkon van; hét / hónap nézetben itt marad */}
-          <span className={`flex flex-wrap items-center gap-1.5 ${range === 'day' ? 'max-lg:hidden' : ''}`}>{dateNav}</span>
-          {views && onView && <Segmented options={views} active={view ?? 0} onSelect={onView} className="hidden lg:inline-flex" />}
-          <span className="ml-1.5 hidden items-center gap-1.5 lg:flex">
-            {searchOpen ? (
-              <span className="relative">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ui-muted" />
-                <Input autoFocus value={filter.q} onChange={(e) => onFilter({ ...filter, q: e.target.value })} placeholder="Vendég neve vagy telefon…" className="w-60 bg-white/70 pl-10 pr-10" />
-                <button type="button" aria-label="Keresés bezárása" onClick={() => { onFilter({ ...filter, q: '' }); setSearchOpen(false) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-ui-muted hover:text-ui-text"><X className="h-4 w-4" /></button>
-                {hitList && <Panel className="ui-pop-in absolute right-0 top-full z-50 mt-2 w-[360px]">{hitList}</Panel>}
+          <span className={`flex flex-wrap items-center gap-1.5 print:!hidden ${range === 'day' ? 'max-lg:hidden' : ''}`}>{dateNav}</span>
+          {/* nyomtatáskor a lapozó helyett csak a nap, szövegként */}
+          {date && <span className="hidden text-ui-title text-ui-text print:!inline">{new Date(`${date}T12:00:00`).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</span>}
+          <span className="ml-1.5 hidden items-center gap-1.5 lg:flex print:!hidden">
+            {/* EGY elem: a kerek kereső gomb maga nyúlik ki mezővé (és húzódik vissza) — nincs csere, nincs villanás */}
+            {/* zárt állapotban ugyanaz a gombnyomás-rugó, mint a többi ikon-gombon (ui-press); nyitva nem — a mezőbe kattintva ne ugráljon */}
+            <span className={`relative block ${searchOpen ? '' : 'ui-press'}`}>
+              <span className={`relative flex h-11 items-center overflow-hidden rounded-full bg-white/70 text-ui-body text-ui-text transition-[width] duration-300 ease-out ${searchOpen ? 'w-60' : 'w-11'}`}>
+                <button type="button" aria-label="Keresés (vendég, telefon)" title="Keresés (vendég, telefon)" onClick={() => { if (!searchOpen) { setSearchOpen(true); setTimeout(() => searchInput.current?.focus(), 60) } }}
+                  className={`absolute inset-y-0 left-0 flex w-11 items-center justify-center outline-none ${searchOpen ? 'pointer-events-none text-ui-muted' : 'hover:bg-white/70'}`}>
+                  <Search className="h-4 w-4" strokeWidth={1.8} />
+                </button>
+                <input ref={searchInput} tabIndex={searchOpen ? 0 : -1} value={filter.q} onChange={(e) => onFilter({ ...filter, q: e.target.value })} placeholder="Vendég neve vagy telefon…"
+                  className={`h-full min-w-0 flex-1 bg-transparent pl-10 pr-9 outline-none placeholder:text-ui-muted transition-opacity duration-200 ${searchOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`} />
+                {searchOpen && <button type="button" aria-label="Keresés bezárása" onClick={() => { onFilter({ ...filter, q: '' }); setSearchOpen(false) }} className="absolute right-3 top-1/2 -translate-y-1/2 text-ui-muted hover:text-ui-text"><X className="h-4 w-4" /></button>}
               </span>
-            ) : <IconButton icon={Search} label="Keresés (vendég, telefon)" onClick={() => setSearchOpen(true)} />}
+              {searchOpen && hitList && <Panel className="ui-pop-in absolute right-0 top-full z-50 mt-2 w-[360px]">{hitList}</Panel>}
+            </span>
 
-            <span className="relative">
-              <Button variant="glass" icon={SlidersHorizontal} onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen}>
-                Szűrők{count > 0 && <IconCircle size="xs" className="ml-0.5">{count}</IconCircle>}
-              </Button>
+            {/* csak ikon (aktív szűrőnél pöttyel); a panel arra az oldalra nyílik, ahol elfér (ne lógjon ki a képernyőről) */}
+            <span ref={filterAnchor} className="relative">
+              <IconButton icon={Settings2} label="Szűrők, nyomtatás, export" dot={count > 0} onClick={() => { const r = filterAnchor.current?.getBoundingClientRect(); setFilterLeft(!!r && r.right < 580); setFiltersOpen((v) => !v) }} aria-expanded={filtersOpen} />
               {filtersOpen && (
                 <>
                   <span className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} aria-hidden />
-                  <Panel className="ui-pop-in absolute right-0 top-full z-50 mt-2 w-[340px]">
-                    <div className="flex items-center justify-between"><span className="text-ui-title font-light text-ui-text">Szűrők</span><Button variant="ghost" size="sm" onClick={() => onFilter({ ...filter, who: [], status: null, source: null })}>Törlés</Button></div>
+                  {/* két oszlop, hogy ne nyúljon le a képernyő aljáig: balra a nézet + nyomtatás / export, jobbra a szűrők */}
+                  <Panel size="md" className={`ui-pop-in absolute top-full z-50 mt-2 grid !w-[600px] grid-cols-2 gap-6 ${filterLeft ? 'left-0 origin-top-left' : 'right-0 origin-top-right'}`}>
+                    <div className="flex flex-col">
+                    {/* a bal oszlop címe — ugyanúgy, mint a jobb oldali „Szűrők” (egy magasságban) */}
+                    <div className="mb-4 flex h-9 items-center"><span className="text-ui-title font-light text-ui-text">Nézet</span></div>
+                    {range && onRange && <><Meta>Időszak</Meta><Segmented full tone="cell" className="mb-4 mt-1.5" options={['Nap', 'Hét', 'Hónap']} active={RANGES.indexOf(range)} onSelect={(i) => onRange(RANGES[i])} /></>}
+                    {views && onView && <><Meta>Megjelenés</Meta><Segmented full tone="cell" className="mb-4 mt-1.5" options={views} active={view ?? 0} onSelect={onView} /></>}
+                    {/* a korábbi ⋯ menü (nyomtatás, export) — helyet spórolva ide költözött */}
+                    {exportButton && (
+                      <div className="mt-auto flex gap-1.5 pt-2">
+                        <Button variant="cell" className="flex-1" icon={Printer} onClick={() => { setFiltersOpen(false); printList() }}>Nyomtatás</Button>
+                        <Button variant="cell" className="flex-1" icon={Download} onClick={() => { setFiltersOpen(false); window.dispatchEvent(new Event('davelopment:export-bookings-day')) }}>Export</Button>
+                      </div>
+                    )}
+                    </div>
+                    <div>
+                    <div className="flex items-center justify-between"><span className="text-ui-title font-light text-ui-text">Szűrők</span><Button variant="danger" size="sm" onClick={() => onFilter({ ...filter, who: [], status: null, source: null })}>Törlés</Button></div>
                     <FilterFields filter={filter} onFilter={onFilter} who={who} whoLabel={whoLabel} />
                     <Button className="mt-4 w-full" onClick={() => setFiltersOpen(false)}>Mutasd · {matchCount} foglalás</Button>
+                    </div>
                   </Panel>
                 </>
               )}
             </span>
-            {exportButton}
+            {/* a ⋯ gomb nélkül: csak az export-ablak és a mobil fejléc letöltés-ikonjának figyelője marad */}
+            {/* (a szerverről jövő elemet nem lehet átállítani, ezért rejtve marad; az export-ablak portálon nyílik, így látszik) */}
+            {exportButton && <span className="hidden">{exportButton}</span>}
             {onCreate && <Button variant="yellow" icon={Plus} onClick={onCreate}>Új foglalás</Button>}
           </span>
         </>}
-        bar={bar && <SegmentBar segments={bar} size="lg" />}
-        kpis={kpis && <span className="hidden lg:contents">{kpis}</span>}
+        bar={bar && <span className="print:hidden"><SegmentBar segments={bar} size="lg" /></span>}
+        kpis={kpis && <span className="hidden lg:contents print:!hidden">{kpis}</span>}
       />
       {/* mobil: a fejléc kereső-ikonja nyitja (vendég neve vagy telefon), X-szel bezárható */}
       {searchOpen && (
-        <div className="mb-3 flex items-center gap-1.5 lg:hidden">
+        <div className="ui-pop-in mb-3 flex items-center gap-1.5 lg:hidden">
           <SearchField autoFocus className="min-w-0 flex-1" value={filter.q} onChange={(v) => onFilter({ ...filter, q: v })}>Vendég neve vagy telefon…</SearchField>
           <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { onFilter({ ...filter, q: '' }); setSearchOpen(false) }} />
         </div>
@@ -215,7 +258,7 @@ export function BookingsHead({ dateNav, views, view, onView, range, onRange, dat
           <>
             <Meta className="mt-4">Időszak</Meta>
             {/* Nap / Hét / Hónap: választásra a lap bezárul; „Egyedi”: kinyílik a naptár, egy nap választható */}
-            <Segmented options={date && onDate ? ['Nap', 'Hét', 'Hónap', 'Egyedi'] : ['Nap', 'Hét', 'Hónap']} active={custom ? 3 : RANGES.indexOf(range)}
+            <Segmented tone="cell" options={date && onDate ? ['Nap', 'Hét', 'Hónap', 'Egyedi'] : ['Nap', 'Hét', 'Hónap']} active={custom ? 3 : RANGES.indexOf(range)}
               onSelect={(i) => { if (i === 3) { setCustom(true); return } onRange(RANGES[i]); closeSheet() }} className="mt-1.5" />
           </>
         )}
@@ -225,6 +268,13 @@ export function BookingsHead({ dateNav, views, view, onView, range, onRange, dat
         <FilterFields filter={filter} onFilter={onFilter} who={who} whoLabel={whoLabel} gap="mt-4" />
         {/* „Mentés”: a beállított nézet és szűrők ezen az eszközön megmaradnak — legközelebb ezzel nyílik */}
         <Button className="mt-5 w-full" onClick={saveView}>Mentés · {matchCount} foglalás</Button>
+        {/* mint desktopon a Szűrők panel alján: nyomtatás (Lista nézetben) és export */}
+        {exportButton && (
+          <div className="mt-1.5 flex gap-1.5">
+            <Button variant="cell" className="flex-1" icon={Printer} onClick={() => { closeSheet(); printList() }}>Nyomtatás</Button>
+            <Button variant="cell" className="flex-1" icon={Download} onClick={() => { closeSheet(); window.dispatchEvent(new Event('davelopment:export-bookings-day')) }}>Export</Button>
+          </div>
+        )}
       </PopupModal>
     </>
   )

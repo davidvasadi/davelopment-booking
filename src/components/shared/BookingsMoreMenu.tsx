@@ -5,11 +5,13 @@ import { Download, MoreHorizontal, Printer } from 'lucide-react'
 import { IconButton, Menu, MenuItem } from '@/components/ui-kit'
 import { ExportDialog } from './ExportDialog'
 import { ymdLocal } from '@/lib/utils'
+import { useExclusivePopover } from '@/lib/exclusivePopover'
 
 /** A Foglalások fejlécének ⋯ menüje (design 6.1): nyomtatás és export. Az export a közös export-ablak (7.6) a nézett
  *  napokkal, „Foglalások”-ra állítva; mobilon a fejléc letöltés-ikonja (DashboardNav) is ezt nyitja. Kívülre kattintva zár. */
 export function BookingsMoreMenu({ days }: { days: string[] }) {
   const [open, setOpen] = useState(false)
+  useExclusivePopover(open, () => setOpen(false))
   const [exporting, setExporting] = useState(false)
   useEffect(() => {
     const on = () => setExporting(true)

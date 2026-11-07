@@ -15,6 +15,7 @@ import { countryName, flagEmoji, type CountryBucket } from '@/lib/guests'
 import { MONTHS_SHORT } from '@/lib/schedule'
 import { ymdLocal } from '@/lib/utils'
 import type { ArrivalVM, GuestListPage, GuestListRow, GuestVM } from '@/lib/guestsTypes'
+import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
 
 const thousands = (n: number) => Math.round(n).toLocaleString('hu-HU')
 
@@ -73,12 +74,28 @@ export function GuestsView({ restaurant = false, counts, total, domestic, foreig
     if (f.period === 2 && d) p.set('day', d)
     return p
   }
+  // a betöltött lista ettől az oldaltól kezdődik (görgetésre a következők hozzáfűződnek; lapozáskor újraindul)
+  const [startPage, setStartPage] = useState(initialList.page)
+  const [loadingMore, setLoadingMore] = useState(false)
   const load = async (f: GuestFilters, pg: number, d: string | null) => {
     const id = ++reqId.current
     const res = await fetch(`/api/guests?${qs(f, pg, d)}`, { credentials: 'include' }).catch(() => null)
     if (!res?.ok || id !== reqId.current) return
     const data = (await res.json()) as GuestListPage
     setList(data)
+    setPage(data.page)
+    setStartPage(data.page)
+  }
+  // görgetésre: a következő oldal hozzáfűzése (egyszerre egy kérés; szűrő-váltás közben érkező régi válasz eldobva)
+  const loadMore = async () => {
+    if (loadingMore || list.page >= list.pageCount) return
+    const id = reqId.current
+    setLoadingMore(true)
+    const res = await fetch(`/api/guests?${qs(filters, list.page + 1, day)}`, { credentials: 'include' }).catch(() => null)
+    setLoadingMore(false)
+    if (!res?.ok || id !== reqId.current) return
+    const data = (await res.json()) as GuestListPage
+    setList((prev) => ({ ...data, items: [...prev.items, ...data.items.filter((g) => !prev.items.some((x) => x.key === g.key))] }))
     setPage(data.page)
   }
   // oszlopcím-rendezés: ugyanaz a kulcs → fordít; új kulcs → a természetes iránya (név A–Z, a többi csökkenő)
@@ -233,7 +250,7 @@ export function GuestsView({ restaurant = false, counts, total, domestic, foreig
   }
 
   const rows = list.items.map((g) => toRow(g, restaurant))
-  const from = (list.page - 1) * 10 + 1
+  const from = (startPage - 1) * 10 + 1
   const label = list.total ? `${thousands(from)}–${thousands(Math.min(list.total, from + list.items.length - 1))} / ${thousands(list.total)}` : '0'
   const countries = buckets.length
   const actions = canManage && sel ? (
@@ -286,6 +303,7 @@ export function GuestsView({ restaurant = false, counts, total, domestic, foreig
             pages={list.pageCount}
             label={label}
             onPage={(p) => void load(filters, p, day)}
+            more={<LoadMoreSentinel hasMore={list.page < list.pageCount} loading={loadingMore} onMore={() => void loadMore()} />}
             empty={<Meta className="px-3 py-10 text-center">Nincs a szűrésnek megfelelő vendég.</Meta>}
           /></div></div>
           {profile}
@@ -304,7 +322,7 @@ export function GuestsView({ restaurant = false, counts, total, domestic, foreig
           onFilter={(i) => setFilters((f) => ({ ...f, tier: i === 1 ? '3' : i === 2 ? '1' : 'all', status: i === 3 ? 'blocked' : 'all' }))}
           rows={rows}
           onOpen={(k) => open(k, true)}
-          foot={list.pageCount > 1 ? <Pagination page={list.page} pages={list.pageCount} label={label} onPage={(p) => void load(filters, p, day)} className="px-2 pb-1 pt-2" /> : undefined}
+          foot={list.pageCount > 1 ? <><LoadMoreSentinel hasMore={list.page < list.pageCount} loading={loadingMore} onMore={() => void loadMore()} /><Pagination page={list.page} pages={list.pageCount} label={label} onPage={(p) => void load(filters, p, day)} className="px-2 pb-1 pt-2" /></> : undefined}
         />
       </div>
       <PopupModal open={mobileOpen && !!sel} onClose={() => setMobileOpen(false)} title={sel?.name ?? ''} subtitle={sel?.country ? countryName(sel.country) ?? undefined : undefined}>

@@ -7,7 +7,7 @@ import { Editable, ImageSlot } from './letter-edit'
 import { VoucherCard } from './money'
 import { DarkLineChart, Legend, MiniBar, WeekBars } from './charts'
 import { BIZ_LOGO, PoweredBy } from './brand'
-import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Meter, OptionCard, Pagination, Pill, RowCheck, SearchField, SegmentBar, Segmented, Select, StatusPill, Table, Td, Th, Tr } from '@/components/ui-kit'
+import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Meter, OptionCard, Pagination, Pill, RowCheck, SearchField, SegmentBar, Segmented, Select, StatusPill, Table, Td, Th, Tr, MarqueeText } from '@/components/ui-kit'
 
 /* Marketing kártyái — a /design 13.4, 13.6 és a landing „Marketing” funkció-oldala is ezeket mutatja. */
 
@@ -17,7 +17,7 @@ export function CampaignEmailCard({ restaurant = false, className = '' }: { rest
   <Card tone="white" pad="none" className={`flex flex-col overflow-hidden ${className}`}>
     <div className="flex items-center gap-2 border-b border-dashed border-ui-divider px-6 py-3.5">
       <Meta className="shrink-0">Tárgy:</Meta>
-      <span className="min-w-0 flex-1 truncate text-ui-body text-ui-text">Téli nyitvatartás — ünnepek alatt is várunk</span>
+      <MarqueeText className="flex-1 text-ui-body text-ui-text">Téli nyitvatartás — ünnepek alatt is várunk</MarqueeText>
       <Segmented options={['Desktop', 'Mobil']} active={0} />
     </div>
     <div className="flex items-center gap-2 px-6 pt-5">
@@ -45,7 +45,7 @@ export function CampaignEmailCard({ restaurant = false, className = '' }: { rest
 /** 13.6: kiküldött kampány eredménye — megnyitás-arány csík, szűrő, címzettenként megnyitva / nem. `mobile`: keskeny helyre
  *  (telefon, landing-kép, borító) — teljes szélességű váltó rövid feliratokkal, a lapozó felirat nélkül. */
 export type RecipientRow = { key: string; name: string; meta: string; opened: boolean }
-export function CampaignResults({ mobile = false, title = 'Őszi frissítés −15%', sentAt = 'Kiküldve Okt. 14. 10:00', opened = 239, total = 412, rows = ([['Kovács Anna', 'Okt. 14. 10:12', true], ['Tóth Bence', 'Okt. 14. 18:40', true], ['Gál Zsófia', '', false], ['Lukas Gruber', 'Okt. 15. 08:05', true]] as const).map(([n, t, o]) => ({ key: n, name: n, meta: o ? `megnyitotta ${t}` : 'még nem nyitotta meg', opened: o })), filter = 0, onFilter, query, onQuery, onCopy, page = 1, pages = 42, label = '1–10 / 412', onPage, className = '' }: {
+export function CampaignResults({ more, mobile = false, title = 'Őszi frissítés −15%', sentAt = 'Kiküldve Okt. 14. 10:00', opened = 239, total = 412, rows = ([['Kovács Anna', 'Okt. 14. 10:12', true], ['Tóth Bence', 'Okt. 14. 18:40', true], ['Gál Zsófia', '', false], ['Lukas Gruber', 'Okt. 15. 08:05', true]] as const).map(([n, t, o]) => ({ key: n, name: n, meta: o ? `megnyitotta ${t}` : 'még nem nyitotta meg', opened: o })), filter = 0, onFilter, query, onQuery, onCopy, page = 1, pages = 42, label = '1–10 / 412', onPage, className = '' }: { /** görgetésre töltés a lapozó előtt */ more?: React.ReactNode;
   mobile?: boolean; title?: string; sentAt?: string; opened?: number; total?: number; rows?: RecipientRow[]
   filter?: number; onFilter?: (i: number) => void; query?: string; onQuery?: (q: string) => void; onCopy?: () => void
   page?: number; pages?: number; label?: string; onPage?: (p: number) => void; className?: string
@@ -58,10 +58,13 @@ export function CampaignResults({ mobile = false, title = 'Őszi frissítés −
       <div><Meta>{sentAt}</Meta><div className="mt-1 text-ui-sub font-light text-ui-text">{title}</div></div>
       <Button variant="cell" size="sm" icon={Pencil} onClick={onCopy}>Másolat új kampányként</Button>
     </div>
-    <SegmentBar joined className="mt-5" segments={[
-      { label: `${opened} megnyitotta · ${pct}%`, value: '', weight: Math.max(18, pct), tone: 'yellow' },
-      { label: `${not} nem · ${100 - pct}%`, value: '', weight: Math.max(18, 100 - pct), tone: 'muted' },
-    ]} />
+    {/* 0% / 100%-nál egy szegmens (különben a két felirat egymásra csúszik, és egy üres sárga sáv is látszana) */}
+    <SegmentBar joined className="mt-5" segments={pct <= 0 ? [{ label: `${opened} megnyitotta · ${not} nem nyitotta meg`, value: '', weight: 100, tone: 'muted' }]
+      : pct >= 100 ? [{ label: `${opened} megnyitotta · 100%`, value: '', weight: 100, tone: 'yellow' }]
+      : [
+        { label: `${opened} megnyitotta · ${pct}%`, value: '', weight: Math.max(18, pct), tone: 'yellow' },
+        { label: `${not} nem · ${100 - pct}%`, value: '', weight: Math.max(18, 100 - pct), tone: 'muted' },
+      ]} />
     <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
       {mobile
         ? <Segmented full options={[`Mind · ${total}`, `Nyitva · ${opened}`, `Nem · ${not}`]} active={filter} onSelect={onFilter} />
@@ -70,9 +73,10 @@ export function CampaignResults({ mobile = false, title = 'Őszi frissítés −
     </div>
     <div className="mt-2">
       {rows.length ? rows.map((r) => (
-        <ListRow key={r.key} title={r.name} meta={r.meta} trailing={<StatusPill status={r.opened ? 'ok' : 'neutral'}>{r.opened ? 'Megnyitotta' : 'Nem nyitotta meg'}</StatusPill>} />
+        <ListRow key={r.key} title={r.name} meta={r.meta} trailing={<StatusPill status={r.opened ? 'ok' : 'bad'}>{r.opened ? 'Megnyitotta' : 'Nem nyitotta meg'}</StatusPill>} />
       )) : <Meta className="px-3 py-6 text-center">Nincs ilyen címzett.</Meta>}
     </div>
+    {more}
     {pages > 1 && <Pagination page={page} pages={pages} label={label} full={mobile} onPage={onPage} className="mt-3" />}
   </Card>
   )
@@ -110,7 +114,7 @@ const SAMPLE_CAMPAIGNS: CampaignItem[] = [
 
 /** A kampányok listája: kártyánként a lényeg — kiküldöttnél megnyitás / kattintás / foglalás mini-sávval, ütemezettnél mikor
  *  és kinek, piszkozatnál mikor szerkesztették. A kijelölt sárga. `mobile`: a lapozó felirat nélkül. */
-export function CampaignList({ items = SAMPLE_CAMPAIGNS, openId = 'a', onOpen, page = 1, pages = 2, label = '1–5 / 6', onPage, mobile = false, empty }: {
+export function CampaignList({ more, items = SAMPLE_CAMPAIGNS, openId = 'a', onOpen, page = 1, pages = 2, label = '1–5 / 6', onPage, mobile = false, empty }: { /** görgetésre töltés a lapozó előtt (LoadMoreSentinel) */ more?: React.ReactNode;
   items?: CampaignItem[]; openId?: string | null; onOpen?: (id: string) => void
   page?: number; pages?: number; label?: string; onPage?: (p: number) => void; mobile?: boolean; empty?: React.ReactNode
 }) {
@@ -131,7 +135,7 @@ export function CampaignList({ items = SAMPLE_CAMPAIGNS, openId = 'a', onOpen, p
                 {c.stats.map(([k, v, pct]) => (
                   <span key={k} className="min-w-0">
                     <span className="block text-ui-body leading-none text-ui-text">{v}</span>
-                    <span className="mt-1 block truncate text-ui-label text-ui-muted">{k}</span>
+                    <MarqueeText className="mt-1 text-ui-label text-ui-muted">{k}</MarqueeText>
                     <MiniBar pct={pct} tone={on ? 'dark' : 'yellow'} className="mt-1.5" />
                   </span>
                 ))}
@@ -143,6 +147,7 @@ export function CampaignList({ items = SAMPLE_CAMPAIGNS, openId = 'a', onOpen, p
         const cls = `mb-1 block w-full rounded-ui-inner p-3 text-left text-ui-text ${on ? 'bg-ui-yellow' : 'bg-white/70'}`
         return onOpen ? <button key={c.id} type="button" onClick={() => onOpen(c.id)} className={`${cls} ui-press outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20`}>{body}</button> : <div key={c.id} className={cls}>{body}</div>
       })}
+      {more}
       {items.length > 0 && <Pagination page={page} pages={pages} label={label} full={mobile} onPage={onPage} className="mt-auto px-1 pt-3" />}
     </>
   )
@@ -220,7 +225,9 @@ export function LetterBlocks({ blocks, restaurant = false, compact = false, edit
         // teljes szélesség: borítókép; kicsi (logó) / közepes: igazítható, a kép a saját arányában
         if (!b.width || b.width === 'full') return live ? <ImageSlot url={b.url} onChange={(url) => set(b.id, { url })} className={compact ? 'h-[120px]' : 'h-[220px]'} />
           // eslint-disable-next-line @next/next/no-img-element
-          : b.url ? <img src={b.url} alt={b.alt} className={`w-full object-cover ${compact ? 'h-[120px]' : 'h-[220px]'}`} /> : null
+          // a kiküldött levélben a kép a saját arányában, vágás nélkül jelenik meg — az előnézet is így (a fix magasság +
+          // object-cover egy logót / feliratos képet felnagyítva levágott)
+          : b.url ? <img src={b.url} alt={b.alt} className="h-auto w-full" /> : null
         return (
           <div className={`flex ${just(b.align)}`}>
             <div className={b.width === 'sm' ? 'w-[18%] min-w-[64px]' : 'w-1/2'}>
@@ -417,7 +424,7 @@ export function CampaignLetter({ biz, blocks, editState, restaurant = false, edi
 export function CampaignGauge({ title = 'Őszi frissítés', open = 58, click = 14, booked = 23, restaurant = false }: { title?: string; open?: number; click?: number; booked?: number; restaurant?: boolean }) {
   return (
     <Card className="flex flex-col items-center">
-      <span className="self-start truncate text-ui-row text-ui-text">{title}</span>
+      <MarqueeText className="self-start text-ui-row text-ui-text">{title}</MarqueeText>
       <svg viewBox="0 0 200 110" className="mt-2 w-[170px]">
         <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--ui-cell)" strokeWidth="18" strokeLinecap="round" />
         <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--ui-yellow)" strokeWidth="18" strokeLinecap="round" strokeDasharray={`${(open / 100) * Math.PI * 80} ${Math.PI * 80}`} />
@@ -450,7 +457,7 @@ export function CampaignDetails({ d = SAMPLE_DETAILS, onRecipients, onResendNotO
           <div className="text-ui-label text-ui-muted">Mire kattintottak</div>
           {d.links.length ? d.links.map((l) => (
             <div key={l.label} className="mt-1.5">
-              <div className="flex justify-between gap-2 text-ui-label"><span className="truncate text-ui-text">{l.label}</span><span className="text-ui-muted">{l.n}</span></div>
+              <div className="flex justify-between gap-2 text-ui-label"><MarqueeText className="text-ui-text">{l.label}</MarqueeText><span className="text-ui-muted">{l.n}</span></div>
               <MiniBar pct={Math.round((l.n / maxLink) * 100)} tone="dark" className="mt-1" />
             </div>
           )) : <Meta className="mt-1.5 text-ui-label">Még senki nem kattintott.</Meta>}
@@ -685,7 +692,7 @@ const mailCell = (r: { opened?: number; received?: number }) => {
 /** A Feliratkozók táblázata: vendég (név, e-mail), nemzetközi listán az ország, mikor (és honnan) iratkozott fel, hány
  *  foglalása van, mikor járt utoljára, hány levelet nyitott meg a kapottakból, és melyiket utoljára. Pipával kijelölhető
  *  (a kijelölt sárga), alul lapozó. `intl`: van külföldi feliratkozó — csak ilyenkor látszik az Ország oszlop. */
-export function SubscriberTable({ rows = SAMPLE_SUBS, intl = true, selected = ['bence.toth@freemail.hu'], onToggle, onToggleAll, page = 1, pages = 84, label = '1–5 / 418', onPage, empty, th, className = '' }: {
+export function SubscriberTable({ more, rows = SAMPLE_SUBS, intl = true, selected = ['bence.toth@freemail.hu'], onToggle, onToggleAll, page = 1, pages = 84, label = '1–5 / 418', onPage, empty, th, className = '' }: { /** görgetésre töltés a lapozó előtt (LoadMoreSentinel) */ more?: React.ReactNode;
   rows?: SubscriberRowVM[]; intl?: boolean; selected?: string[]; onToggle?: (id: string) => void; onToggleAll?: () => void
   page?: number; pages?: number; label?: string; onPage?: (p: number) => void; empty?: React.ReactNode; className?: string
   /** rendezés az oszlopcímre kattintva (a szerver rendez — `/api/marketing/subscribers` `order` + `sort`) */
@@ -703,7 +710,7 @@ export function SubscriberTable({ rows = SAMPLE_SUBS, intl = true, selected = ['
               // mint a Munkatársak / Utalványok listája: fehér kártya-sorok, a kijelölt sárga, hoverre halványodik
               <Tr key={r.id} onClick={onToggle ? () => onToggle(r.id) : undefined} className={`${sel ? '[&>td]:bg-ui-yellow [&:hover>td]:bg-ui-yellow/80' : '[&>td]:bg-white [&:hover>td]:bg-white/60'} ${r.unsub && !sel ? 'text-ui-muted' : ''}`}>
                 <Td className="w-8 pr-0"><RowCheck checked={sel} onToggle={onToggle ? () => onToggle(r.id) : undefined} /></Td>
-                <Td><span className="block">{r.name || r.email}{r.unsub && <StatusPill status="neutral" className="ml-2">Leiratkozott</StatusPill>}</span><span className="block text-ui-label text-ui-muted">{r.email}</span></Td>
+                <Td><span className="block">{r.name || r.email}{r.unsub && <StatusPill status="bad" className="ml-2">Leiratkozott</StatusPill>}</span><span className="block text-ui-label text-ui-muted">{r.email}</span></Td>
                 {intl && <Td className={r.country ? '' : 'text-ui-muted'}>{r.country || '—'}</Td>}
                 <Td><span className="block">{r.since}</span>{r.src && <span className="block text-ui-label text-ui-muted">{r.src}</span>}</Td>
                 <Td>{r.bookings}</Td>
@@ -716,6 +723,7 @@ export function SubscriberTable({ rows = SAMPLE_SUBS, intl = true, selected = ['
         </tbody>
       </Table>
       {rows.length === 0 && empty}
+      {more}
       <Pagination page={page} pages={pages} label={label} onPage={onPage} className="px-2 pt-3" />
     </Card>
   )
@@ -723,16 +731,17 @@ export function SubscriberTable({ rows = SAMPLE_SUBS, intl = true, selected = ['
 
 /** Mobil Feliratkozók (13.7): soronként név, e-mail, mikor iratkozott fel, hány foglalása van; alul teljes lapozó.
  *  `onToggle`: koppintásra kijelölhető (pipa, a kijelölt sárga) — a tömeges műveletekhez. */
-export function SubscriberMobileList({ rows = SAMPLE_SUBS, selected = [], onToggle, page = 1, pages = 84, onPage, className = '' }: { rows?: SubscriberRowVM[]; selected?: string[]; onToggle?: (id: string) => void; page?: number; pages?: number; onPage?: (p: number) => void; className?: string }) {
+export function SubscriberMobileList({ more, rows = SAMPLE_SUBS, selected = [], onToggle, page = 1, pages = 84, onPage, className = '' }: { /** görgetésre töltés a lapozó előtt (LoadMoreSentinel) */ more?: React.ReactNode; rows?: SubscriberRowVM[]; selected?: string[]; onToggle?: (id: string) => void; page?: number; pages?: number; onPage?: (p: number) => void; className?: string }) {
   return (
     <div className={className}>
       <div className="space-y-1">
         {rows.map((r) => {
           const sel = selected.includes(r.id)
-          const row = <ListRow filled open={sel} leading={onToggle ? <RowCheck checked={sel} /> : undefined} title={r.name || r.email} meta={<span className="block truncate">{r.email}</span>} trailing={<Meta className="text-right text-ui-label">{r.since} · {r.bookings} foglalás</Meta>} />
+          const row = <ListRow filled open={sel} leading={onToggle ? <RowCheck checked={sel} /> : undefined} title={r.name || r.email} meta={<MarqueeText>{r.email}</MarqueeText>} trailing={<Meta className="text-right text-ui-label">{r.since} · {r.bookings} foglalás</Meta>} />
           return onToggle ? <button key={r.id} type="button" aria-pressed={sel} onClick={() => onToggle(r.id)} className="ui-press block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">{row}</button> : <div key={r.id}>{row}</div>
         })}
       </div>
+      {more}
       {pages > 1 && <Pagination page={page} pages={pages} full onPage={onPage} className="mt-3" />}
     </div>
   )
@@ -796,7 +805,7 @@ export function RecipientTable({ rows = SAMPLE_PICK, intl = true, onToggle, onTo
         {rows.map((r) => (
           <Tr key={r.id} state={r.off ? 'muted' : 'default'} onClick={onToggle && !r.off ? () => onToggle(r.id) : undefined} className={r.sel ? '[&>td]:bg-ui-yellow [&:hover>td]:bg-ui-yellow/80' : '[&>td]:bg-white [&:hover>td]:bg-white/60'}>
             <Td className="w-8 pr-0"><RowCheck checked={r.sel} onToggle={onToggle && !r.off ? () => onToggle(r.id) : undefined} /></Td>
-            <Td><span className="block">{r.name || r.email}{r.off && <StatusPill status="neutral" className="ml-2">Leiratkozott</StatusPill>}</span><span className="block text-ui-label text-ui-muted">{r.email}</span></Td>
+            <Td><span className="block">{r.name || r.email}{r.off && <StatusPill status="bad" className="ml-2">Leiratkozott</StatusPill>}</span><span className="block text-ui-label text-ui-muted">{r.email}</span></Td>
             {intl && <Td className={r.country ? '' : 'text-ui-muted'}>{r.country || '—'}</Td>}
             <Td className={r.since ? '' : 'text-ui-muted'}>{r.since ?? '—'}</Td>
             <Td>{r.bookings ?? 0}</Td>

@@ -16,7 +16,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { vatFromTaxNumber } from '@/lib/vatFromTaxNumber'
-import { Avatar, Button as KitButton, Card as KitCard, CardTitle, Field, IconButton, Input, Modal, ListRow, Menu, MenuItem, Meta, PageHead, Pagination, Pill, SearchField, Segmented, Select, SheetHandle, SLIDE_SPRING, StatusPill } from '@/components/ui-kit'
+import { Avatar, Button as KitButton, Card as KitCard, CardTitle, Field, IconButton, Input, Modal, ListRow, Menu, MenuItem, Meta, PageHead, Pagination, Pill, SearchField, Segmented, Select, SheetHandle, SLIDE_SPRING, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { AuditTable, NewsletterSettings, NotificationsSettings, type NotifRow, SitesPage, SettingsMobileList, SettingsNav, SettingsPage, SetupProgressCard, SubscriptionPage, TrialChecklist, TeamMembers, type MemberRow, type NewsletterSummary, type SettingsTopic, type SettingsTopicGroup } from '@/components/blocks/settings'
 import { auditView } from '@/lib/auditText'
 import { hoursRows } from '@/lib/hoursRows'
@@ -27,14 +27,9 @@ import { PopupModal } from '@/components/ui/popup-modal'
 import { ANNUAL_BILLING_UI_ENABLED, applyCycle, businessMonthlyFee, monthlyEmailCapForTier } from '@/lib/tier'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, animate, motion } from 'framer-motion'
-import { EASE } from '@/lib/motion'
 import { toast } from 'sonner'
 import { SettingsFormContext, type GuestEmailCtl, type SettingsFormApi } from './settingsFormContext'
-import {
-  Clock, Bell, Users, CreditCard, MoreHorizontal, ArrowLeft, Search, SlidersHorizontal,
-  Building2, Mail, Check, FileText,
-  Trash2, ShieldCheck, Star, Globe as Globe2, Link2, Landmark, ChevronDown, UserRound, Wallet, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon,
-} from 'lucide-react'
+import { Clock, Bell, Users, CreditCard, MoreHorizontal, ArrowLeft, Search, Settings2, Building2, Mail, Check, FileText, X, Trash2, ShieldCheck, Star, Globe as Globe2, Link2, Landmark, ChevronDown, UserRound, Wallet, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react'
 import type { FeatureModules } from '@/lib/featureModules'
 import type { SelfProfileData } from './SelfProfileView'
 import type { CapacityVM } from '@/lib/restaurantCapacity'
@@ -62,6 +57,8 @@ import { RolesManager } from './RolesManager'
 import { OpeningHoursView } from './OpeningHoursView'
 import { TablesView } from '@/components/restaurant/TablesView'
 import { BookingPageEditor } from '@/components/settings/booking-page/BookingPageEditor'
+import { useAppendPages } from '@/lib/useAppendPages'
+import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
 // Értesítések = tranzakciós emailek. Az emlékeztető/visszajelzés a Funkciók gazdája.
@@ -387,17 +384,38 @@ export function SettingsHub({
   // mobil (design 16.20): az első képernyő a téma-lista; egy témára koppintva a lapja alulról felcsúszik (`mobileSheet`).
   // Mély-linkkel (?tab=…) érkezve rögtön a téma lapja nyílik.
   const [mobileSheet, setMobileSheet] = useState(() => !!searchParams.get('tab'))
+  // ugyanazon az oldalon maradó navigáció (pl. a menü Nyitvatartás → Beállítások linkje): a komponens nem töltődik újra,
+  // ezért a ?tab változását követjük — tab nélkül a téma-lista jön (mobilon), tabbal az adott téma
+  const tabParam = searchParams.get('tab')
+  const firstTab = useRef(true)
+  useEffect(() => {
+    if (firstTab.current) { firstTab.current = false; return }
+    if (tabParam) { setActive(initialTab); setMobileSheet(true) } else setMobileSheet(false)
+  }, [tabParam]) // eslint-disable-line react-hooks/exhaustive-deps
   const [navQuery, setNavQuery] = useState('')
   // mobil: a téma-lista keresője a fejléc kereső-ikonjáról nyílik (DashboardNav › davelopment:open-settings-search)
   const [mobileSearch, setMobileSearch] = useState(false)
+  // mobil Audit-napló (teljes oldal, mint a Számlák): a fejléc ikonjai nyitják / csukják a keresőt és a szűrőket
+  const [auditMSearch, setAuditMSearch] = useState(false)
+  const [auditMFilters, setAuditMFilters] = useState(false)
   useEffect(() => {
-    const on = () => { setMobileSheet(false); setMobileSearch((v) => !v) }
+    const on = () => { setMobileSheet(false); setMobileSearch((v) => { if (v) setNavQuery(''); return !v }) }
     window.addEventListener('davelopment:open-settings-search', on)
     return () => window.removeEventListener('davelopment:open-settings-search', on)
   }, [])
-  // a mobil fejléc szűrő-ikonja (DashboardNav) a téma-listára visz vissza
   useEffect(() => {
-    const handler = () => setMobileSheet(false)
+    const a = () => setAuditMSearch((v) => { if (v) setAuditQuery(''); return !v }), b = () => setAuditMFilters((v) => !v)
+    window.addEventListener('davelopment:audit-search', a); window.addEventListener('davelopment:audit-filter', b)
+    return () => { window.removeEventListener('davelopment:audit-search', a); window.removeEventListener('davelopment:audit-filter', b) }
+  }, [])
+  // a mobil fejléc szűrő-ikonja (DashboardNav): a téma-listán a csoport-szűrő lapot nyitja (melyik csoport látszódjon);
+  // ha egy téma lapja van nyitva, előbb arról visz vissza a listára
+  const [groupFilter, setGroupFilter] = useState<string | null>(null)
+  const [groupSheet, setGroupSheet] = useState(false)
+  const mobileSheetRef = useRef(mobileSheet)
+  mobileSheetRef.current = mobileSheet
+  useEffect(() => {
+    const handler = () => { if (mobileSheetRef.current) setMobileSheet(false); else setGroupSheet(true) }
     window.addEventListener('davelopment:open-settings-nav', handler)
     return () => window.removeEventListener('davelopment:open-settings-nav', handler)
   }, [])
@@ -624,7 +642,6 @@ export function SettingsHub({
   // A szerver a visszatekintési ablakon (90 nap) belüli sorokat adja; itt tovább szűkíthető.
   const [auditFilter, setAuditFilter] = useState<'all' | 'create' | 'update' | 'delete'>('all')
   const [auditDays, setAuditDays] = useState<7 | 30 | 90>(90)
-  const [auditPage, setAuditPage] = useState(1)
   const [auditQuery, setAuditQuery] = useState('')
   const filteredAudit = useMemo(() => {
     const cutoff = Date.now() - auditDays * 86_400_000
@@ -636,6 +653,8 @@ export function SettingsHub({
         (!q || `${e.summary ?? ''} ${e.actor} ${e.actorEmail ?? ''}`.toLowerCase().includes(q)),
     )
   }, [auditFilter, auditDays, auditLog, auditQuery])
+  // Audit-napló: lapozás + görgetésre hozzáfűzés (szűrő / keresés / időszak váltásakor az elejéről)
+  const auditPaging = useAppendPages(filteredAudit.length, AUDIT_PAGE, `${auditFilter}|${auditDays}|${auditQuery}`)
 
   // ── Csapat & jogok — VALÓS bekötés a /api/team végpontokra.
   // RolesManager custom event-tel jelzi ha változott a lista → azonnal frissül a meghívó dropdown.
@@ -1041,7 +1060,7 @@ export function SettingsHub({
   // a téma-lista (desktop kártya és mobil lap ugyanaz): csoportonként, a keresés szűri, zárolt előfizetésnél lakat
   const navNorm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   // mobilon teljes oldalként nyíló témák (a sok soros listák — kereső és szűrők a fejlécben)
-  const pageTopic = active === 'invoices'
+  const pageTopic = active === 'invoices' || active === 'audit'
   const openTopic = (id: RailId) => { setActive(id); setMobileSheet(true) }
   // a téma-lista adatai (desktop SettingsNav és mobil SettingsMobileList ugyanebből): a keresés szűri, teendőnél pötty,
   // lejárt előfizetésnél lakat (az Előfizetés kivétel)
@@ -1055,6 +1074,7 @@ export function SettingsHub({
     })).filter((g) => g.items.length)
   })()
   const dangerTopic: SettingsTopicGroup[] = canDanger && !navQuery.trim() ? [{ group: '', items: [{ key: 'danger', label: 'Fiók törlése', icon: Trash2, active: active === 'danger', danger: true, onClick: () => openTopic('danger') }] }] : []
+  const mobileGroups: SettingsTopicGroup[] = [...topicGroups, ...dangerTopic.map((g) => ({ ...g, group: 'Veszélyzóna' }))]
 
   return (
     // font-onest ITT, egyszer — minden alá ágyazott panel (BookingFeatures, GoogleSettingsPanel,
@@ -1065,7 +1085,15 @@ export function SettingsHub({
       {/* fejléc (design 16.1): cím, jobbra a kereső — a téma-listát szűri */}
       <div className="max-lg:hidden"><PageHead title="Beállítások" className="mb-[5px]" actions={<SearchField className="w-[240px]" value={navQuery} onChange={setNavQuery}>Beállítás keresése</SearchField>} /></div>
       {/* mobil (16.20): a téma-lista az első képernyő */}
-      <SettingsMobileList className="lg:hidden" groups={[...topicGroups, ...dangerTopic.map((g) => ({ ...g, group: 'Veszélyzóna' }))]} query={navQuery} onQuery={setNavQuery} searchOpen={mobileSearch || !!navQuery} />
+      <SettingsMobileList className="lg:hidden" groups={mobileGroups.filter((g) => !groupFilter || g.group === groupFilter)} query={navQuery} onQuery={setNavQuery} onCloseSearch={() => { setNavQuery(''); setMobileSearch(false) }} searchOpen={mobileSearch || !!navQuery} />
+      {/* mobil csoport-szűrő (a fejléc szűrő-ikonjáról): melyik csoport látszódjon a téma-listán */}
+      <PopupModal open={groupSheet} onClose={() => setGroupSheet(false)} title="Csoportok" maxWidth="sm:max-w-[440px]">
+        <div className="flex flex-wrap gap-1.5">
+          {[null, ...mobileGroups.map((g) => g.group)].map((g) => (
+            <button key={g ?? 'all'} type="button" onClick={() => { setGroupFilter(g); setGroupSheet(false) }} className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><Pill tone={groupFilter === g ? 'dark' : 'cell'}>{g ?? 'Mind'}</Pill></button>
+          ))}
+        </div>
+      </PopupModal>
 
       {/* Bal-sáv + panel */}
       <div className={`lg:grid lg:items-start lg:gap-[5px] lg:overflow-x-clip ${fullWidth ? 'lg:grid-cols-1' : railCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[240px_minmax(0,1fr)]'}`}>
@@ -1088,14 +1116,14 @@ export function SettingsHub({
           {mobileSheet && pageTopic && (
             <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center gap-2 bg-white px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
               <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" onClick={() => setMobileSheet(false)} />
-              <span className="min-w-0 flex-1 truncate text-ui-title text-ui-text">{RAIL_LABELS[active]}</span>
-              <IconButton icon={Search} label="Keresés" variant="cell" onClick={() => window.dispatchEvent(new Event('davelopment:invoices-search'))} />
-              <IconButton icon={SlidersHorizontal} label="Szűrők" variant="cell" onClick={() => window.dispatchEvent(new Event('davelopment:invoices-filter'))} />
+              <MarqueeText className="flex-1 text-ui-title text-ui-text">{RAIL_LABELS[active]}</MarqueeText>
+              <IconButton icon={Search} label="Keresés" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-search`))} />
+              <IconButton icon={Settings2} label="Szűrők" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-filter`))} />
             </div>
           )}
           <div className={`sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden ${pageTopic ? 'hidden' : ''}`}>
             <button type="button" aria-label="Vissza a témákhoz" onClick={() => setMobileSheet(false)} className="w-full pt-2.5"><SheetHandle /></button>
-            <div className="truncate pt-4 text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</div>
+            <MarqueeText className="pt-4 text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</MarqueeText>
           </div>
           {/* teljes szélességű téma (pl. Vendég e-mailek): vissza a Beállításokhoz — mint a Foglalóoldal szerkesztőjében */}
           {fullWidth && (
@@ -1252,10 +1280,10 @@ export function SettingsHub({
             const d = devicePush
             const push = d.env === 'loading' ? { status: <StatusPill status="neutral">Ellenőrzés…</StatusPill>, text: '' }
               : d.env === 'ios-browser' ? { status: <StatusPill status="pending">Előbb tedd a főképernyőre</StatusPill>, text: 'iPhone-on: Safari › Megosztás › Főképernyőhöz adás, majd nyisd meg onnan — utána itt bekapcsolhatod.' }
-              : d.env === 'unsupported' ? { status: <StatusPill status="neutral">Nem támogatott</StatusPill>, text: 'Ez a böngésző nem tud push-értesítést fogadni.' }
+              : d.env === 'unsupported' ? { status: <StatusPill status="warn">Nem támogatott</StatusPill>, text: 'Ez a böngésző nem tud push-értesítést fogadni.' }
               : d.env === 'denied' ? { status: <StatusPill status="bad">Letiltva</StatusPill>, text: 'A böngésző beállításaiban engedélyezd az oldal értesítéseit, és frissítsd az oldalt.' }
               : d.enabled ? { status: <StatusPill status="ok">Bekapcsolva ezen az eszközön</StatusPill>, text: 'Minden foglalásról push-értesítést kapsz, akkor is, ha az app be van zárva.' }
-              : { status: <StatusPill status="neutral">Kikapcsolva ezen az eszközön</StatusPill>, text: d.installed ? 'Kapcsold be, és minden foglalásról push-értesítést kapsz.' : 'Kapcsold be, vagy telepítsd az appot — utána minden foglalásról push-értesítést kapsz.' }
+              : { status: <StatusPill status="bad">Kikapcsolva ezen az eszközön</StatusPill>, text: d.installed ? 'Kapcsold be, és minden foglalásról push-értesítést kapsz.' : 'Kapcsold be, vagy telepítsd az appot — utána minden foglalásról push-értesítést kapsz.' }
             const action = (d.env === 'ready' || d.canInstall) ? (
               <span className="flex flex-wrap gap-1.5">
                 {d.env === 'ready' && <KitButton variant={d.enabled ? 'ghostDark' : 'yellow'} size="sm" loading={d.busy} onClick={() => void (d.enabled ? d.disable() : d.enable())}>{d.enabled ? 'Kikapcsolás' : 'Bekapcsolás'}</KitButton>}
@@ -1473,9 +1501,7 @@ export function SettingsHub({
 
           {/* ── Audit-napló ── VALÓS bejegyzések az AuditLog collectionből (üzletre szűrve). */}
           {active === 'audit' && (() => {
-            const pages = Math.max(1, Math.ceil(filteredAudit.length / AUDIT_PAGE))
-            const page = Math.min(auditPage, pages)
-            const rows = filteredAudit.slice((page - 1) * AUDIT_PAGE, page * AUDIT_PAGE)
+            const rows = filteredAudit.slice(auditPaging.from, auditPaging.to)
             const actorImgs = new Map(auditLog.filter((e) => e.actorImg).map((e) => [e.actor, e.actorImg]))
             const byActor = [...filteredAudit.reduce((m, e) => m.set(e.actor, (m.get(e.actor) ?? 0) + 1), new Map<string, number>())].sort((x, y) => y[1] - x[1]).slice(0, 6)
             return (
@@ -1485,23 +1511,37 @@ export function SettingsHub({
                   <KitCard pad="sm">
                     <div className="px-2 pb-1 pt-1"><CardTitle>Csapattag szerint</CardTitle></div>
                     {byActor.map(([n, c]) => (
-                      <button key={n} type="button" onClick={() => { setAuditQuery(auditQuery === n ? '' : n); setAuditPage(1) }} className="ui-press mb-1 block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">
+                      <button key={n} type="button" onClick={() => { setAuditQuery(auditQuery === n ? '' : n) }} className="ui-press mb-1 block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">
                         <ListRow filled open={auditQuery === n} leading={<Avatar size="sm" src={actorImgs.get(n)} name={n} />} title={n} trailing={<Pill size="sm" tone={auditQuery === n ? 'white' : 'cell'}>{c}</Pill>} />
                       </button>
                     ))}
                   </KitCard>
                 )}
               </>}>
-                <div className="px-6 pt-4 max-lg:px-0">
-                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                    <SearchField className="w-[220px] max-sm:w-full" value={auditQuery} onChange={(v) => { setAuditQuery(v); setAuditPage(1) }}>Esemény vagy név</SearchField>
-                    <Select toolbar value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value as typeof auditFilter); setAuditPage(1) }} className="w-[170px]">{AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.id === 'all' ? 'Minden esemény' : f.label}</option>)}</Select>
-                    <Select toolbar value={String(auditDays)} onChange={(e) => { setAuditDays(Number(e.target.value) as typeof auditDays); setAuditPage(1) }} className="w-[150px]">{AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}</Select>
+                <div className="px-6 pt-4 max-lg:px-0 max-lg:pt-0">
+                  {/* mobil: a fejléc nagyítója / szűrője nyitja (mint a Számláknál); desktopon az eszköztár */}
+                  {auditMSearch && (
+                    <div className="ui-pop-in mb-3 flex items-center gap-1.5 lg:hidden">
+                      <SearchField autoFocus className="min-w-0 flex-1" value={auditQuery} onChange={(v) => { setAuditQuery(v) }}>Esemény vagy név</SearchField>
+                      <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { setAuditQuery(''); setAuditMSearch(false) }} />
+                    </div>
+                  )}
+                  {auditMFilters && (
+                    <div className="ui-pop-in mb-3 flex flex-wrap gap-1.5 lg:hidden">
+                      <Select toolbar value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value as typeof auditFilter) }} className="w-[170px]">{AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.id === 'all' ? 'Minden esemény' : f.label}</option>)}</Select>
+                      <Select toolbar value={String(auditDays)} onChange={(e) => { setAuditDays(Number(e.target.value) as typeof auditDays) }} className="w-[150px]">{AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}</Select>
+                    </div>
+                  )}
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5 max-lg:hidden">
+                    <SearchField className="w-[220px] max-sm:w-full" value={auditQuery} onChange={(v) => { setAuditQuery(v) }}>Esemény vagy név</SearchField>
+                    <Select toolbar value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value as typeof auditFilter) }} className="w-[170px]">{AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.id === 'all' ? 'Minden esemény' : f.label}</option>)}</Select>
+                    <Select toolbar value={String(auditDays)} onChange={(e) => { setAuditDays(Number(e.target.value) as typeof auditDays) }} className="w-[150px]">{AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}</Select>
                   </div>
                   {rows.length === 0 ? <Meta className="py-10 text-center">Nincs naplózott esemény ebben az időszakban.</Meta> : (
                     <AuditTable rows={rows.map((e) => ({ key: e.id, time: relativeTime(e.createdAt), actor: { name: e.actor, email: e.actorEmail, img: e.actorImg }, ...auditView(e) }))} />
                   )}
-                  <Pagination page={page} pages={pages} label={filteredAudit.length ? `${(page - 1) * AUDIT_PAGE + 1}–${Math.min(filteredAudit.length, page * AUDIT_PAGE)} / ${filteredAudit.length}` : '0'} onPage={setAuditPage} className="mt-2" />
+                  <LoadMoreSentinel hasMore={auditPaging.hasMore} loading={false} onMore={auditPaging.more} />
+                  <Pagination page={auditPaging.page} pages={auditPaging.pages} label={auditPaging.label} onPage={auditPaging.goTo} className="mt-2" />
                 </div>
               </SettingsPage>
             )

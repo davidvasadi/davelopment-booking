@@ -25,6 +25,8 @@ import { uploadMedia } from '@/lib/uploadMedia'
 import { MONTHS_SHORT } from '@/lib/schedule'
 import type { Locale } from '@/lib/i18n'
 import type { PendingVoucher } from '@/app/api/gift-vouchers/pending/route'
+import { useAppendPages } from '@/lib/useAppendPages'
+import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
 
 export type VoucherRow = {
   id: string; code: string; amount_huf: number; type_name: string | null; purchaser_name: string
@@ -95,8 +97,6 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<'all' | VoucherStatus>('all')
   const [pay, setPay] = useState('all')
-  const [page, setPage] = useState(1)
-  useEffect(() => { setPage(1) }, [query, status, pay])
   const cnt = (s: VoucherStatus) => (s === 'pending' ? pending.length : vouchers.filter((v) => v.status === s).length)
   // rendezés az oszlopcímre kattintva (alapból a legújabb elöl)
   const { sort: vSort, th: vTh } = useTableSort<string>()
@@ -111,8 +111,10 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [vouchers, pending, query, status, pay])
   const sortedRows = useMemo(() => sortRows(rows, vSort, (r, k) => (k === 'code' ? r.code : k === 'buyer' ? r.buyer : k === 'amount' ? r.amountHuf : k === 'expires' ? (r.exp ? new Date(r.exp) : null) : r.status)), [rows, vSort])
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE))
-  const pageRows = sortedRows.slice((page - 1) * PAGE, page * PAGE)
+  // lapozás + görgetésre hozzáfűzés (szűrő / keresés / rendezés váltásakor az elejéről)
+  const paging = useAppendPages(sortedRows.length, PAGE, `${query}|${status}|${pay}|${vSort?.key}|${vSort?.dir}`)
+  const pages = paging.pages
+  const pageRows = sortedRows.slice(paging.from, paging.to)
 
   // ── kijelölés + tömeges törlés ──
   const [selected, setSelected] = useState<string[]>([])
@@ -545,13 +547,13 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
       {/* ── desktop (12.1) ── */}
       <div className="max-lg:hidden">
         <PageHead title="Utalványok" actions={actions} bar={bar()} kpis={kpis} />
-        <ChipToolbar search="Kód, vásárló, típus" chips={chips} active={Math.max(0, chipKeys.indexOf(status))} query={query} onQuery={setQuery} onChip={(i) => setStatus(chipKeys[i])} dot={pay !== 'all'} filters={payFilter} />
+        <ChipToolbar chipsInFilter chipsLabel="Állapot" search="Kód, vásárló, típus" chips={chips} active={Math.max(0, chipKeys.indexOf(status))} query={query} onQuery={setQuery} onChip={(i) => setStatus(chipKeys[i])} dot={pay !== 'all'} filters={payFilter} />
         <div className="grid gap-[5px] xl:grid-cols-[minmax(0,1fr)_340px]">
           {/* a lista a mellette lévő részlet magasságáig ér (egyforma, kompakt), a sorok benne görgetnek */}
           <div className="relative flex min-h-[480px] min-w-0 flex-col justify-end">
             <div className="absolute inset-0"><VoucherTable fill th={vTh} rows={pageRows} openKey={openKey} selected={selected} onOpen={(k) => open(k)} onToggle={(k) => setSelected((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]))}
               onToggleAll={() => { const keys = pageRows.filter((r) => r.status !== 'pending').map((r) => r.key); setSelected((s) => (keys.every((k) => s.includes(k)) ? s.filter((k) => !keys.includes(k)) : [...new Set([...s, ...keys])])) }}
-              onCopyLink={copyLink} page={page} pages={pages} label={rows.length ? `${(page - 1) * PAGE + 1}–${Math.min(rows.length, page * PAGE)} / ${rows.length}` : '0'} onPage={setPage}
+              onCopyLink={copyLink} page={paging.page} pages={pages} label={paging.label} onPage={paging.goTo} more={<LoadMoreSentinel hasMore={paging.hasMore} loading={false} onMore={paging.more} />}
               empty={<Meta className="px-3 py-10 text-center">Nincs a szűrésnek megfelelő utalvány.</Meta>} className={selected.length ? 'pb-20' : ''} /></div>
             {canManage && selected.length > 0 && <BulkDock className="mb-4"><StaffBulkBar count={selected.length} onClear={() => setSelected([])} actions={[{ label: 'Törlés', danger: true, onClick: () => setBulkDel(true) }]} /></BulkDock>}
           </div>

@@ -1,5 +1,8 @@
 'use client'
 
+import { createPortal } from 'react-dom'
+import { useExclusivePopover } from '@/lib/exclusivePopover'
+
 import { sortRows, useTableSort } from '@/lib/tableSort'
 import { useEffect, useMemo, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
@@ -27,6 +30,8 @@ import { MONTHS_SHORT } from '@/lib/schedule'
 import type { Locale } from '@/lib/i18n'
 import type { TeamMemberVM, TeamRoleOption, TeamStatus } from '@/lib/teamTypes'
 import { StaffInvoicingPanel } from './StaffInvoicingPanel'
+import { useAppendPages } from '@/lib/useAppendPages'
+import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
 
 interface Props {
   restaurant?: boolean
@@ -116,14 +121,14 @@ export function TeamView({ restaurant = false, businessId, members, services = [
   // mobil: a fejléc kereső-ikonja nyitja a keresőmezőt (nem áll állandóan a lista fölött)
   const [mobileSearch, setMobileSearch] = useState(false)
   useEffect(() => {
-    const on = () => setMobileSearch(true)
+    // a nagyító ki-be kapcsol: másodszorra törli és bezárja (mint az X)
+    const on = () => setMobileSearch((v) => { if (v) setQuery(''); return !v })
     window.addEventListener('davelopment:open-staff-search', on)
     return () => window.removeEventListener('davelopment:open-staff-search', on)
   }, [])
   const [pos, setPos] = useState('all')
   const [status, setStatus] = useState<'all' | TeamStatus | 'review'>('all')
   const [role, setRole] = useState('all')
-  const [page, setPage] = useState(1)
   const { sort: teamSort, th: teamTh } = useTableSort<string>()
   const [cardPage, setCardPage] = useState(1)
   const positions = useMemo(() => [...new Set(list.map((m) => m.position).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'hu')), [list])
@@ -135,7 +140,7 @@ export function TeamView({ restaurant = false, businessId, members, services = [
     const q = query.trim().toLowerCase()
     return !q || m.name.toLowerCase().includes(q) || m.position.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
   })
-  useEffect(() => { setPage(1); setCardPage(1) }, [query, pos, status, role])
+  useEffect(() => { setCardPage(1) }, [query, pos, status, role])
   const count = (s: TeamStatus) => list.filter((m) => m.status === s).length
   const reviewN = list.filter((m) => m.review).length
 
@@ -440,29 +445,49 @@ export function TeamView({ restaurant = false, businessId, members, services = [
   const statusOf = (m: TeamMemberVM) => STATUS[m.status]
   // rendezés az oszlopcímre kattintva
   const sortedMembers = sortRows(filtered, teamSort, (m, k) => (k === 'name' ? m.name : k === 'position' ? m.position : k === 'login' ? (m.joinDate ? new Date(m.joinDate) : null) : k === 'hours' ? m.weekHours : k === 'role' ? m.role : statusOf(m).label))
-  const tableRows: StaffTableRow[] = sortedMembers.slice((page - 1) * PAGE, page * PAGE).map((m) => ({
+  // lapozás + görgetésre hozzáfűzés (a lista már betöltve; a szűrő / keresés váltásakor az elejéről)
+  const tablePaging = useAppendPages(sortedMembers.length, PAGE, `${query}|${pos}|${status}|${role}|${teamSort?.key}|${teamSort?.dir}`)
+  const tableRows: StaffTableRow[] = sortedMembers.slice(tablePaging.from, tablePaging.to).map((m) => ({
     key: m.id, name: m.name, img: m.img, position: m.position, email: m.email, join: huDate(m.joinDate),
     // a határ a szerződéses heti óra, ha nincs megadva, az egészséges 48; fölötte túlóra: piros, „(+n)”
     hours: `${m.weekHours} / ${m.weeklyTarget ?? HEALTHY_WEEK}`, over: m.weekHours > (m.weeklyTarget ?? HEALTHY_WEEK) ? m.weekHours - (m.weeklyTarget ?? HEALTHY_WEEK) : null,
     tone: m.weekHours > (m.weeklyTarget ?? HEALTHY_WEEK) ? 'bad' : m.weekHours > 0 ? 'ok' : undefined,
     role: m.role, status: statusOf(m).pill, statusLabel: statusOf(m).label, owner: m.owner || m.id === 'owner', muted: m.status === 'suspended', review: m.review,
   }))
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE))
-  const label = filtered.length ? `${(page - 1) * PAGE + 1}–${Math.min(filtered.length, page * PAGE)} / ${filtered.length} munkatárs` : '0'
+  const pages = tablePaging.pages
+  const label = filtered.length ? `${tablePaging.label} munkatárs` : '0'
   const cardRows: StaffCardRow[] = filtered.slice((cardPage - 1) * CARD_PAGE, cardPage * CARD_PAGE).map((m) => ({ key: m.id, name: m.name, position: m.position, img: m.img, ...utilOf(m) }))
   const cardPages = Math.max(1, Math.ceil(filtered.length / CARD_PAGE))
 
   // a sor végi ⋯ menü
   const [menu, setMenu] = useState<string | null>(null)
+  // a menü a képernyő szintjén nyílik (portál) — a táblázat kártyája nem vágja le; alul kevés helynél felfelé
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number; up: boolean } | null>(null)
+  // görgetéskor bezárul (a fix helyű menü különben elválna a sortól); egyszerre csak egy lenyíló legyen nyitva
+  useEffect(() => {
+    if (!menu) return
+    const close = () => setMenu(null)
+    window.addEventListener('scroll', close, true)
+    return () => window.removeEventListener('scroll', close, true)
+  }, [menu])
+  useExclusivePopover(!!menu, () => setMenu(null))
+  const openMenu = (id: string, el: HTMLElement) => {
+    if (menu === id) { setMenu(null); return }
+    const r = el.getBoundingClientRect()
+    const up = window.innerHeight - r.bottom < 300
+    setMenuPos({ top: up ? r.top - 8 : r.bottom + 8, right: window.innerWidth - r.right, up })
+    setMenu(id)
+  }
   const rowActions = (r: StaffTableRow) => {
     const m = list.find((x) => x.id === r.key)
     if (!m || !canManage) return null
     return (
       <span className="relative" onClick={(e) => e.stopPropagation()}>
-        <IconButton icon={MoreHorizontal} size="sm" variant="ghost" label="Műveletek" onClick={() => setMenu((k) => (k === m.id ? null : m.id))} />
-        {menu === m.id && <>
-          <span className="fixed inset-0 z-10" onClick={() => setMenu(null)} aria-hidden />
-          <Menu className="absolute right-0 top-10 z-20 w-56">
+        <IconButton icon={MoreHorizontal} size="sm" variant="ghost" label="Műveletek" onClick={(e: React.MouseEvent<HTMLElement>) => openMenu(m.id, e.currentTarget)} />
+        {menu === m.id && menuPos && typeof document !== 'undefined' && createPortal(<>
+          <span className="fixed inset-0 z-[80]" onClick={() => setMenu(null)} aria-hidden />
+          <span className={`fixed z-[81] ${menuPos.up ? '-translate-y-full' : ''}`} style={{ top: menuPos.top, right: menuPos.right }} onClick={(e) => e.stopPropagation()}>
+          <Menu className="w-56">
             {canEdit(m) && <MenuItem icon={Pencil} onClick={() => { setMenu(null); open(m.id); startEdit(m) }}>Szerkesztés</MenuItem>}
             {m.membershipId && !m.owner && roles.length > 0 && <MenuItem icon={UserCog} onClick={() => { setMenu(null); setRoleId(m.customRoleId ?? roles[0].id); setRoleFor([m]) }}>Szerep módosítása</MenuItem>}
             {m.status === 'invited' && m.membershipId && <MenuItem icon={Send} onClick={() => { setMenu(null); void resend([m]) }}>Meghívó újraküldése</MenuItem>}
@@ -470,7 +495,8 @@ export function TeamView({ restaurant = false, businessId, members, services = [
             {!m.owner && m.id !== 'owner' && m.status === 'suspended' && <MenuItem icon={ShieldCheck} onClick={() => { setMenu(null); void setStatusOf([m], 'active') }}>Visszaállítás</MenuItem>}
             {!m.owner && m.id !== 'owner' && <MenuItem icon={Trash2} danger onClick={() => { setMenu(null); setDel(m) }}>{m.status === 'invited' ? 'Meghívó visszavonása' : 'Törlés'}</MenuItem>}
           </Menu>
-        </>}
+          </span>
+        </>, document.body)}
       </span>
     )
   }
@@ -610,7 +636,7 @@ export function TeamView({ restaurant = false, businessId, members, services = [
             </div>
             <StaffTable th={teamTh} rows={tableRows} openKey={null} selected={selected} onOpen={(k) => open(k)} onToggle={toggle}
               onToggleAll={() => { const keys = tableRows.filter((r) => !r.owner).map((r) => r.key); setSelected((s) => (keys.every((k) => s.includes(k)) ? s.filter((k) => !keys.includes(k)) : [...new Set([...s, ...keys])])) }}
-              actions={canManage ? rowActions : () => null} page={page} pages={pages} label={label} onPage={setPage} bulk={bulk}
+              actions={canManage ? rowActions : () => null} page={tablePaging.page} pages={pages} label={label} onPage={tablePaging.goTo} more={<LoadMoreSentinel hasMore={tablePaging.hasMore} loading={false} onMore={tablePaging.more} />} bulk={bulk}
               empty={<Meta className="px-3 py-10 text-center">Nincs a szűrésnek megfelelő munkatárs.</Meta>} />
           </>
         ) : (
@@ -682,7 +708,7 @@ export function TeamView({ restaurant = false, businessId, members, services = [
             <PageHead title="Munkatársak" className="mb-0" />
             {bar(true)}
             {mobileSearch && (
-              <div className="mt-4 flex items-center gap-1.5">
+              <div className="ui-pop-in mt-4 flex items-center gap-1.5">
                 <SearchField autoFocus className="min-w-0 flex-1" value={query} onChange={setQuery}>Munkatárs keresése</SearchField>
                 <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { setQuery(''); setMobileSearch(false) }} />
               </div>

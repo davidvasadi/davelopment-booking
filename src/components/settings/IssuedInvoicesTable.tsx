@@ -8,6 +8,8 @@ import { Pagination } from '@/components/ui-kit'
 import { InvoiceModal, IssuedInvoices, type InvoiceSortKey, type IssuedInvoiceRow } from '@/components/blocks/money'
 import { sortRows, useTableSort } from '@/lib/tableSort'
 import type { IssuedInvoice } from '@/app/api/invoicing/issued/route'
+import { useAppendPages } from '@/lib/useAppendPages'
+import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
 
 /**
  * Beállítások › Számlák (design 16.7.1–16.7.2): a VENDÉGEKNEK a saját számlázó fiókból kiállított számlák (előleg +
@@ -24,13 +26,12 @@ export function IssuedInvoicesTable({ variant, businessId }: { variant: 'salon' 
   const [q, setQ] = useState('')
   const [type, setType] = useState('all')
   const [status, setStatus] = useState('all')
-  const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
   // mobil (teljes oldal): a fejléc ikonjai nyitják / csukják a keresőt és a szűrőket
   const [mSearch, setMSearch] = useState(false)
   const [mFilters, setMFilters] = useState(false)
   useEffect(() => {
-    const a = () => setMSearch((v) => !v), b = () => setMFilters((v) => !v)
+    const a = () => setMSearch((v) => { if (v) setQ(''); return !v }), b = () => setMFilters((v) => !v)
     window.addEventListener('davelopment:invoices-search', a); window.addEventListener('davelopment:invoices-filter', b)
     return () => { window.removeEventListener('davelopment:invoices-search', a); window.removeEventListener('davelopment:invoices-filter', b) }
   }, [])
@@ -79,19 +80,20 @@ export function IssuedInvoicesTable({ variant, businessId }: { variant: 'salon' 
     const refs = selected.slice(0, 50).join(',')
     window.location.href = `/api/invoicing/zip?kind=${variant}&id=${encodeURIComponent(businessId)}&refs=${encodeURIComponent(refs)}`
   }
-  useEffect(() => setPage(1), [q, type, status])
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE))
+  // lapozás + görgetésre hozzáfűzés (szűrő / keresés / rendezés váltásakor az elejéről)
+  const paging = useAppendPages(filtered.length, PAGE, `${q}|${type}|${status}|${sort?.key}|${sort?.dir}`)
+  const pages = paging.pages
   const toRow = (r: IssuedInvoice): IssuedInvoiceRow => ({ key: r.id, no: r.number ?? '—', item: r.source, who: r.customer, email: r.email, date: fmtDate(r.date), sum: ft(r.amountHuf), st: r.status, storno: r.storno, issuer: r.issuer ?? null, pay: r.pay ?? null })
   const open = rows?.find((r) => r.id === openId) ?? null
 
   return (
     <>
-      <IssuedInvoices mobileTools={{ search: mSearch || !!q, filters: mFilters || type !== 'all' || status !== 'all' }} data={sorted.slice((page - 1) * PAGE, page * PAGE).map(toRow)} th={th}
+      <IssuedInvoices mobileTools={{ search: mSearch || !!q, filters: mFilters || type !== 'all' || status !== 'all', onCloseSearch: () => { setQ(''); setMSearch(false) } }} data={sorted.slice(paging.from, paging.to).map(toRow)} th={th}
         selected={selected} onToggle={toggle} onToggleAll={toggleAll} onDownloadSelected={downloadSelected} onStornoSelected={() => setStornoAsk(true)} query={q} onQuery={setQ} type={type} onType={setType} status={status} onStatus={setStatus}
         failed={(rows ?? []).filter((r) => r.status === 'failed').length} openKey={openId} onOpen={setOpenId}
         pdfHref={(id) => { const r = rows?.find((x) => x.id === id); return r?.number ? pdfUrl(id, true) : null }}
         message={error ?? (!rows ? 'Betöltés…' : !filtered.length ? (rows.length ? 'Nincs találat.' : 'Még nem készült számla a vendégeidnek.') : null)}
-        pagination={filtered.length > PAGE ? <Pagination page={page} pages={pages} label={`${(page - 1) * PAGE + 1}–${Math.min(filtered.length, page * PAGE)} / ${filtered.length}`} onPage={setPage} className="mt-3 px-1" /> : undefined} />
+        pagination={filtered.length > PAGE ? <><LoadMoreSentinel hasMore={paging.hasMore} loading={false} onMore={paging.more} /><Pagination page={paging.page} pages={pages} label={paging.label} onPage={paging.goTo} className="mt-3 px-1" /></> : undefined} />
       <ConfirmDialog open={stornoAsk} title={`${selected.length} számla sztornózása`} confirmLabel="Sztornó" busy={stornoBusy} onConfirm={() => void storno()} onCancel={() => setStornoAsk(false)} zIndexClass="z-[100]"
         description="A számlázódban (Számlázz.hu / Billingo) ellenszámla készül, a vendég e-mailben megkapja. Ez végleges, nem vonható vissza." />
       <PopupModal open={!!open} onClose={() => setOpenId(null)} panel={open ? (

@@ -8,7 +8,7 @@ import { Legend, smooth } from './charts'
 import { Switch } from '@/components/ui/toggle-switch'
 import { UploadTile, type UploadState } from './upload'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
-import { Avatar, Button, Card, Checkbox, Field, IconButton, IconCircle, Modal, UploadBox, Input, ListRow, Meta, NavItem, OptionCard, Panel, Note, Pagination, Pill, SegmentBar, Segmented, StatusPill, Table, Td, Textarea, Th, Tr, RowCheck, type Status } from '@/components/ui-kit'
+import { Avatar, Button, Card, Checkbox, Field, IconButton, IconCircle, Modal, UploadBox, Input, ListRow, Meta, NavItem, OptionCard, Panel, Note, Pagination, Pill, SegmentBar, Segmented, StatusPill, Table, Td, Textarea, Th, Tr, RowCheck, type Status, MarqueeText } from '@/components/ui-kit'
 
 /* Csapat-kártyák (design 10.x, 16.4) — az élő Munkatársak oldal (TeamView) és a /design ugyanezeket rendereli:
    props nélkül mintaadattal, élőben a valós adattal és kezelőkkel. */
@@ -98,7 +98,7 @@ const SAMPLE_ROWS: StaffTableRow[] = [
 
 /** 10.1: a munkatársak táblázata — pipával kijelölt sor fehér, a megnyitott sárga, a felfüggesztett halvány; alul lapozó,
  *  kijelölésnél a sötét tömeges-művelet sáv (`bulk`). `actions`: a sor végi ⋯ (élőben menü). */
-export function StaffTable({ rows = SAMPLE_ROWS, openKey = 'viktoria', selected = ['csaba', 'szabina'], onOpen, onToggle, onToggleAll, actions, page = 1, pages = 2, label = '1–5 / 6 munkatárs', onPage, bulk, empty, th, className = '' }: {
+export function StaffTable({ more, rows = SAMPLE_ROWS, openKey = 'viktoria', selected = ['csaba', 'szabina'], onOpen, onToggle, onToggleAll, actions, page = 1, pages = 2, label = '1–5 / 6 munkatárs', onPage, bulk, empty, th, className = '' }: { /** görgetésre töltés a lapozó előtt (LoadMoreSentinel) */ more?: React.ReactNode;
   rows?: StaffTableRow[]
   openKey?: string | null
   selected?: string[]
@@ -149,6 +149,7 @@ export function StaffTable({ rows = SAMPLE_ROWS, openKey = 'viktoria', selected 
           </tbody>
         </Table>
       )}
+      {more}
       {(sample || pages > 1) && <Pagination page={page} pages={pages} label={label} onPage={onPage} className="mt-3 px-2" />}
     </Card>
     {showBulk && <BulkDock>{bulk ?? <StaffBulkBar />}</BulkDock>}
@@ -212,7 +213,7 @@ export function StaffListCard({ rows = SAMPLE_CARDS, openKey = 'viktoria', total
             <>
               <div className="flex items-center gap-2.5">
                 <Avatar size="md" src={p.img} name={p.name} />
-                <span className="min-w-0 flex-1"><span className="block truncate text-ui-body text-ui-text">{p.name}</span><span className="block truncate text-ui-label text-ui-muted">{p.position || '—'}</span></span>
+                <span className="min-w-0 flex-1"><MarqueeText className="text-ui-body text-ui-text">{p.name}</MarqueeText><MarqueeText className="text-ui-label text-ui-muted">{p.position || '—'}</MarqueeText></span>
                 <IconCircle icon={ArrowUpRight} tone="cell" size="md" />
               </div>
               <div className="mt-2.5 flex items-center justify-between text-ui-label text-ui-muted"><span>{p.utilLabel}</span></div>
@@ -343,7 +344,7 @@ export function StaffSummary({ avatar = false, half = false, name = 'Viktória',
         <div className="flex min-w-0 items-center gap-3">
           {avatar && <Avatar size="lg" src={img} name={name} />}
           <div className="min-w-0">
-            <div className="truncate text-ui-num font-light leading-none text-ui-text">{name}</div>
+            <MarqueeText className="text-ui-num font-light leading-none text-ui-text">{name}</MarqueeText>
             <div className="mt-1 text-ui-body text-ui-muted">{sub}</div>
           </div>
         </div>

@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, CheckCheck, Trash2 } from 'lucide-react'
+import { Button, Meta, Segmented } from '@/components/ui-kit'
+import { PopupModal } from '@/components/ui/popup-modal'
 import { usePathname, useRouter } from 'next/navigation'
 import { NotificationsInbox, type InboxGroup, type InboxRow } from '@/components/blocks/notify'
 import { ApprovalActions, ApprovalButtons, isAwaitingApproval } from './ApprovalActions'
@@ -42,6 +44,8 @@ export function NotificationsPage() {
     const j = r?.ok ? ((await r.json().catch(() => null)) as { pending: Pending[]; pendingTotal?: number; kind?: string } | null) : null
     setPending(j ? { rows: j.pending, total: j.pendingTotal ?? j.pending.length, restaurant: j.kind === 'restaurant' } : { rows: [], total: 0, restaurant: false })
   }, [])
+  // a jobb oszlop összesítőjéhez a várakozók száma mindig kell
+  useEffect(() => { void loadPending() }, [loadPending])
   useEffect(() => {
     if (filter !== 2) return
     void loadPending()
@@ -51,7 +55,14 @@ export function NotificationsPage() {
   }, [filter, loadPending])
   const settingsHref = `${pathname.startsWith('/restaurant') ? '/restaurant' : '/dashboard'}/settings?tab=notifications`
 
-  // mobilon a fejléc ikonja (DashboardNav) a beállításokra visz
+  // mobil: a fejléc szűrő-ikonja (DashboardNav) nyitja — benne a nézet (Mind / Olvasatlan / Jóváhagyás) és a két tömeges művelet
+  const [filterOpen, setFilterOpen] = useState(false)
+  useEffect(() => {
+    const on = () => setFilterOpen(true)
+    window.addEventListener('davelopment:open-notifications-filter', on)
+    return () => window.removeEventListener('davelopment:open-notifications-filter', on)
+  }, [])
+  // mobilon a fejléc fogaskereke (DashboardNav) a beállításokra visz
   useEffect(() => {
     const go = () => router.push(settingsHref)
     window.addEventListener('davelopment:open-notifications-tabs', go)
@@ -59,6 +70,7 @@ export function NotificationsPage() {
   }, [router, settingsHref])
 
   const unread = items.filter((n) => !n.read).length
+  const readAll = () => { for (const n of items) if (!n.read) void markRead(n.id) }
   const shown = items.filter((n) => (filter === 1 ? !n.read : filter === 2 ? isAwaitingApproval(n) : true))
 
   const row = (n: Notification): InboxRow => {
@@ -100,8 +112,16 @@ export function NotificationsPage() {
 
   return (
     <div className="px-4 py-6 lg:px-0">
-      <NotificationsInbox groups={groups} total={items.length} unread={unread} filter={filter} onFilter={setFilter}
-        onReadAll={() => { for (const n of items) if (!n.read) void markRead(n.id) }} onClearAll={() => void clearAll()} settingsHref={settingsHref} />
+      <NotificationsInbox groups={groups} total={items.length} unread={unread} approvals={pending?.total ?? 0} filter={filter} onFilter={setFilter}
+        onReadAll={readAll} onClearAll={() => void clearAll()} settingsHref={settingsHref} />
+      <PopupModal open={filterOpen} onClose={() => setFilterOpen(false)} title="Szűrők" maxWidth="sm:max-w-[440px]">
+        <Meta>Nézet</Meta>
+        <Segmented full tone="cell" className="mt-1.5" options={['Mind', `Olvasatlan${unread ? ` · ${unread}` : ''}`, 'Jóváhagyás']} active={filter} onSelect={(i) => { setFilter(i); setFilterOpen(false) }} />
+        <div className="mt-4 flex gap-1.5">
+          <Button variant="cell" className="flex-1" icon={CheckCheck} disabled={!unread} onClick={() => { readAll(); setFilterOpen(false) }}>Összes olvasott</Button>
+          <Button variant="danger" className="flex-1" icon={Trash2} disabled={!items.length} onClick={() => { void clearAll(); setFilterOpen(false) }}>Összes törlése</Button>
+        </div>
+      </PopupModal>
     </div>
   )
 }

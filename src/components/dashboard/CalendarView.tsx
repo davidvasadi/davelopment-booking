@@ -20,6 +20,7 @@ import { ChipToolbar } from '@/components/blocks/toolbar'
 import { ShiftDayGrid } from '@/components/dashboard/ShiftDayGrid'
 import { NewShiftModal, ShiftEditor } from '@/components/dashboard/ShiftEditor'
 import { DayStrip } from '@/components/shared/BookingsDateNav'
+import { ScheduleExportDialog } from '@/components/shared/ScheduleExportDialog'
 import { toCsv, downloadCsv } from '@/lib/csv'
 import { DAY_NAMES, MONTHS, MONTHS_SHORT, TYPE_LABEL, addDays, effHours, fmtH, mondayOf, pad, posOf, rangeLabel, shiftHours, shiftLabel, toDate, ymd, ymdOf, type ShiftInput, type ShiftType, type ShiftVM, type StaffVM } from '@/lib/schedule'
 import { markLocalMutation } from '@/lib/localMutationTracker'
@@ -126,7 +127,7 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
     window.addEventListener('davelopment:open-schedule-add', onAdd)
     window.addEventListener('davelopment:open-schedule-filter', onFilter)
     window.addEventListener('davelopment:open-schedule-edit', onEdit)
-    const onSearch = () => setMobileSearch(true)
+    const onSearch = () => setMobileSearch((v) => { if (v) setQuery(''); return !v })
     const onExport = () => exportRef.current()
     window.addEventListener('davelopment:export-schedule', onExport)
     window.addEventListener('davelopment:open-schedule-search', onSearch)
@@ -288,12 +289,9 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
   // ── Export: a megjelenített hónap beosztása CSV-ben ──
   // a mobil fejléc export-ikonja (esemény) mindig a friss függvényt hívja
   const exportRef = useRef<() => void>(() => {})
-  exportRef.current = () => exportMonth()
-  function exportMonth() {
-    const rows = shifts.filter((s) => s.date.startsWith(monthPrefix)).sort((a, b) => a.date.localeCompare(b.date))
-    const csv = toCsv(['Dátum', 'Munkatárs', 'Típus', 'Kezdés', 'Vége', 'Óra', 'Megjegyzés'], rows.map((s) => [s.date, staffById.get(s.staffId)?.name ?? '', TYPE_LABEL[s.type], s.start_time, s.end_time, Math.round(shiftHours(s) * 10) / 10, s.note === '__auto__' ? '' : s.note]))
-    downloadCsv(`naptar-${monthPrefix}.csv`, csv)
-  }
+  const [exportOpen, setExportOpen] = useState(false)
+  exportRef.current = () => setExportOpen(true)
+
 
   // ── fejléc + eszköztár (design 11.1) ──
   const typeChips = (
@@ -313,7 +311,7 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
       // mobilon a nézet és az Export a szűrő-lapon, a „+ Beosztás” a fejléc ikonja (DashboardNav)
       actions={<span className="flex flex-wrap items-center gap-1.5 max-lg:hidden">
         <Segmented options={['Nap', 'Hét', 'Hónap']} active={VIEWS.indexOf(view)} onSelect={(i) => setView(VIEWS[i])} />
-        <Button variant="glass" icon={Download} onClick={exportMonth}>Export</Button>
+        <Button variant="glass" icon={Download} onClick={() => setExportOpen(true)}>Export</Button>
         {canManage && <Button variant="yellow" icon={Plus} onClick={() => setNewShift(true)}>Beosztás</Button>}
       </span>}
     />
@@ -327,8 +325,10 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
       active={pos}
       onChip={(i) => { setPos(i); setSelected(null) }}
       dot={typeFilter !== 'all'}
+      chipsInFilter
+      chipsLabel="Pozíció"
       filters={<>
-        <div className="flex items-center justify-between"><span className="text-ui-title font-light text-ui-text">Szűrők</span><Button variant="ghost" size="sm" onClick={() => setTypeFilter('all')}>Törlés</Button></div>
+        <div className="flex items-center justify-between"><span className="text-ui-title font-light text-ui-text">Szűrők</span><Button variant="danger" size="sm" onClick={() => { setTypeFilter('all'); setPos(0); setSelected(null) }}>Törlés</Button></div>
         {typeChips}
       </>}
     />
@@ -337,7 +337,7 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
   const mobileSheet = (
     <PopupModal open={mobileFilters} onClose={() => setMobileFilters(false)} title="Nézet és szűrők" maxWidth="sm:max-w-[440px]" headerAction={<Button variant="ghost" size="sm" onClick={() => { setTypeFilter('all'); setPos(0); setQuery(''); setSelected(canManage ? null : selected); setView('day') }}>Alaphelyzet</Button>}>
       <Meta>Időszak</Meta>
-      <Segmented className="mt-1.5" full options={['Nap', 'Hét', 'Hónap']} active={VIEWS.indexOf(view)} onSelect={(i) => setView(VIEWS[i])} />
+      <Segmented className="mt-1.5" full tone="cell" options={['Nap', 'Hét', 'Hónap']} active={VIEWS.indexOf(view)} onSelect={(i) => setView(VIEWS[i])} />
       {canManage && (
         <>
           <Meta className="mt-4">Munkatárs</Meta>
@@ -350,6 +350,11 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
         </>
       )}
       {typeChips}
+      {/* a ritkán használt műveletek (Dave kérésére a fejlécből ide): a kiválasztott nap/szakasz szerkesztése és az export */}
+      <div className="mt-4 flex gap-1.5">
+        {canManage && <Button variant="cell" className="flex-1" icon={Pencil} onClick={() => { setMobileFilters(false); window.dispatchEvent(new Event('davelopment:open-schedule-edit')) }}>Szerkesztés</Button>}
+        <Button variant="cell" className="flex-1" icon={Download} onClick={() => { setMobileFilters(false); exportRef.current() }}>Export</Button>
+      </div>
       {/* „Mentés”: az időszak, a munkatárs és a típus ezen az eszközön megmarad — legközelebb ezzel nyílik */}
       <Button className="mt-2 w-full" onClick={() => { writeSavedView('calendar', { view, selected: canManage ? selected : undefined, type: typeFilter }); toast.success('Nézet elmentve ezen az eszközön'); setMobileFilters(false) }}>Mentés</Button>
     </PopupModal>
@@ -684,12 +689,13 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
       <div className="max-lg:hidden">{toolbar}</div>
       {/* mobil: a fejléc kereső-ikonja nyitja (munkatárs neve), X-szel bezárható */}
       {mobileSearch && (
-        <div className="mb-3 flex items-center gap-1.5 lg:hidden">
+        <div className="ui-pop-in mb-3 flex items-center gap-1.5 lg:hidden">
           <SearchField autoFocus className="min-w-0 flex-1" value={query} onChange={setQuery}>Munkatárs keresése…</SearchField>
           <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { setQuery(''); setMobileSearch(false) }} />
         </div>
       )}
       {mobileSheet}
+      {exportOpen && <ScheduleExportDialog shifts={shifts} staff={staff} month={monthPrefix} selected={canManage ? selected : (myStaffId ?? null)} canManage={canManage} onClose={() => setExportOpen(false)} />}
       {view === 'month' ? monthView() : view === 'week' ? weekView() : dayView()}
 
       {editor && (

@@ -7,7 +7,7 @@ import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { BulkDock, GuestSees, StaffBulkBar } from './team'
 import { SaveBar, SettingsGroup, SettingsPage } from './settings'
 import { Switch } from '@/components/ui/toggle-switch'
-import { ArrowUpRight, Banknote, CalendarDays, Check, CreditCard, Download, ExternalLink, FileText, Gift, HandCoins, Landmark, Link2, Mail, Plus, Receipt, Send, Wallet, Copy } from 'lucide-react'
+import { ArrowUpRight, Banknote, CalendarDays, Check, CreditCard, Download, ExternalLink, FileText, Gift, HandCoins, Landmark, Link2, Mail, Plus, Receipt, Send, Wallet, Copy, X } from 'lucide-react'
 import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Modal, OptionCard, Pill, Note, SearchField, RowCheck, Segmented, Select, StatusPill, Table, Td, Th, Tr, MarqueeText } from '@/components/ui-kit'
 
 /* Az élő rendszer három része a design kit nyelvén (a /design 16.7.1, 16.7.2, 16.11 és 7.5 ezeket mutatja,
@@ -56,7 +56,7 @@ export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery
   /** a kijelöltek sztornózása a számlázóban (a hívó megerősítést kér) */
   onStornoSelected?: () => void
   /** mobil (teljes oldal): a kereső és a szűrők csak a fejléc ikonjaira jelennek meg */
-  mobileTools?: { search: boolean; filters: boolean }
+  mobileTools?: { search: boolean; filters: boolean; onCloseSearch?: () => void }
   className?: string
 }) {
   const list = data ?? SAMPLE_ROWS.slice(0, rows)
@@ -76,8 +76,14 @@ export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery
         </span>
       </div>
       {/* mobil: a fejléc ikonjaira — kereső (teljes szélességben), szűrők (típus, állapot) */}
-      {mobileTools?.search && <SearchField autoFocus className="mt-3 w-full lg:hidden" value={query} onChange={onQuery}>Vevő, számlaszám…</SearchField>}
-      {mobileTools?.filters && <div className="mt-3 flex flex-wrap gap-1.5 lg:hidden">{!compact && <Select toolbar size="sm" value={onType ? type : undefined} defaultValue={onType ? undefined : type} onChange={onType ? (e) => onType(e.target.value) : undefined} className="w-[150px]"><option value="all">Minden típus</option><option value="deposit">Előleg</option><option value="voucher">Ajándékutalvány</option><option value="service">Szolgáltatás</option></Select>}
+      {/* a többi oldal mobil keresőjével egyezően: mező + mellette az X (törli és bezárja) */}
+      {mobileTools?.search && (
+        <div className="ui-pop-in mt-3 flex items-center gap-1.5 lg:hidden">
+          <SearchField autoFocus className="min-w-0 flex-1" value={query} onChange={onQuery}>Vevő, számlaszám…</SearchField>
+          {mobileTools.onCloseSearch && <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={mobileTools.onCloseSearch} />}
+        </div>
+      )}
+      {mobileTools?.filters && <div className="ui-pop-in mt-3 flex flex-wrap gap-1.5 lg:hidden">{!compact && <Select toolbar size="sm" value={onType ? type : undefined} defaultValue={onType ? undefined : type} onChange={onType ? (e) => onType(e.target.value) : undefined} className="w-[150px]"><option value="all">Minden típus</option><option value="deposit">Előleg</option><option value="voucher">Ajándékutalvány</option><option value="service">Szolgáltatás</option></Select>}
           {!compact && <Select toolbar size="sm" value={onStatus ? status : undefined} defaultValue={onStatus ? undefined : status} onChange={onStatus ? (e) => onStatus(e.target.value) : undefined} className="w-[170px]"><option value="all">Minden állapot</option><option value="issued">Kiállítva</option><option value="failed">Sikertelen{failed ? ` (${failed})` : ''}</option><option value="skipped">Nem kért</option><option value="register">Pénztárgépen</option><option value="manual">Kézzel kell kiállítani</option><option value="storno">Sztornózva</option></Select>}</div>}
       <Meta className="mt-2">Minden vendég-fizetés és a bizonylata: előleg, ajándékutalvány és a helyszíni fizetés. Ami a számlázódból ment, letölthető; a pénztárgépes és a „nem kért” sor csak rögzítés.</Meta>
       {message ? <Meta className="py-10 text-center">{message}</Meta> : (
@@ -137,7 +143,7 @@ export function InvoiceModal({ failed = false, row, pdf, download, openHref, onS
           <FieldRow label="Számlaszám"><span className="text-ui-body font-medium text-ui-text">{r.no}</span></FieldRow>
           <FieldRow label="Tétel"><span className="text-ui-body text-ui-text">{r.item}</span></FieldRow>
           <FieldRow label="Vevő"><span className="text-ui-body text-ui-text">{r.who}</span></FieldRow>
-          {r.email && <FieldRow label="E-mail"><span className="truncate text-ui-body text-ui-text">{r.email}</span></FieldRow>}
+          {r.email && <FieldRow label="E-mail"><MarqueeText className="text-ui-body text-ui-text">{r.email}</MarqueeText></FieldRow>}
           <FieldRow label="Dátum"><span className="text-ui-body text-ui-text">{r.date}</span></FieldRow>
           <FieldRow label="Összeg"><span className="text-ui-body font-medium text-ui-text">{r.sum}</span></FieldRow>
           {r.pay && <FieldRow label="Fizetés"><span className="text-ui-body text-ui-text">{r.pay}</span></FieldRow>}
@@ -259,7 +265,7 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
           <div className="text-ui-label text-ui-muted">Pénzügy</div>
           <div className="mt-0.5 text-ui-sub font-light text-ui-text">Előleg</div>
         </div>
-        {!v || v.enabled ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="neutral">Kikapcsolva</StatusPill>}
+        {!v || v.enabled ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="bad">Kikapcsolva</StatusPill>}
       </div>
       {manualApproval && (
         <div className="px-6 pt-4 max-lg:px-0">
@@ -424,7 +430,7 @@ export function VoucherSettings({ value, onChange, summary = SAMPLE_VOUCHERS, ty
     ? <Input size="sm" type="number" inputMode="numeric" min={0} step={1000} value={val} onChange={(e) => set({ [key]: Number(e.target.value) || 0 })} hug className="text-right" aria-label={key === 'minAmountHuf' ? 'Minimum összeg' : 'Maximum összeg'} />
     : <Input size="sm" defaultValue={`${val.toLocaleString('hu-HU')} Ft`} className={w} />
   return (
-    <SettingsPage group="Pénzügy" title="Ajándékutalvány" save={save} status={on ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="neutral">Kikapcsolva</StatusPill>} aside={<>
+    <SettingsPage group="Pénzügy" title="Ajándékutalvány" save={save} status={on ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="bad">Kikapcsolva</StatusPill>} aside={<>
       <VoucherSalesCard data={summary} />
       <VoucherExpiringCard data={summary} />
     </>}>
@@ -734,7 +740,7 @@ export function PaymentsSettingsPage({ issuer = 'business', onIssuer, staff = SA
             <FieldRow key={m.key} label={m.name} hint={m.vat ?? 'nincs adószám'}>
               <span className="flex flex-wrap justify-end gap-1">
                 <StatusPill status={m.invoicing ? 'ok' : 'pending'}>{m.invoicing ? 'Számlázó' : 'Nincs számlázó'}</StatusPill>
-                <StatusPill status={m.stripe ? 'ok' : 'neutral'}>{m.stripe ? 'Stripe' : 'Nincs online fizetés'}</StatusPill>
+                <StatusPill status={m.stripe ? 'ok' : 'bad'}>{m.stripe ? 'Stripe' : 'Nincs online fizetés'}</StatusPill>
               </span>
             </FieldRow>
           ))}
@@ -805,10 +811,10 @@ export function StaffBillingCard({ name = 'Viktória', provider = 'szamlazz', ke
       {/* felül ugyanaz a két kapcsolat-kártya, mint üzlet szinten (16.7) — csak a szakember saját fiókjai */}
       <div className="grid gap-[5px] sm:grid-cols-2">
         <ConnectionCard kind="stripe" desc={`${name} saját Stripe-fiókja: az előleg és a fizetési link pénze ide érkezik.`}
-          status={stripe === 'ok' ? { tone: 'ok', label: 'Összekötve' } : stripe === 'pending' ? { tone: 'pending', label: 'Félbemaradt' } : { tone: 'neutral', label: 'Nincs összekötve' }}
+          status={stripe === 'ok' ? { tone: 'ok', label: 'Összekötve' } : stripe === 'pending' ? { tone: 'pending', label: 'Félbemaradt' } : { tone: 'bad', label: 'Nincs összekötve' }}
           btn={{ label: stripe === 'ok' ? 'Kezelés' : stripe === 'pending' ? 'Folytatom' : 'Összekötés', primary: stripe !== 'ok', onClick: onConnectStripe }} />
         <ConnectionCard kind={kind} desc={`A számlák ${name} nevére mennek, a saját számlázó fiókjából.`}
-          status={provider === 'none' ? { tone: 'neutral', label: 'Nincs összekötve' } : keyOk ? { tone: 'ok', label: 'Összekötve' } : { tone: 'bad', label: 'Hibás kulcs' }}
+          status={provider === 'none' ? { tone: 'bad', label: 'Nincs összekötve' } : keyOk ? { tone: 'ok', label: 'Összekötve' } : { tone: 'bad', label: 'Hibás kulcs' }}
           btn={{ label: provider === 'none' ? 'Összekötés' : 'Kezelés', primary: provider === 'none', onClick: onManageInvoicing }} />
       </div>
       <Card tone="white" pad="lg" className="max-lg:px-0">

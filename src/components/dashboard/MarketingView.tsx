@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { LayoutTemplate, Mail, Plus, X, Send, SlidersHorizontal, Trash2, Users } from 'lucide-react'
+import { LayoutTemplate, Mail, Plus, X, Send, Settings2, Trash2, Users } from 'lucide-react'
 import { Button, Card, CardTitle, EmptyState, FIELD, Field, FieldRow, IconButton, Input, Kpi, Meta, Modal, OptionCard, PageHead, Panel, Pill, SearchField, Segmented, SegmentBar, Select } from '@/components/ui-kit'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { TimeSelect } from '@/components/ui/time-select'
@@ -25,6 +25,8 @@ import { LOCALE_LABELS, type Locale } from '@/lib/i18n'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { MONTHS_SHORT } from '@/lib/schedule'
 import type { CampaignVM, MarketingVM, SubscriberVM } from '@/lib/marketingView'
+import { useAppendPages } from '@/lib/useAppendPages'
+import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
 
 /**
  * Marketing — szalon és étterem közös oldala (design 13.1–13.8). Fülek: Kampányok (bal lista, közép a levél, jobb a
@@ -77,7 +79,6 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
   useEffect(() => { if (new URLSearchParams(window.location.search).get('tab') === 'subscribers') setTab(1) }, [])
   const [filter, setFilter] = useState<CampaignFilterValue>(FILTER0)
   const [filterOpen, setFilterOpen] = useState(false)
-  const [listPage, setListPage] = useState(1)
   const firstSent = campaigns.find((c) => c.status === 'sent')?.id ?? campaigns[0]?.id ?? null
   const [openId, setOpenId] = useState<string | null>(firstSent)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -98,9 +99,10 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
     else if (filter.sort === 2) list.sort((a, b) => (b.stats?.booked ?? -1) - (a.stats?.booked ?? -1))
     return list
   }, [campaigns, filter])
-  const listPages = Math.max(1, Math.ceil(filtered.length / LIST_PAGE))
-  const pageItems = filtered.slice((listPage - 1) * LIST_PAGE, listPage * LIST_PAGE)
-  useEffect(() => { setListPage(1) }, [filter])
+  // kampánylista: lapozás + görgetésre hozzáfűzés (szűrő váltásakor az elejéről)
+  const listPaging = useAppendPages(filtered.length, LIST_PAGE, filter)
+  const listPages = listPaging.pages
+  const pageItems = filtered.slice(listPaging.from, listPaging.to)
   const maxBooked = Math.max(1, ...campaigns.map((c) => c.stats?.booked ?? 0))
   const pickDay = (d: string) => setFilter((f) => (!f.from || f.to ? { ...f, from: d, to: '' } : d < f.from ? { ...f, from: d } : { ...f, to: d }))
 
@@ -303,20 +305,21 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
   const [resRows, setResRows] = useState<{ email: string; name: string | null; openedAt: string | null }[]>([])
   const [resFilter, setResFilter] = useState(0)
   const [resQ, setResQ] = useState('')
-  const [resPage, setResPage] = useState(1)
   // a címzett-lista annyi sort mutat, amennyi az ablakba kifér (utána lapozó)
   const [resPer, setResPer] = useState(6)
   const openResults = async () => {
     if (!open) return
     // ablak 85%-a mínusz a fejléc, a kampány-fej, a sáv, a szűrők és a lapozó (~540 px); egy sor ~56 px
     setResPer(Math.max(3, Math.min(12, Math.floor((window.innerHeight * 0.85 - 540) / 56))))
-    setResFilter(0); setResQ(''); setResPage(1); setResRows([]); setResOpen(true)
+    setResFilter(0); setResQ(''); setResRows([]); setResOpen(true)
     const j = await (await fetch(`/api/marketing/campaigns/recipients?kind=${kind}&businessId=${businessId}&campaignId=${open.id}`, { credentials: 'include' })).json().catch(() => ({}))
     setResRows(j.recipients ?? [])
   }
   const resFiltered = resRows.filter((r) => (resFilter === 0 || (resFilter === 1 ? !!r.openedAt : !r.openedAt)) && (!resQ.trim() || `${r.name ?? ''} ${r.email}`.toLowerCase().includes(resQ.trim().toLowerCase())))
-  const resPages = Math.max(1, Math.ceil(resFiltered.length / resPer))
-  const resView: RecipientRow[] = resFiltered.slice((resPage - 1) * resPer, resPage * resPer).map((r) => ({ key: r.email, name: r.name || r.email, meta: r.openedAt ? `megnyitotta ${fmtDT(r.openedAt)}` : 'még nem nyitotta meg', opened: !!r.openedAt }))
+  // címzettek: lapozás + görgetésre hozzáfűzés az ablakban (több száz címzettnél is)
+  const resPaging = useAppendPages(resFiltered.length, resPer, `${resFilter}|${resQ}|${open?.id}`)
+  const resPages = resPaging.pages
+  const resView: RecipientRow[] = resFiltered.slice(resPaging.from, resPaging.to).map((r) => ({ key: r.email, name: r.name || r.email, meta: r.openedAt ? `megnyitotta ${fmtDT(r.openedAt)}` : 'még nem nyitotta meg', opened: !!r.openedAt }))
   // nyitási arány grafikonja: a kampány napról napra gyűlő megnyitása a küldéstől (sárga), szaggatottal az összes
   // kiküldött kampány ugyanígy számolt átlagos görbéje — kampányok egymás mellé tett arányai egyenes vonalat adnának
   const cumOf = (c: CampaignVM) => { let n = 0; return (c.stats?.perDay ?? []).map((x) => { n += x.v; return pct(n, c.recipients) }) }
@@ -353,8 +356,23 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
   const loadSubs = useCallback(async () => {
     const p = filterParams(new URLSearchParams({ kind, businessId, page: String(subPage), limit: String(SUB_PAGE), sort: subSort, ...(subOrder ? { order: subOrder } : {}), status: subStatus ? 'unsubscribed' : 'subscribed' }), subQ, subF)
     const r = await fetch(`/api/marketing/subscribers?${p}`, { credentials: 'include' }); const j = await r.json()
-    if (r.ok) { setSubRows((j.docs as SubApi[]).map(toSubRow)); setSubTotal(j.totalDocs ?? 0) }
+    if (r.ok) { setSubRows((j.docs as SubApi[]).map(toSubRow)); setSubTotal(j.totalDocs ?? 0); setSubStart(subPage); setSubEnd(subPage) }
   }, [kind, businessId, subPage, subSort, subOrder, subStatus, subQ, subF]) // eslint-disable-line react-hooks/exhaustive-deps
+  // görgetésre a következő oldal hozzáfűzése (a lapozó a betöltött utolsó oldalt mutatja)
+  const [subStart, setSubStart] = useState(1)
+  const [subEnd, setSubEnd] = useState(1)
+  const [subMoreBusy, setSubMoreBusy] = useState(false)
+  const loadMoreSubs = async () => {
+    if (subMoreBusy || subEnd >= Math.ceil(subTotal / SUB_PAGE)) return
+    setSubMoreBusy(true)
+    const p = filterParams(new URLSearchParams({ kind, businessId, page: String(subEnd + 1), limit: String(SUB_PAGE), sort: subSort, ...(subOrder ? { order: subOrder } : {}), status: subStatus ? 'unsubscribed' : 'subscribed' }), subQ, subF)
+    const r = await fetch(`/api/marketing/subscribers?${p}`, { credentials: 'include' }).catch(() => null)
+    const j = r?.ok ? await r.json().catch(() => null) : null
+    setSubMoreBusy(false)
+    if (!j) return
+    setSubRows((prev) => [...prev, ...(j.docs as SubApi[]).map(toSubRow).filter((x) => !prev.some((y) => y.id === x.id))])
+    setSubEnd((e) => e + 1)
+  }
   useEffect(() => {
     if (tab !== 1) return
     if (!subLoaded.current && subPage === 1 && !subQ && !subStatus && subF === SUB_FILTER0 && subSort === 'desc' && !subOrder) { subLoaded.current = true; return }
@@ -431,7 +449,7 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
   if (draft && (!draft.id || !campaigns.some((c) => c.id === draft.id))) items.unshift({ id: draft.id ?? '__new', title: draft.subject || 'Új kampány', status: 'draft', when: `Most szerkeszted · ${saveWord}`, note: draft.picked.length ? `${draft.picked.length} kijelölt vendég` : draft.segments.map((s) => SEGMENT_LABEL[s]).join(', ') })
   const listOpenId = draft ? draft.id ?? '__new' : openId
   const onOpenItem = (id: string, mobile = false) => { if (id === '__new' || id === draft?.id) return; const c = campaigns.find((x) => x.id === id); if (c) openCampaign(c, mobile) }
-  const listLabel = filtered.length ? `${(listPage - 1) * LIST_PAGE + 1}–${Math.min(filtered.length, listPage * LIST_PAGE)} / ${filtered.length}` : '0'
+  const listLabel = filtered.length ? listPaging.label : '0'
   const emptyList = <Meta className="px-3 py-10 text-center">{campaigns.length ? 'Nincs a szűrésnek megfelelő kampány.' : 'Még nincs kampányod.'}</Meta>
 
   // ── írás-mód darabjai ──
@@ -494,15 +512,15 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
           <div className="relative mb-[5px] flex flex-wrap items-center gap-1.5">
             <SearchField className="w-[240px] max-sm:w-full" value={pickQ} onChange={(v: string) => { setPickQ(v); setPickPage(1) }}>Név vagy e-mail</SearchField>
             <span className="flex">
-              <IconButton icon={SlidersHorizontal} label="Szűrők" dot={pickFiltered} onClick={() => setPickFOpen((v) => !v)} aria-expanded={pickFOpen} />
+              <IconButton icon={Settings2} label="Szűrők" dot={pickFiltered} onClick={() => setPickFOpen((v) => !v)} aria-expanded={pickFOpen} />
               {pickFOpen && <>
                 <span className="fixed inset-0 z-40" onClick={() => setPickFOpen(false)} aria-hidden />
                 <Panel className="ui-pop-in absolute inset-x-0 top-full z-50 mt-2 origin-top-left"><SubscriberFilters wide value={pickF} onChange={(v) => { setPickF(v); setPickPage(1) }} countries={vm.countries} services={vm.services} restaurant={restaurant} /></Panel>
               </>}
             </span>
             <span className="ml-auto flex gap-1.5">
-              {pickSel.length > 0 && <Button variant="glass" onClick={() => setPickSel([])}>Kijelölés törlése</Button>}
-              <Button variant="glass" onClick={() => void pickAll()}>{pickQ || pickFiltered ? 'Találatok kijelölése' : 'Mind kijelölése'}</Button>
+              {pickSel.length > 0 && <Button variant="cell" onClick={() => setPickSel([])}>Kijelölés törlése</Button>}
+              <Button variant="cell" onClick={() => void pickAll()}>{pickQ || pickFiltered ? 'Találatok kijelölése' : 'Mind kijelölése'}</Button>
             </span>
           </div>
           <RecipientTable intl={intl} rows={pickRows.map((r): RecipientPickRow => ({ id: r.id, name: r.name, email: r.email, country: r.country ?? '', since: fmtD(r.consentAt), bookings: r.bookings, lastVisit: r.lastVisit ? fmtD(`${r.lastVisit.slice(0, 10)}T12:00:00`) : null, opened: r.opened, received: r.received, sel: pickSel.includes(r.id) }))}
@@ -516,8 +534,8 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
       <PopupModal open={resOpen && !!open} onClose={() => setResOpen(false)} panel={open && open.stats ? (
         <Modal size="xl" className="bg-ui-page" title="Címzettek" subtitle={`${nf(open.recipients)} címzett · ${open.audience}`} onClose={() => setResOpen(false)}>
           <div className="grid items-start gap-[5px] lg:grid-cols-[minmax(0,1fr)_320px]">
-            <CampaignResults title={open.subject} sentAt={`Kiküldve ${fmtDT(open.at)}`} opened={open.stats.opened} total={open.recipients} rows={resView} filter={resFilter} onFilter={(i) => { setResFilter(i); setResPage(1) }} query={resQ} onQuery={(q) => { setResQ(q); setResPage(1) }}
-              onCopy={canManage ? () => { setResOpen(false); copyOf(open) } : undefined} page={resPage} pages={resPages} label={resFiltered.length ? `${(resPage - 1) * resPer + 1}–${Math.min(resFiltered.length, resPage * resPer)} / ${resFiltered.length}` : '0'} onPage={setResPage} />
+            <CampaignResults title={open.subject} sentAt={`Kiküldve ${fmtDT(open.at)}`} opened={open.stats.opened} total={open.recipients} rows={resView} filter={resFilter} onFilter={(i) => setResFilter(i)} query={resQ} onQuery={(q) => setResQ(q)}
+              onCopy={canManage ? () => { setResOpen(false); copyOf(open) } : undefined} page={resPaging.page} pages={resPages} label={resFiltered.length ? resPaging.label : '0'} onPage={resPaging.goTo} more={<LoadMoreSentinel hasMore={resPaging.hasMore} loading={false} onMore={resPaging.more} />} />
             <div className="space-y-[5px]">
               <OpenRateCard pct={pct(open.stats.opened, open.recipients)} series={rate.series} avgSeries={rate.avg} avg={openRate} ticks={rate.ticks} />
               <Card>
@@ -587,10 +605,10 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
     <Card pad="sm" className="flex flex-col">
       <div className="flex items-center justify-between px-2 pb-2">
         <span className="text-ui-title font-normal text-ui-text">Kampányok</span>
-        <span className="flex gap-1.5"><IconButton icon={SlidersHorizontal} label="Szűrés: időszak, rendezés" size="sm" variant="cell" dot={filter.sort !== 0 || filter.period !== 2} onClick={() => setFilterOpen(true)} />{canManage && <IconButton icon={Plus} label="Új kampány" variant="yellow" size="sm" onClick={() => startDraft()} />}</span>
+        <span className="flex gap-1.5"><IconButton icon={Settings2} label="Szűrés: időszak, rendezés" size="sm" variant="cell" dot={filter.sort !== 0 || filter.period !== 2} onClick={() => setFilterOpen(true)} />{canManage && <IconButton icon={Plus} label="Új kampány" variant="yellow" size="sm" onClick={() => startDraft()} />}</span>
       </div>
       <Segmented tone="cell" full className="mb-2" options={['Mind', 'Kiküldve', 'Ütemezve', 'Piszkozat']} active={filter.status} onSelect={(i) => setFilter((f) => ({ ...f, status: i }))} />
-      <CampaignList items={items} openId={listOpenId} onOpen={(id) => onOpenItem(id)} page={listPage} pages={listPages} label={listLabel} onPage={setListPage} empty={emptyList} />
+      <CampaignList items={items} openId={listOpenId} onOpen={(id) => onOpenItem(id)} page={listPaging.page} pages={listPages} label={listLabel} onPage={listPaging.goTo} more={<LoadMoreSentinel hasMore={listPaging.hasMore} loading={false} onMore={listPaging.more} />} empty={emptyList} />
     </Card>
   )
 
@@ -642,7 +660,7 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
             <div className="relative">
               <SubscriberTable th={subTh} intl={intl} rows={subRows} selected={subSel} onToggle={canManage ? toggleSub : undefined}
                 onToggleAll={canManage ? () => { const ids = subRows.map((r) => r.id); setSubSel((s) => (ids.every((i) => s.includes(i)) ? s.filter((i) => !ids.includes(i)) : [...new Set([...s, ...ids])])) } : undefined}
-                page={subPage} pages={subPages} label={subTotal ? `${(subPage - 1) * SUB_PAGE + 1}–${Math.min(subTotal, subPage * SUB_PAGE)} / ${nf(subTotal)}` : '0'} onPage={setSubPage}
+                page={subEnd} pages={subPages} label={subTotal ? `${(subStart - 1) * SUB_PAGE + 1}–${Math.min(subTotal, subEnd * SUB_PAGE)} / ${nf(subTotal)}` : '0'} onPage={(p) => (p === subPage ? void loadSubs() : setSubPage(p))} more={<LoadMoreSentinel hasMore={subEnd < subPages} loading={subMoreBusy} onMore={() => void loadMoreSubs()} />}
                 empty={<Meta className="px-3 py-10 text-center">{subQ || subFilterCount(subF) ? 'Nincs találat.' : subStatus ? 'Még senki nem iratkozott le.' : 'Még nincs feliratkozó.'}</Meta>} className={subSel.length ? 'pb-20' : ''} />
               {subBulk}
             </div>
@@ -676,11 +694,11 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
             {bar(true)}
             {tabs(true)}
             {tab === 0 ? (
-              <div className="mt-3 flex flex-col"><CampaignList items={items} openId={mobileOpen ? openId : null} onOpen={(id) => onOpenItem(id, true)} page={listPage} pages={listPages} label={listLabel} onPage={setListPage} mobile empty={emptyList} /></div>
+              <div className="mt-3 flex flex-col"><CampaignList items={items} openId={mobileOpen ? openId : null} onOpen={(id) => onOpenItem(id, true)} page={listPaging.page} pages={listPages} label={listLabel} onPage={listPaging.goTo} more={<LoadMoreSentinel hasMore={listPaging.hasMore} loading={false} onMore={listPaging.more} />} mobile empty={emptyList} /></div>
             ) : (
               <>
                 <SearchField className="mt-3 w-full" value={subQ} onChange={(v: string) => setSubQ(v)}>Név vagy e-mail</SearchField>
-                <SubscriberMobileList className={`mt-3 ${subSel.length ? 'pb-20' : ''}`} rows={subRows} selected={subSel} onToggle={canManage ? toggleSub : undefined} page={subPage} pages={subPages} onPage={setSubPage} />
+                <SubscriberMobileList className={`mt-3 ${subSel.length ? 'pb-20' : ''}`} rows={subRows} selected={subSel} onToggle={canManage ? toggleSub : undefined} page={subEnd} pages={subPages} onPage={(p) => (p === subPage ? void loadSubs() : setSubPage(p))} more={<LoadMoreSentinel hasMore={subEnd < subPages} loading={subMoreBusy} onMore={() => void loadMoreSubs()} />} />
                 {subBulk}
               </>
             )}

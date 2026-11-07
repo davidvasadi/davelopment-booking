@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ArrowRight, CalendarDays } from 'lucide-react'
-import { Button, IconButton, Segmented } from '@/components/ui-kit'
+import { Button, IconButton } from '@/components/ui-kit'
 import { ymdLocal as ymd, capsWords } from '@/lib/utils'
 import { DatePickerPopover, useMonthClosed } from './DatePickerPopover'
 import { isClosedDay } from '@/lib/closedDays'
@@ -14,7 +14,6 @@ export type BookingsRange = 'day' | 'week' | 'month'
 const HU_MONTHS = ['Jan.', 'Feb.', 'Márc.', 'Ápr.', 'Máj.', 'Jún.', 'Júl.', 'Aug.', 'Szept.', 'Okt.', 'Nov.', 'Dec.']
 const HU_MONTHS_FULL = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December']
 const HU_DAYS = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat']
-const RANGES: BookingsRange[] = ['day', 'week', 'month']
 
 function toDate(s: string): Date {
   const [y, m, d] = s.split('-').map(Number)
@@ -66,7 +65,7 @@ export function BookingsDateNav({ base, currentDate, range = 'day', loadEndpoint
       </DatePickerPopover>
       <IconButton icon={ArrowRight} label={`Következő ${unit}`} onClick={() => step(1)} />
       {currentDate !== today && <Button onClick={() => go(today)}>Ma</Button>}
-      <Segmented options={['Nap', 'Hét', 'Hónap']} active={RANGES.indexOf(range)} onSelect={(i) => go(currentDate, RANGES[i])} className="ml-1.5 hidden lg:inline-flex" />
+      {/* desktopon a Nap / Hét / Hónap a Szűrők panelen van (BookingsHead) — itt nem jelenik meg */}
     </>
   )
 }
@@ -102,10 +101,32 @@ export function DayStrip({ base, date, onPick }: { base?: string; date: string; 
   // görgetés után: ha a középső nap 2 mp-ig nem változik, azt választja (a saját középre-állítás nem számít, az a mai nap)
   const rest = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (rest.current) clearTimeout(rest.current) }, [date])
+  // CSAK a felhasználó saját görgetése választhat napot (érintés / egér / görgő) — az ablak átméretezése, a csík
+  // elrejtése (desktopra váltás) vagy a saját középre-állítás is görgetés-eseményt ad, attól NE ugorjon másik napra
+  const userScroll = useRef(false)
+  const markUser = () => { userScroll.current = true }
+  // átméretezéskor a kiválasztott nap marad középen (görgetés-választás nélkül)
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      if (rest.current) clearTimeout(rest.current)
+      userScroll.current = false
+      if (!el.clientWidth) return
+      const w = stripItem(el.clientWidth)
+      el.scrollLeft = STRIP_RANGE * w + w / 2 - el.clientWidth / 2
+      setPos({ sl: el.scrollLeft, cw: el.clientWidth })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [date])
   const onScroll = (el: HTMLDivElement) => {
     setPos({ sl: el.scrollLeft, cw: el.clientWidth })
     if (rest.current) clearTimeout(rest.current)
+    if (!userScroll.current || !el.clientWidth) return
     rest.current = setTimeout(() => {
+      if (!userScroll.current || !el.clientWidth) return
+      userScroll.current = false
       const iw = stripItem(el.clientWidth)
       const o = Math.round((el.scrollLeft + el.clientWidth / 2 - iw / 2) / iw) - STRIP_RANGE
       if (o) { const d = toDate(date); d.setDate(d.getDate() + o); pick(d) }
@@ -116,7 +137,7 @@ export function DayStrip({ base, date, onPick }: { base?: string; date: string; 
     <>
       <span className="block text-ui-sub font-light text-ui-text">{date === today ? 'Ma' : HU_DAYS[d0.getDay()][0].toUpperCase() + HU_DAYS[d0.getDay()].slice(1)}</span>
       <span className="block text-ui-label text-ui-muted">{HU_DAYS[d0.getDay()]}, {HU_MONTHS[d0.getMonth()]} {d0.getDate()}.</span>
-      <div ref={box} onScroll={(e) => onScroll(e.currentTarget)}
+      <div ref={box} onScroll={(e) => onScroll(e.currentTarget)} onTouchStart={markUser} onPointerDown={markUser} onWheel={markUser}
         className="mt-2 flex snap-x snap-mandatory items-end overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {Array.from({ length: STRIP_RANGE * 2 + 1 }, (_, i) => i - STRIP_RANGE).map((o) => {
           const d = toDate(date); d.setDate(d.getDate() + o)

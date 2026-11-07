@@ -145,7 +145,7 @@ export function GoogleSettings({ part = 'all', restaurant = false, reviews, onRe
   const hi = all.length ? Math.max(...all, 4) + 4 : 10
   const status = part === 'profile'
     ? (booking ? (booking.confirmed ? <StatusPill status="ok">Beállítva</StatusPill> : <StatusPill status="pending">1 lépés hátra</StatusPill>) : <StatusPill status="pending">1 lépés hátra</StatusPill>)
-    : (!r || r.on ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="neutral">Kikapcsolva</StatusPill>)
+    : (!r || r.on ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="bad">Kikapcsolva</StatusPill>)
   const urlField = (k: 'google' | 'tripadvisor' | 'facebook', label: string, placeholder: string, sample: { defaultValue?: string; placeholder?: string }, hint?: string) => (
     <Field label={label} hint={hint} error={urlErrors?.[k]} className="mt-2">
       {r ? <Input type="url" inputMode="url" value={k === 'google' ? r.googleUrl : k === 'tripadvisor' ? r.tripadvisorUrl : r.facebookUrl} placeholder={placeholder}
@@ -166,7 +166,7 @@ export function GoogleSettings({ part = 'all', restaurant = false, reviews, onRe
     <CardTitle>Legutóbbi értékelések</CardTitle>
     <div className="mt-2">
       {(live ? (sm?.recent ?? []).map((x) => [x.name || 'Vendég', x.rating, x.comment || '—', relDay(x.at)] as const) : SAMPLE_RECENT).map(([n, st, t, d], i) => (
-        <ListRow key={`${n}-${i}`} className="px-0" title={<span className="flex items-center gap-1.5">{n}<span className="text-ui-label text-ui-muted">★ {st}</span></span>} meta={<span className="block truncate">{t}</span>} trailing={<Meta className="text-ui-label">{d}</Meta>} />
+        <ListRow key={`${n}-${i}`} className="px-0" title={<span className="flex items-center gap-1.5">{n}<span className="text-ui-label text-ui-muted">★ {st}</span></span>} meta={<MarqueeText>{t}</MarqueeText>} trailing={<Meta className="text-ui-label">{d}</Meta>} />
       ))}
       {live && sm && !sm.recent.length && <Meta className="py-3">Még nem érkezett értékelés.</Meta>}
     </div>
@@ -306,7 +306,7 @@ export function RolesEditor({ header, roles = SAMPLE_ROLE_LIST, selectedId = 'r'
             const on = r.id === selectedId
             const card = (
               <div className={`rounded-ui-inner px-3.5 py-3 ${on ? 'bg-ui-dark text-white' : 'bg-ui-cell text-ui-text'}`}>
-                <div className="flex items-center justify-between gap-2"><span className="truncate text-ui-body">{r.name}</span><span className={`shrink-0 text-ui-label ${on ? 'text-white/55' : 'text-ui-muted'}`}>{r.locked ? 'zárolt' : `${r.members} tag`}</span></div>
+                <div className="flex items-center justify-between gap-2"><MarqueeText className="text-ui-body">{r.name}</MarqueeText><span className={`shrink-0 text-ui-label ${on ? 'text-white/55' : 'text-ui-muted'}`}>{r.locked ? 'zárolt' : `${r.members} tag`}</span></div>
                 {r.desc && <div className={`mt-0.5 text-ui-label ${on ? 'text-white/55' : 'text-ui-muted'}`}>{r.desc}</div>}
               </div>
             )
@@ -340,8 +340,9 @@ export function RolesEditor({ header, roles = SAMPLE_ROLE_LIST, selectedId = 'r'
 }
 
 /** Beszúrható adat jelölése a levélben: kis szürke pill (ide kerül a valós adat). */
-export function MergeTag({ children }: { children: React.ReactNode }) {
-  return <Pill tone="cell" size="sm" className="mx-0.5">{children}</Pill>
+export function MergeTag({ children, tone = 'cell' }: { children: React.ReactNode; tone?: 'cell' | 'white' }) {
+  // fehér csak desktopon (üveges kártyán); mobilon a téma fehér lapon nyílik, ott a szürke látszik
+  return <Pill tone={tone} size="sm" className={`mx-0.5 ${tone === 'white' ? 'max-lg:bg-ui-cell' : ''}`}>{children}</Pill>
 }
 
 /** 16.6: az Emlékeztető levél beállításai — mikor menjen ki (24 és 3 órával előtte), beszúrható adatok, csatorna
@@ -379,7 +380,7 @@ export function ReminderSettingsCard({ title = 'Emlékeztető', on = true, onTog
   const showSettings = part !== 'editor'
   const showEditor = part !== 'settings'
   const chip = (k: string, label: string, active: boolean, on?: (k: string) => void) => {
-    const p = <Pill size="sm" tone={active ? 'dark' : undefined}>{label}</Pill>
+    const p = <Pill size="sm" tone={active ? 'dark' : 'white'} className={active ? '' : 'max-lg:bg-ui-cell'}>{label}</Pill>
     return on ? <button key={k} type="button" aria-pressed={active} onClick={() => on(k)} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">{p}</button> : <span key={k}>{p}</span>
   }
   return (
@@ -392,7 +393,7 @@ export function ReminderSettingsCard({ title = 'Emlékeztető', on = true, onTog
           <div className="flex items-center justify-between gap-2"><CardTitle>Kijelölt blokk</CardTitle>{block.name && <Pill tone="yellow" size="sm">{block.name}</Pill>}</div>
           <div className="mt-1">{block.body ?? <Meta className="py-2.5 text-ui-label">Kattints egy blokkra a levélben.</Meta>}</div>
         </>}
-        {showEditor && tags.length > 0 && <FieldRow label="Beszúrható adatok" stacked>{tags.map((v) => onTag ? <button key={v} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onTag(v)} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><MergeTag>{v}</MergeTag></button> : <MergeTag key={v}>{v}</MergeTag>)}<Meta className="w-full text-ui-label">kattints, és a kurzor helyére kerül</Meta></FieldRow>}
+        {showEditor && tags.length > 0 && <FieldRow label="Beszúrható adatok" stacked>{tags.map((v) => onTag ? <button key={v} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => onTag(v)} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><MergeTag tone="white">{v}</MergeTag></button> : <MergeTag key={v} tone="white">{v}</MergeTag>)}<Meta className="w-full text-ui-label">kattints, és a kurzor helyére kerül</Meta></FieldRow>}
         {showSettings && <>
         {channels && <FieldRow label="Csatorna" stacked>{channels.map(([k, l, a]) => chip(k, l, a, onChannel))}</FieldRow>}
         {extra}
@@ -401,7 +402,7 @@ export function ReminderSettingsCard({ title = 'Emlékeztető', on = true, onTog
         </>}
         {showEditor && <>
         {onTemplate !== undefined || part === 'all' ? <div className="mt-2"><Button variant="yellow" size="sm" icon={Undo2} onClick={onTemplate}>Sablon betöltése</Button></div> : null}
-        <div className="mt-auto flex flex-wrap gap-2 pt-5"><Button variant="cell" size="sm" icon={Send} onClick={onPreview}>{onPreview ? 'Előnézet' : 'Teszt magamnak'}</Button><Button size="sm" onClick={onSave} loading={saveBusy} disabled={saveDisabled}>Mentés</Button></div>
+        <div className="mt-auto flex flex-wrap gap-2 pt-5"><Button variant="glass" size="sm" icon={Send} className="max-lg:bg-ui-cell" onClick={onPreview}>{onPreview ? 'Előnézet' : 'Teszt magamnak'}</Button><Button size="sm" onClick={onSave} loading={saveBusy} disabled={saveDisabled}>Mentés</Button></div>
         </>}
       </Card>
   )
@@ -438,10 +439,10 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
         {letters.map((m) => {
           const sel = m.key === selected
           const card = (
-            <Card tone={sel ? 'white' : 'cell'} inner pad="sm" className={sel ? 'bg-ui-yellow' : ''}>
+            <Card tone="white" inner pad="sm" className={sel ? 'bg-ui-yellow' : 'max-lg:bg-ui-cell'}>
               <div className="flex items-start justify-between gap-2">
                 <span className={`text-ui-body font-medium ${m.on ? 'text-ui-text' : 'text-ui-muted'}`}>{m.title}</span>
-                <StatusPill status={m.on ? 'ok' : 'neutral'}>{m.on ? 'Be' : 'Ki'}</StatusPill>
+                <StatusPill status={m.on ? 'ok' : 'bad'}>{m.on ? 'Be' : 'Ki'}</StatusPill>
               </div>
               <Meta className="mt-0.5 text-ui-label">{m.when}</Meta>
             </Card>
@@ -459,7 +460,7 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
       <Card tone="white" pad="none" className={`flex flex-col self-stretch lg:overflow-hidden ${device === 1 ? 'w-full max-w-[390px]' : 'min-w-0 flex-1'}`}>
         <div className="flex items-center gap-2 border-b border-dashed border-ui-divider px-6 py-3.5">
           <Meta className="shrink-0">Tárgy:</Meta>
-          <span className="min-w-0 flex-1 truncate text-ui-body text-ui-text">{subject ?? <>Holnap találkozunk — <MergeTag>idő</MergeTag></>}</span>
+          <MarqueeText className="flex-1 text-ui-body text-ui-text">{subject ?? <>Holnap találkozunk — <MergeTag>idő</MergeTag></>}</MarqueeText>
           <Segmented options={['Desktop', 'Mobil']} active={device} onSelect={onDevice} className="max-lg:hidden" />
         </div>
         <div className="flex items-start">
@@ -696,7 +697,7 @@ export function TeamMembers({ rows = SAMPLE_MEMBERS, pending = SAMPLE_PENDING, t
                   <Td>{renderRole ? renderRole(r) : r.owner ? <Pill tone="dark" size="sm">Tulajdonos</Pill> : <Pill tone="white" size="sm">{r.role}<ChevronDown className="h-3.5 w-3.5 text-ui-muted" /></Pill>}</Td>
                   <Td>{r.staff ? <span className="inline-flex items-center gap-1"><Link2 className="h-3 w-3 text-ui-muted" />{r.staff}</span> : <Meta>nincs profil · nem foglalható</Meta>}</Td>
                   <Td><Meta>{r.last}</Meta></Td>
-                  <Td><StatusPill status={r.status === 'active' ? 'ok' : 'neutral'}>{r.status === 'active' ? 'Aktív' : 'Felfüggesztett'}</StatusPill></Td>
+                  <Td><StatusPill status={r.status === 'active' ? 'ok' : 'bad'}>{r.status === 'active' ? 'Aktív' : 'Felfüggesztett'}</StatusPill></Td>
                   <Td>{renderActions ? renderActions(r) : !r.owner && <IconButton icon={MoreHorizontal} size="sm" variant="ghost" label="Műveletek" />}</Td>
                 </Tr>
               )
@@ -711,7 +712,7 @@ export function TeamMembers({ rows = SAMPLE_MEMBERS, pending = SAMPLE_PENDING, t
             {pending.map((p) => (
               <div key={p.id} className="flex flex-wrap items-center gap-3 rounded-ui-inner bg-ui-cell px-3 py-3">
                 <IconCircle tone="white" size="md" icon={Mail} />
-                <span className="min-w-0 flex-1"><span className="block truncate text-ui-body text-ui-text">{p.email}</span><span className="block text-ui-label text-ui-muted">{p.meta}</span></span>
+                <span className="min-w-0 flex-1"><MarqueeText className="text-ui-body text-ui-text">{p.email}</MarqueeText><span className="block text-ui-label text-ui-muted">{p.meta}</span></span>
                 <Button variant="glass" size="sm" onClick={onResend ? () => onResend(p.id) : undefined}>Újraküldés</Button>
                 <Button variant="ghost" size="sm" className="text-ui-bad" onClick={onRevoke ? () => onRevoke(p.id) : undefined}>Visszavonás</Button>
               </div>
@@ -759,14 +760,22 @@ export function SettingsNav({ groups, collapsed = false, footer, className = '' 
 
 /** A téma-lista mobilon (16.20): a Beállítások első képernyője — cím, kereső, csoportonként (fejléc a darabszámmal) kártyában
  *  a témák ikonnal, teendőnél sárga pöttyel; koppintva a téma lapja alulról felcsúszik. */
-export function SettingsMobileList({ groups, query, onQuery, footer, searchOpen = true, className = '' }: { groups: SettingsTopicGroup[]; query?: string; onQuery?: (q: string) => void; footer?: React.ReactNode
+export function SettingsMobileList({ groups, query, onQuery, onCloseSearch, footer, searchOpen = true, className = '' }: { groups: SettingsTopicGroup[]; query?: string; onQuery?: (q: string) => void; footer?: React.ReactNode
   /** a kereső látszik-e — élőben a fejléc kereső-ikonja nyitja (alapból nem foglal helyet) */
-  searchOpen?: boolean; className?: string }) {
+  searchOpen?: boolean
+  /** a kereső X gombja (mint a többi oldalon: törli és bezárja) */
+  onCloseSearch?: () => void; className?: string }) {
   const cls = 'ui-press block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20'
   return (
     <div className={className}>
       <div className="text-ui-num font-light leading-none text-ui-text">Beállítások</div>
-      {searchOpen && <SearchField className="mt-3 w-full" value={query} onChange={onQuery} autoFocus={!!onQuery && !query}>Beállítás keresése</SearchField>}
+      {/* a többi oldal mobil keresőjével egyezően: mező + mellette az X (törli és bezárja) */}
+      {searchOpen && (
+        <div className="ui-pop-in mt-4 flex items-center gap-1.5">
+          <SearchField autoFocus={!!onQuery && !query} className="min-w-0 flex-1" value={query} onChange={onQuery}>Beállítás keresése</SearchField>
+          {onCloseSearch && <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={onCloseSearch} />}
+        </div>
+      )}
       {groups.map((g) => (
         <div key={g.group} className="mt-4">
           <div className="mb-1.5 flex items-center gap-2 text-ui-label text-ui-muted">{g.group}<span className="h-px flex-1 border-t border-dashed border-ui-divider" />{g.items.length}</div>
@@ -800,7 +809,7 @@ export function SetupProgressCard({ pct = 62, missing = [{ label: 'Stripe össze
           const pill = <Pill tone="onDark"><span className="h-1.5 w-1.5 rounded-full bg-ui-yellow" />{m.label}<ArrowUpRight className="h-3 w-3 opacity-60" /></Pill>
           return m.onClick ? <button key={m.label} type="button" onClick={m.onClick} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/30">{pill}</button> : <span key={m.label}>{pill}</span>
         })}
-        {done > 0 && <span className="inline-flex items-center gap-1.5 px-3 text-ui-meta text-white/45"><Check className="h-3 w-3" /> {done} kész</span>}
+        {done > 0 && <span className="inline-flex items-center gap-1.5 px-3 text-ui-meta text-ui-ok-dot"><Check className="h-3 w-3" /> {done} kész</span>}
       </div>
     </Card>
   )
@@ -840,10 +849,10 @@ export function SubscriptionPage({
   return (
     <div className={`flex flex-col gap-[5px] [&>*:last-child]:flex-1 ${className}`}>
       <Card tone="dark" pad="lg" className="relative flex flex-wrap items-center justify-between gap-5">
-        {/* a fizetést a Stripe-nál kezeli — kicsiben a kártya jobb felső sarkában */}
+        {/* a fizetést a Stripe-nál kezeli — mobilon kicsiben a kártya jobb felső sarkában (desktopon ott a gomb állna alatta) */}
         {primary && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src="/brands/stripe.svg" alt="Stripe" title="A fizetés a Stripe-nál kezelhető" className="absolute right-6 top-6 h-7 w-7 rounded-ui-control" />
+          <img src="/brands/stripe.svg" alt="Stripe" title="A fizetés a Stripe-nál kezelhető" className="absolute right-6 top-6 h-7 w-7 rounded-ui-control lg:hidden" />
         )}
         <div>
           <Meta dark>Jelenlegi csomag</Meta>
@@ -853,7 +862,12 @@ export function SubscriptionPage({
         {primary && (
           // mobilon (a gomb a szöveg alá törik): balra igazítva, a kártyaszám a gomb FÖLÖTT; desktopon jobbra, a gomb alatt
           <div className="flex flex-col-reverse items-start gap-2 lg:flex-col lg:items-end">
-            <Button variant="yellow" onClick={primary.onClick} loading={primary.busy}>{primary.label}</Button>
+            {/* desktopon a Stripe-logó a gomb mellett balra (a gomb a Stripe-ot nyitja); mobilon a kártya sarkában */}
+            <span className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brands/stripe.svg" alt="Stripe" title="A fizetés a Stripe-nál kezelhető" className="hidden h-7 w-7 rounded-ui-control lg:block" />
+              <Button variant="yellow" onClick={primary.onClick} loading={primary.busy}>{primary.label}</Button>
+            </span>
             <Meta dark>{cardLine}</Meta>
           </div>
         )}
@@ -1015,7 +1029,7 @@ export function SelfProfilePage({ value, onChange, email = 'david@fodraszat.hu',
       <Card tone="dark">
         <Meta dark>Szerepeid</Meta>
         {roles.map(([n, r]) => (
-          <div key={n} className="mt-2 flex items-center justify-between gap-2 text-ui-body"><span className="min-w-0 truncate">{n}</span><Pill size="sm" tone="onDark">{r}</Pill></div>
+          <div key={n} className="mt-2 flex items-center justify-between gap-2 text-ui-body"><MarqueeText>{n}</MarqueeText><Pill size="sm" tone="onDark">{r}</Pill></div>
         ))}
       </Card>
       {devices && (
@@ -1037,7 +1051,7 @@ export function SelfProfilePage({ value, onChange, email = 'david@fodraszat.hu',
         <div className="mb-3 mt-2 flex items-center gap-3">
           <Avatar size="lg" src={avatar} name={v?.name} />
           <Button variant="cell" size="sm" loading={photoBusy} onClick={onPhoto}>{avatar ? 'Fotó cseréje' : 'Fotó feltöltése'}</Button>
-          {onRemovePhoto && avatar && <Button variant="ghost" size="sm" disabled={photoBusy} onClick={onRemovePhoto}>Eltávolítás</Button>}
+          {onRemovePhoto && avatar && <Button variant="ghost" size="sm" className="text-ui-bad" disabled={photoBusy} onClick={onRemovePhoto}>Fotó eltávolítása</Button>}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {field('name', 'Név', { defaultValue: 'Vasadi Dávid' }, { autoComplete: 'name' })}
@@ -1284,7 +1298,7 @@ export function AuditTable({ rows }: { rows: AuditTableRow[] }) {
             <Td>
               <span className="flex items-center gap-2.5">
                 <Avatar size="sm" src={r.actor.img} name={r.actor.name} />
-                <span className="min-w-0"><span className="block truncate">{r.actor.name}</span>{r.actor.email && r.actor.email !== r.actor.name && <span className="block truncate text-ui-label text-ui-muted">{r.actor.email}</span>}</span>
+                <span className="min-w-0"><MarqueeText>{r.actor.name}</MarqueeText>{r.actor.email && r.actor.email !== r.actor.name && <MarqueeText className="text-ui-label text-ui-muted">{r.actor.email}</MarqueeText>}</span>
               </span>
             </Td>
             <Td><StatusPill status={r.tone}>{r.event}</StatusPill></Td>
