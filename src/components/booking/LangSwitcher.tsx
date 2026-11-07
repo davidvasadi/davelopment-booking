@@ -53,10 +53,11 @@ export function LangSwitcher({
         open && 'bg-black/[0.10]',
         pending && 'opacity-50',
       )
+    // a foglalóoldal fejlécében (a fotón): ugyanaz, mint a sáv többi gombja — kit Pill md (36 px), sötét üveg (ON_PHOTO)
     : cn(
-        'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-all',
-        'border border-white/25 bg-white/12 text-white backdrop-blur-sm hover:bg-white/22',
-        open && 'bg-white/22',
+        'flex h-9 items-center gap-1.5 rounded-full px-3.5 text-ui-meta uppercase text-white transition-colors',
+        'border border-white/10 bg-ui-dark/45 backdrop-blur-md hover:bg-ui-dark/60',
+        open && 'bg-ui-dark/60',
         pending && 'opacity-50',
       )
 

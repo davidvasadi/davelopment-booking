@@ -47,14 +47,18 @@ export function GoodToKnowEditor({
   // fordított nyelven ugyanannyi, de üres pontot kapunk vissza a HU-ból, nem 0-elemű tömböt).
   // Ilyenkor a (fordítás nélküli, üres) pontokat NEM mutatjuk, csak a tiszta sablon-ajánlatot.
   const isBlank = value.length === 0 || value.every((s) => !s.title.trim() && !s.body.trim())
+  // „Üres pont”: üres listánál egy új pont; le nem fordított nyelven a meglévő (üres) pontok nyílnak meg kitöltésre —
+  // egy újabb üres pont hozzáadása ott semmit nem változtatna a látványon (továbbra is minden pont üres lenne)
+  const [fillBlank, setFillBlank] = useState(false)
+  const addBlank = () => { if (value.length === 0) add(); else setFillBlank(true) }
 
-  if (isBlank) {
+  if (isBlank && !fillBlank) {
     return (
       // a kit üres állapota (csíkos doboz, kör-ikon, gombok) — mint a többi üres listánál
       <EmptyState icon={Info} title={value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}
         action={<span className="flex flex-wrap items-center justify-center gap-2">
           <Button icon={Sparkles} onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}>Sablon betöltése</Button>
-          <Button variant="glass" icon={Plus} onClick={add}>Üres pont</Button>
+          <Button variant="glass" icon={Plus} onClick={addBlank}>Üres pont</Button>
         </span>}>
         Pl. parkolás, módosítás, kisállat-barát…
       </EmptyState>

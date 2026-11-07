@@ -44,7 +44,7 @@ function stepsTable(rows: [string, boolean][]): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0 0;background:#EEEEEE;border-radius:16px;padding:4px 16px">${rows.map(row).join('')}</table>`
 }
 
-function trialEmail(kind: Kind, o: { plan: string; amount: string; end: string; billing: boolean; card: boolean; href: string }) {
+export function trialEmail(kind: Kind, o: { plan: string; amount: string; end: string; billing: boolean; card: boolean; href: string }) {
   const t = {
     d7: { subject: 'Még 7 nap a próbaidődből', label: 'Próbaidő · még 7 nap', title: 'Egy hét múlva lejár a próbaidőd', text: `Hogy minden zökkenőmentesen menjen tovább, add meg a számlázási adatokat és a kártyát — terhelni csak ${o.end} után fogunk.`, btn: 'Beállítom' },
     d3: { subject: 'Még 3 nap a próbaidődből', label: 'Próbaidő · még 3 nap', title: 'Három nap múlva lejár a próbaidőd', text: `Add meg a hiányzó adatokat, hogy ${o.end} után se álljon meg semmi.`, btn: 'Beállítom' },
