@@ -138,7 +138,7 @@ export default async function SalonPublicPage({
 
   // HeroNextSlot renderelése server-oldalon, átadva a kliensbe ReactNode-ként
   const nextSlotNode = services.length > 0
-    ? <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'salon', id: salon.id, serviceId: services[0].id }} />
+    ? <HeroNextSlot key="next-slot" slug={slug} locale={locale} source={{ kind: 'salon', id: salon.id, serviceId: services[0].id }} />
     : null
 
   // lejárt / szünetelő előfizetés: a foglalóoldal marad, csak online nem foglalható (design 21.13)

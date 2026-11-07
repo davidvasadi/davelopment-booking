@@ -171,7 +171,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
           <MarketingTrackingScripts business={restaurant.name} bizKey={`restaurant:${restaurant.id}`} privacyHref={safeHttpUrl(restaurant.privacy_url)} ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
         </>
       )}
-      <PublicPlaceView data={view} editor={editor} nextSlotNode={view.page.ctaNextFree ? <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'restaurant', id: restaurant.id, pax: 2 }} /> : undefined} />
+      <PublicPlaceView data={view} editor={editor} nextSlotNode={view.page.ctaNextFree ? <HeroNextSlot key="next-slot" slug={slug} locale={locale} source={{ kind: 'restaurant', id: restaurant.id, pax: 2 }} /> : undefined} />
     </>
   )
 }

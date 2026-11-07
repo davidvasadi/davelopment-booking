@@ -17,7 +17,7 @@ import { CustomQuestionsEditor, type CustomQuestion } from '@/components/setting
 import type { EditorView } from '@/components/booking/ProfileCard'
 import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
 import { cn } from '@/lib/utils'
-import { Button, Card, FIELD, Field as KitField, IconButton, Input, Modal, Note, Pill, Segmented, SheetHandle, StatusPill, UploadBox } from '@/components/ui-kit'
+import { Button, Card, FIELD, Field as KitField, IconButton, IconCircle, Input, ListRow, Modal, Note, Pill, Segmented, SheetHandle, StatusPill, UploadBox, MarqueeText } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { UploadTile } from '@/components/blocks/upload'
 import { Switch } from '@/components/ui/toggle-switch'
@@ -256,11 +256,14 @@ export function BookingPageEditor({
   const adminBase = isRestaurant ? '/restaurant' : '/dashboard'
   const [baseline, setBaseline] = useState<Draft>(() => draftFrom(initial))
   const [draft, setDraft] = useState<Draft>(baseline)
+  // az Adatok lépés húzható elemei: a hírlevél-pipa csak élő hírlevél-csomagnál, az alkalmak csak étteremnél
+  const shownFields = draft.fieldOrder.filter((id) => (id !== 'newsletter' || initial.flags.newsletter) && (id !== 'occasions' || isRestaurant))
   const [locBaseline, setLocBaseline] = useState<Partial<Record<Locale, LocDraft>>>({})
   const [locDrafts, setLocDrafts] = useState<Partial<Record<Locale, LocDraft>>>({})
   const [lang, setLang] = useState<Locale>('hu')
   const [langLoading, setLangLoading] = useState(false)
   const [device, setDevice] = useState<Device>('desktop')
+  const [stepsOpen, setStepsOpen] = useState(false)
   // Telefonon (lg alatt) nincs eszközváltó: mindig a mobil előnézet, és a kijelölt elem
   // panelje alulról felcsúszó lapként jelenik meg (a tartalom közös, a desktopra is hat).
   const [narrow, setNarrow] = useState(false)
@@ -472,10 +475,6 @@ export function BookingPageEditor({
       const d = draft
       const body: Record<string, unknown> = {}
       const changed = <K extends keyof Draft>(k: K) => JSON.stringify(d[k]) !== JSON.stringify(b[k])
-      if (changed('slug')) {
-        if (!/^[a-z0-9-]+$/.test(d.slug)) throw new Error('Az URL azonosító csak kisbetűt, számot és kötőjelet tartalmazhat')
-        body.slug = d.slug
-      }
       if (changed('postalCode')) body.postal_code = d.postalCode
       if (changed('name')) body.name = d.name
       if (changed('address')) body.address = d.address
@@ -815,14 +814,17 @@ export function BookingPageEditor({
     <div className="fixed inset-0 z-[90] overflow-y-auto bg-ui-page font-onest" data-lenis-prevent>
       <div className="mx-auto w-full max-w-[1760px] p-[5px] pb-28">
       {/* fejléc: vissza a Beállításokhoz, cím, Élő, Telefon / Desktop */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-3">
-        <div className="flex items-center gap-2">
+      {/* keskeny kijelzőn ragadós (görgetéskor is fent marad), benne a lépés-váltó is — helyet spórolva */}
+      <div className={cn('flex items-center justify-between gap-3 px-3 py-3', narrow ? 'sticky top-0 z-30' : 'flex-wrap')}>
+        <div className="flex shrink-0 items-center gap-2">
           <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" size="sm" onClick={exit} />
           <span className="text-ui-title font-normal text-ui-text">Foglalóoldal</span>
           <StatusPill status="ok">Élő</StatusPill>
         </div>
-        {/* jobbra: a foglalóoldal megnyitása (keskeny kijelzőn csak ikon — a cím nem fér ki), Telefon / Desktop */}
-        <div className="flex min-w-0 items-center gap-2">
+        {/* jobbra: (keskenyen) a lépés-váltó, a foglalóoldal megnyitása (keskenyen csak ikon), Telefon / Desktop */}
+        <div className={cn('flex min-w-0 items-center gap-2', narrow && 'flex-1 justify-end')}>
+          {/* keskenyen tömör lépés-váltó (‹ lépés neve ›) — ha nem fér ki, a név elúszik */}
+          {narrow && <EditorStepSwitch compact onLabel={() => setStepsOpen(true)} className="min-w-0 max-w-[220px] flex-1" active={flowIdx} onSelect={(i) => goStep(flow[i].id)} steps={flow.map((f) => ({ label: f.id === 'main' ? 'Oldal' : f.label }))} />}
           {narrow
             ? <IconButton icon={ArrowUpRight} label="A foglalóoldal megnyitása" href={publicUrl} className="shrink-0" />
             : <Button variant="glass" href={publicUrl} className="min-w-0 shrink">{publicUrl.replace(/^https?:\/\//, '')} <ArrowUpRight className="h-3.5 w-3.5" /></Button>}
@@ -830,11 +832,19 @@ export function BookingPageEditor({
         </div>
       </div>
       {/* a lépés-sáv (a foglaló minden lépése megnézhető és szerkeszthető) — keskeny kijelzőn előző / következő váltó */}
-      <div className="mx-[5px] mb-[5px]">
-        {narrow
-          ? <EditorStepSwitch active={flowIdx} onSelect={(i) => goStep(flow[i].id)} steps={flow.map((f) => ({ label: f.id === 'main' ? 'Oldal' : f.label }))} />
-          : <EditorStepBar className="w-fit max-w-full" active={flowIdx} onSelect={(i) => goStep(flow[i].id)} steps={flow.map((f) => ({ label: f.id === 'main' ? 'Oldal' : f.label }))} />}
-      </div>
+      {/* mobil: a lépés nevére koppintva a lépések listája — bármelyikre ugorhatsz */}
+      <PopupModal open={stepsOpen} onClose={() => setStepsOpen(false)} title="Lépések" maxWidth="sm:max-w-[440px]">
+        {flow.map((f, i) => (
+          <button key={f.id} type="button" onClick={() => { goStep(f.id); setStepsOpen(false) }} className="block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">
+            <ListRow open={i === flowIdx} filled={i === flowIdx} className="px-3" leading={<IconCircle size="sm" tone={i === flowIdx ? 'dark' : 'cell'}>{i + 1}</IconCircle>} title={f.id === 'main' ? 'Oldal' : f.label} />
+          </button>
+        ))}
+      </PopupModal>
+      {!narrow && (
+        <div className="mx-[5px] mb-[5px]">
+          <EditorStepBar className="w-fit max-w-full" active={flowIdx} onSelect={(i) => goStep(flow[i].id)} steps={flow.map((f) => ({ label: f.id === 'main' ? 'Oldal' : f.label }))} />
+        </div>
+      )}
       <div className="grid gap-[5px] xl:grid-cols-[56px_minmax(0,1fr)_340px]">
         {/* bal: az oldal részei — kijelölve jobbra nyílik a beállításuk */}
         <Card pad="none" className="hidden flex-col items-center gap-1.5 self-start py-3 xl:flex">
@@ -1058,20 +1068,23 @@ export function BookingPageEditor({
               {step === 'details' && (
                 <>
                   <div className="pt-1 text-ui-label font-medium text-ui-muted">Űrlap mezői · húzd a sorrendhez</div>
-                  <Reorder.Group axis="y" values={draft.fieldOrder} onReorder={(v) => set('fieldOrder', v)} className="space-y-2">
-                    {draft.fieldOrder.map((id) => {
-                      const selId = id === 'questions' ? 'questions' : `field:${id}`
+                  {/* a hírlevél-pipa (ha van csomag) és az alkalmak (étterem) is húzható elem — a foglalón ebben a sorrendben */}
+                  <Reorder.Group axis="y" values={shownFields} onReorder={(v) => set('fieldOrder', [...v, ...draft.fieldOrder.filter((x) => !v.includes(x))])} className="space-y-2">
+                    {shownFields.map((id) => {
+                      const selId = id === 'questions' || id === 'newsletter' || id === 'occasions' ? id : `field:${id}`
                       // A cím mező saját, 3-fokozatú szabálya (off/city/full) — előleg aktív
                       // esetén FÜGGETLENÜL mindig 'full'-ra kényszerítjük (számlázáshoz kell).
                       const addressForcedFull = id === 'address' && initial.flags.deposit
                       const effectiveAddressLevel = addressForcedFull ? 'full' : draft.addressDetailLevel
                       const hiddenByChoice = (id === 'phone' || id === 'notes') && draft.hiddenFields.includes(id)
                         || (id === 'address' && effectiveAddressLevel === 'off')
+                        || (id === 'newsletter' && !draft.showMarketingConsent)
                       const badge = hiddenByChoice ? 'Kikapcsolva'
                         : id === 'name' || id === 'email' ? 'Kötelező'
                         : id === 'phone' ? (draft.requirePhone ? 'Kötelező' : 'Opcionális')
                         : id === 'address' ? (effectiveAddressLevel === 'city' ? 'Csak város' : draft.requireAddress || addressForcedFull ? 'Kötelező' : 'Opcionális')
-                        : id === 'questions' ? `${draft.customQuestions.length} db` : 'Opcionális'
+                        : id === 'questions' ? `${draft.customQuestions.length} db`
+                        : id === 'occasions' ? `${draft.eventTypes.filter((e) => e.enabled).length} db` : 'Opcionális'
                       return (
                         <GripReorderItem key={id} id={id}>
                           <button type="button" onClick={() => setSel(selId)} className={cn('min-w-0 flex-1 truncate text-left text-ui-body font-medium', hiddenByChoice ? 'text-ui-muted' : 'text-ui-text')}>
@@ -1082,14 +1095,14 @@ export function BookingPageEditor({
                       )
                     })}
                   </Reorder.Group>
-                  {isRestaurant && <Row label={ELEMENT_TITLES.occasions} onClick={() => setSel('occasions')} />}
                 </>
               )}
               {(step === 'details'
+                // a hírlevél-pipa és az alkalmak a fenti, húzható listában vannak
                 ? ([] as const)
                 : step === 'datetime' ? (isRestaurant ? (['pax', 'rules'] as const) : (['rules'] as const))
                 : step === 'consent' ? (['consent'] as const)
-                : step === 'summary' ? (['summary', 'gtk', 'terms', ...(initial.flags.newsletter ? ['newsletter' as const] : [])] as const)
+                : step === 'summary' ? (['summary', 'gtk', 'terms'] as const)
                 : step === 'success' ? (['confirm'] as const)
                 : step === 'deposit' ? (['deposit'] as const)
                 : (['sec:voucher'] as const)
@@ -1129,22 +1142,14 @@ export function BookingPageEditor({
           {!sel && step !== 'main' && (
             <div className="space-y-2 border-t border-ui-divider pt-4">
               <div className="text-ui-label font-medium text-ui-muted">Foglalási szabályok</div>
-              <div className="overflow-hidden rounded-ui-inner border border-ui-divider bg-white">
-                {rulesSummary.map((r) => (
-                  <button
-                    key={r.label}
-                    type="button"
-                    onClick={() => { setStep(r.step); setSel(r.sel) }}
-                    className="flex h-11 w-full items-center justify-between gap-3 border-b border-ui-divider px-3.5 text-left text-ui-meta text-ui-text last:border-0 hover:bg-black/[0.02]"
-                  >
-                    <span className="min-w-0 truncate">{r.label}</span>
-                    <span className={cn('shrink-0 font-medium', r.off ? 'text-ui-muted' : 'text-ui-text')}>{r.value} ›</span>
+              {/* a kit listasorai (szaggatott elválasztó), keretes doboz helyett */}
+              <div>
+                {[...rulesSummary.map((r) => ({ key: r.label, label: r.label, value: r.value, off: r.off, go: () => { setStep(r.step); setSel(r.sel) } })),
+                  { key: 'notif', label: 'Új foglalás értesítés neked', value: 'Értesítések', off: false, go: () => onNavigate?.('notifications') }].map((r) => (
+                  <button key={r.key} type="button" onClick={r.go} className="block w-full rounded-ui-inner text-left outline-none transition-colors hover:bg-ui-cell/60 focus-visible:ring-2 focus-visible:ring-ui-dark/20">
+                    <ListRow className="px-0" title={r.label} trailing={<span className={cn('flex shrink-0 items-center gap-1 text-ui-meta', r.off ? 'text-ui-muted' : 'text-ui-text')}>{r.value}<ChevronRight className="h-3.5 w-3.5 text-ui-muted" /></span>} />
                   </button>
                 ))}
-                <button type="button" onClick={() => onNavigate?.('notifications')} className="flex h-11 w-full items-center justify-between gap-3 px-3.5 text-left text-ui-meta text-ui-text hover:bg-black/[0.02]">
-                  <span className="min-w-0 truncate">Új foglalás értesítés neked</span>
-                  <span className="shrink-0 font-medium text-ui-text">Értesítések ›</span>
-                </button>
               </div>
             </div>
           )}
@@ -1223,14 +1228,7 @@ export function BookingPageEditor({
                 <code className="flex h-11 min-w-0 flex-1 items-center truncate rounded-ui-control border border-ui-divider bg-white px-3 text-ui-meta text-ui-text">{publicUrl}</code>
                 <a href={`/${baseline.slug}`} target="_blank" rel="noopener noreferrer" className="flex h-11 shrink-0 items-center rounded-full border border-ui-divider bg-white px-4 text-ui-meta font-medium text-ui-text">Megnyitás</a>
               </div>
-              <Field label="URL azonosító" hint="Csak kisbetű, szám és kötőjel.">
-                <div className="flex items-center gap-1"><span className="text-ui-body text-ui-muted">/</span><input className={fieldCls} value={draft.slug} onChange={(e) => set('slug', e.target.value.toLowerCase())} /></div>
-              </Field>
-              {draft.slug !== baseline.slug && (
-                <p className="rounded-ui-control border border-amber-300 bg-amber-50 px-3.5 py-3 text-ui-meta leading-relaxed text-amber-900">
-                  <b>A foglalási link megváltozik!</b> A régi URL-en (/{baseline.slug}) érkező vendégek hibát kapnak. Mentés után értesítsd őket az új linkről.
-                </p>
-              )}
+              {/* az URL azonosító (slug) itt NEM módosítható — átírva minden régi link, QR-kód és e-mail elromlana */}
               <BusinessQrLauncher url={publicUrl} businessName={draft.name} restaurant={isRestaurant} logoUrl={draft.logoUrl} hours={initial.hours ?? []} socialLinks={draft.socialLinks} />
             </>
           )}
@@ -1646,7 +1644,7 @@ function Field({ label, hint, group = false, children }: { label: string; hint?:
 function Row({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className="ui-press flex min-h-11 w-full items-center justify-between gap-2 rounded-ui-control bg-ui-cell px-3.5 text-left text-ui-body text-ui-text">
-      <span className="min-w-0 truncate">{label}</span>
+      <MarqueeText>{label}</MarqueeText>
       <ChevronRight className="h-4 w-4 shrink-0 text-ui-muted" />
     </button>
   )

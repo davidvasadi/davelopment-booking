@@ -1,5 +1,7 @@
 'use client'
 
+import { Button, EmptyState, FIELD, IconButton, Input, Panel, Textarea } from '@/components/ui-kit'
+
 import { useState, useRef, useEffect } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Plus, Trash2, GripVertical, ChevronDown as Caret, Sparkles, Info } from 'lucide-react'
@@ -9,10 +11,6 @@ import type { Locale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 export type GoodToKnowItem = { icon: string; title: string; body: string }
-
-/** Közös mező-stílus (Crextio/Apple: tiszta fehér, meleg hajszál-keret, gold fókusz). */
-const fieldBase =
-  'w-full rounded-[12px] bg-white border border-ui-divider text-ui-text focus:outline-none focus:ring-2 transition-colors'
 
 /**
  * „Jó tudni" pont-szerkesztő a foglaló oldalhoz (ikon + cím + szöveg). Kontrollált:
@@ -52,39 +50,20 @@ export function GoodToKnowEditor({
 
   if (isBlank) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-ui-inner border border-dashed border-ui-divider bg-white px-6 py-10 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-ui-control bg-ui-dark text-ui-yellow">
-          <Info className="h-5 w-5" strokeWidth={1.7} />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-ui-text">{value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}</p>
-          <p className="mt-0.5 text-xs text-ui-muted">Pl. parkolás, módosítás, kisállat-barát…</p>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}
-            className="inline-flex items-center gap-1.5 rounded-ui-control bg-ui-dark px-4 py-2.5 text-ui-meta font-medium text-white transition-opacity hover:opacity-90"
-          >
-            <Sparkles className="h-4 w-4 text-ui-yellow" />
-            Sablon betöltése
-          </button>
-          <button
-            type="button"
-            onClick={add}
-            className="inline-flex items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white px-4 py-2.5 text-ui-meta font-medium text-ui-muted transition-colors hover:text-ui-text"
-          >
-            <Plus className="h-4 w-4" />
-            Üres pont
-          </button>
-        </div>
-      </div>
+      // a kit üres állapota (csíkos doboz, kör-ikon, gombok) — mint a többi üres listánál
+      <EmptyState icon={Info} title={value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}
+        action={<span className="flex flex-wrap items-center justify-center gap-2">
+          <Button icon={Sparkles} onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}>Sablon betöltése</Button>
+          <Button variant="glass" icon={Plus} onClick={add}>Üres pont</Button>
+        </span>}>
+        Pl. parkolás, módosítás, kisállat-barát…
+      </EmptyState>
     )
   }
 
   return (
     <div className="space-y-3">
-      <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
+      <Reorder.Group as="div" axis="y" values={value} onReorder={onChange}>
         {value.map((s, i) => (
           <GoodToKnowRow
             key={keyFor(s, i)}
@@ -95,14 +74,7 @@ export function GoodToKnowEditor({
         ))}
       </Reorder.Group>
 
-      <button
-        type="button"
-        onClick={add}
-        className="inline-flex items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white px-4 py-2.5 text-ui-meta font-medium text-ui-muted transition-colors hover:text-ui-text"
-      >
-        <Plus className="h-4 w-4" />
-        Új pont
-      </button>
+      <Button variant="cell" icon={Plus} onClick={add}>Új pont</Button>
     </div>
   )
 }
@@ -138,7 +110,8 @@ function GoodToKnowRow({
       value={item}
       dragListener={false}
       dragControls={dragControls}
-      className="space-y-3 rounded-ui-inner border border-ui-divider bg-white p-4"
+      // a kit szerint: nincs keretes doboz — a pontokat szaggatott vonal választja el, a mezők a kit szürke mezői
+      className="space-y-2 border-t border-dashed border-ui-divider bg-white py-3 first:border-t-0 first:pt-0"
     >
       <div className="flex items-center gap-2.5">
         {/* Ikonválasztó popover */}
@@ -147,13 +120,13 @@ function GoodToKnowRow({
             type="button"
             onClick={() => setPickerOpen((o) => !o)}
             aria-label="Ikon választása"
-            className="flex h-11 items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white pl-3 pr-2 text-ui-text transition-colors"
+            className={cn(FIELD, 'flex h-11 w-auto items-center gap-1.5 pl-3 pr-2')}
           >
             <ActiveIcon className="h-4 w-4" strokeWidth={1.8} />
             <Caret className="h-3.5 w-3.5 text-ui-muted" />
           </button>
           {pickerOpen && (
-            <div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-ui-inner border border-ui-divider bg-white p-2">
+            <Panel pad="sm" className="ui-pop-in absolute left-0 top-full z-50 mt-2 w-64 origin-top-left">
               <div className="grid grid-cols-5 gap-1">
                 {GOOD_TO_KNOW_ICONS.map(({ key, label, icon: Icon }) => (
                   <button
@@ -165,7 +138,7 @@ function GoodToKnowRow({
                     }}
                     title={label}
                     className={cn(
-                      'flex h-10 w-full items-center justify-center rounded-[10px] transition-colors',
+                      'flex h-10 w-full items-center justify-center rounded-ui-control transition-colors',
                       item.icon === key
                         ? 'bg-ui-dark text-ui-yellow'
                         : 'text-ui-muted hover:bg-ui-cell hover:text-ui-text',
@@ -175,16 +148,11 @@ function GoodToKnowRow({
                   </button>
                 ))}
               </div>
-            </div>
+            </Panel>
           )}
         </div>
 
-        <input
-          value={item.title}
-          onChange={(e) => onChange({ title: e.target.value })}
-          placeholder="Pont címe (pl. Parkolás)"
-          className={cn(fieldBase, 'h-11 flex-1 min-w-0 px-3.5 text-sm font-semibold')}
-        />
+        <Input value={item.title} onChange={(e) => onChange({ title: e.target.value })} placeholder="Pont címe (pl. Parkolás)" className="min-w-0 flex-1 font-medium" />
 
         <div className="flex shrink-0 items-center">
           <div
@@ -194,19 +162,12 @@ function GoodToKnowRow({
           >
             <GripVertical className="h-4 w-4" />
           </div>
-          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ui-muted transition-colors hover:text-red-500">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <IconButton icon={Trash2} label="Pont törlése" variant="ghost" size="sm" className="text-ui-bad" onClick={onRemove} />
         </div>
       </div>
 
-      <textarea
-        value={item.body}
-        onChange={(e) => onChange({ body: e.target.value })}
-        rows={2}
-        placeholder="A pont szövege…"
-        className={cn(fieldBase, 'resize-y px-3.5 py-2.5 text-sm leading-relaxed')}
-      />
+      {/* a szöveghez igazodó magasság (nem vágja el, nincs húzó-sarok) */}
+      <Textarea value={item.body} onChange={(e) => onChange({ body: e.target.value })} rows={2} placeholder="A pont szövege…" className="min-h-0 [field-sizing:content]" />
     </Reorder.Item>
   )
 }

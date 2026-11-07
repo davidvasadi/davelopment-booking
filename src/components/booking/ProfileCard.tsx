@@ -128,7 +128,8 @@ interface Props {
 }
 
 /** Az Adatok lépés átrendezhető mező-blokkjai (alapsorrend). */
-export const FORM_FIELD_IDS = ['name', 'email', 'phone', 'address', 'questions', 'notes'] as const
+// a hírlevél-pipa és (étteremnél) az alkalom-választó is a sorrendezhető elemek közt van (a szerkesztőben húzható)
+export const FORM_FIELD_IDS = ['name', 'email', 'phone', 'address', 'questions', 'notes', 'newsletter', 'occasions'] as const
 export type FormFieldId = (typeof FORM_FIELD_IDS)[number]
 
 export type EditorView = 'main' | 'start' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher'
@@ -1151,6 +1152,18 @@ export function ProfileCard({
                         />
                       </div>
                         ),
+                        newsletter: (marketingVisible || (editorView && newsletterEnabled)) ? (
+                      <div data-edit-id="newsletter" className={cn('space-y-1.5', editorView && !marketingVisible && 'opacity-35 pointer-events-none')}>
+                        <div className="flex items-center justify-between gap-3 py-1">
+                          <span className="text-ui-meta opacity-80">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                          <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
+                        </div>
+                        <p className={`text-ui-label ${c.meta}`}>
+                          Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2">Adatvédelmi tájékoztató</a>.
+                        </p>
+                      </div>
+                        ) : null,
+                        occasions: null,
                       }
                       // Teljesen elrejtett mező (phone/address/notes) a valódi foglalón nem
                       // renderelődik; a szerkesztő élő előnézetében (editorView) halványan
@@ -1191,17 +1204,6 @@ export function ProfileCard({
                             )}
                           </div>
                         )}
-                      </div>
-                    )}
-                    {(marketingVisible || (editorView && newsletterEnabled)) && (
-                      <div data-edit-id="newsletter" className={cn('space-y-1.5', editorView && !marketingVisible && 'opacity-35 pointer-events-none')}>
-                        <div className="flex items-center justify-between gap-3 py-1">
-                          <span className="text-ui-meta opacity-80">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
-                          <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
-                        </div>
-                        <p className={`text-ui-label ${c.meta}`}>
-                          Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2">Adatvédelmi tájékoztató</a>.
-                        </p>
                       </div>
                     )}
                   </div>

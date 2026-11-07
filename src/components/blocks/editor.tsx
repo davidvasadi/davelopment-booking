@@ -1,5 +1,5 @@
 import { ArrowRight, ChevronLeft, ChevronRight, Eye, Redo2, Settings, Undo2, X, type LucideIcon } from 'lucide-react'
-import { Avatar, Button, IconButton, IconCircle, ListRow, Pill } from '@/components/ui-kit'
+import { Avatar, Button, IconButton, IconCircle, ListRow, Pill, MarqueeText } from '@/components/ui-kit'
 import { Ring } from './charts'
 import { BIZ_LOGO, PoweredBy } from './brand'
 
@@ -134,16 +134,16 @@ export function Swatches({ fills, on, onSelect, add }: { fills: string[]; on: nu
 /** A foglalás lépés-sávja a szerkesztő tetején (Oldal · Szolgáltatás · … · Kész): a kiválasztott sötét; `off`: kikapcsolt
  *  lépés (áthúzva), `todo`: ott van még teendő (sárga pötty). Élőben `onSelect`. */
 /** A lépés-sáv keskeny kijelzőn: előző / következő gomb, középen a lépés sorszáma és neve („2 / 7 · Szolgáltatás”). */
-export function EditorStepSwitch({ steps, active, onSelect, className = '' }: { steps: { label: string; off?: boolean; todo?: boolean }[]; active: number; onSelect?: (i: number) => void; className?: string }) {
+export function EditorStepSwitch({ steps, active, onSelect, compact = false, onLabel, className = '' }: { steps: { label: string; off?: boolean; todo?: boolean }[]; active: number; /** tömör: ‹ lépés neve › (a sorszám nélkül) — szűk fejlécbe */ compact?: boolean; /** a lépés nevére koppintva (pl. a lépések listája) */ onLabel?: () => void; onSelect?: (i: number) => void; className?: string }) {
   const st = steps[active]
   return (
     <div className={`flex items-center justify-between gap-2 rounded-full bg-white/70 p-1 ${className}`}>
       <IconButton icon={ChevronLeft} label="Előző lépés" variant="cell" size="sm" disabled={active <= 0} onClick={onSelect ? () => onSelect(active - 1) : undefined} className="disabled:opacity-40" />
-      <span className="flex min-w-0 items-center gap-2 text-ui-body text-ui-text">
+      {compact ? <button type="button" onClick={onLabel} disabled={!onLabel} className="ui-press min-w-0 flex-1 rounded-full px-1 text-center text-ui-meta text-ui-text outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20" title={`${active + 1} / ${steps.length}`}><MarqueeText className={st?.off ? 'line-through opacity-60' : ''}>{st?.label}</MarqueeText></button> : <span className="flex min-w-0 items-center gap-2 text-ui-body text-ui-text">
         <IconCircle size="xs" tone="dark">{active + 1}</IconCircle>
-        <span className={`truncate ${st?.off ? 'line-through opacity-60' : ''}`}>{st?.label}</span>
+        <MarqueeText className={`${st?.off ? 'line-through opacity-60' : ''}`}>{st?.label}</MarqueeText>
         <span className="shrink-0 text-ui-meta text-ui-muted">{active + 1} / {steps.length}</span>
-      </span>
+      </span>}
       <IconButton icon={ChevronRight} label="Következő lépés" variant="cell" size="sm" disabled={active >= steps.length - 1} onClick={onSelect ? () => onSelect(active + 1) : undefined} className="disabled:opacity-40" />
     </div>
   )

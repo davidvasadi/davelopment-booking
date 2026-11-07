@@ -33,7 +33,7 @@ export function Switch({ checked, onChange, disabled, size = 'md', ariaLabel }: 
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={(e) => { e.stopPropagation(); onChange(!checked) }}
-      className={`relative shrink-0 rounded-full transition-colors disabled:opacity-50 ${d.track} ${checked ? TRACK_ON : TRACK_OFF}`}
+      className={`relative shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ui-dark/20 focus-visible:ring-offset-2 disabled:opacity-50 ${d.track} ${checked ? TRACK_ON : TRACK_OFF}`}
     >
       <span className={`absolute ${d.top} ${d.knob} rounded-full ${KNOB} shadow-sm transition-all /* ui-allow: a kapcsoló gombjának árnyéka (a kit Switch része) */ ${checked ? d.on : d.off}`} />
     </button>

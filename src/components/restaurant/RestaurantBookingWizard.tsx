@@ -663,46 +663,7 @@ export function RestaurantBookingWizard({
                     notes: (
                   <textarea data-edit-id="field:notes" className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
                     ),
-                  }
-                  // Teljesen elrejtett mező (phone/address/notes) a valódi foglalón nem
-                  // renderelődik; a szerkesztő élő előnézetében (editorStep) halványan mégis
-                  // látszik, ugyanúgy, mint a ProfileCard-nál (salon oldal).
-                  const fieldHidden = (k: FormFieldId) => (k === 'phone' && !phoneVisible) || (k === 'notes' && !notesVisible) || (k === 'address' && !addressVisible)
-                  return formFieldOrder
-                    .filter((k) => !!editorStep || !fieldHidden(k))
-                    .map((k) => (
-                      <Fragment key={k}>
-                        {editorStep && fieldHidden(k) ? <div className="opacity-35 pointer-events-none">{fieldBlocks[k]}</div> : fieldBlocks[k]}
-                      </Fragment>
-                    ))
-                })()}
-                {voucherEnabled && (
-                  <div data-edit-id="redeem" className="space-y-2">
-                    {!redeemOpen ? (
-                      <button
-                        type="button"
-                        onClick={() => setRedeemOpen(true)}
-                        className={`text-[12px] font-medium underline underline-offset-2 transition-colors ${dk ? 'text-white/45 hover:text-white/70' : 'text-ui-muted hover:text-ui-text'}`}
-                      >
-                        Van ajándékutalványod?
-                      </button>
-                    ) : (
-                      <div>
-                        <input
-                          value={redeemCode}
-                          onChange={(e) => { setRedeemCode(e.target.value.toUpperCase()); setRedeemValid(null); setRedeemError(null) }}
-                          onBlur={checkRedeemCode}
-                          placeholder="XXXX-XXXX"
-                          className={inputClass}
-                        />
-                        {redeemChecking && <p className={`mt-1 text-[11px] ${labelCls}`}>Ellenőrzés…</p>}
-                        {redeemError && <p role="alert" className="mt-1 text-[12px] text-red-500">{redeemError}</p>}
-                        {redeemValid && <p className="mt-1 text-[12px] text-emerald-500">Érvényes utalvány — jóváírva a foglaláskor.</p>}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {(marketingVisible || (editorStep && newsletterEnabled)) && (
+                    newsletter: (marketingVisible || (editorStep && newsletterEnabled)) ? (
                   <div data-edit-id="newsletter" className={cn('space-y-1.5', editorStep && !marketingVisible && 'opacity-35 pointer-events-none')}>
                     <div className="flex items-center justify-between gap-3 py-1">
                       <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ui-text'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
@@ -712,12 +673,10 @@ export function RestaurantBookingWizard({
                       Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${dk ? 'hover:text-white/70' : 'hover:text-ui-text'}`}>Adatvédelmi tájékoztató</a>.
                     </p>
                   </div>
-                )}
-              </div>
-
-              {/* Alkalom-választó — a tulaj esemény-típusaiból, Lucide-ikonos pillekkel. Opcionális. */}
-              {eventTypes.length > 0 && (
-                <div data-edit-id="occasions" className={`${cardClass} space-y-3`} style={cardStyle}>
+                    ) : null,
+                    // az alkalom-választó a mezők közt (húzható sorrend) — saját kártya nélkül, a többi mezővel egy kártyán
+                    occasions: eventTypes.length > 0 ? (
+              <div data-edit-id="occasions" className="space-y-3 pt-1">
                   <div>
                     <p className={`text-ui-title font-light`}>{tt('rbooking.occasion')}</p>
                     <p className={`mt-0.5 text-[12px] ${dk ? 'text-white/40' : 'text-ui-muted'}`}>{tt('rbooking.occasionHint')}</p>
@@ -761,7 +720,48 @@ export function RestaurantBookingWizard({
                     })}
                   </div>
                 </div>
-              )}
+                    ) : null,
+                  }
+                  // Teljesen elrejtett mező (phone/address/notes) a valódi foglalón nem
+                  // renderelődik; a szerkesztő élő előnézetében (editorStep) halványan mégis
+                  // látszik, ugyanúgy, mint a ProfileCard-nál (salon oldal).
+                  const fieldHidden = (k: FormFieldId) => (k === 'phone' && !phoneVisible) || (k === 'notes' && !notesVisible) || (k === 'address' && !addressVisible)
+                  return formFieldOrder
+                    .filter((k) => !!editorStep || !fieldHidden(k))
+                    .map((k) => (
+                      <Fragment key={k}>
+                        {editorStep && fieldHidden(k) ? <div className="opacity-35 pointer-events-none">{fieldBlocks[k]}</div> : fieldBlocks[k]}
+                      </Fragment>
+                    ))
+                })()}
+                {voucherEnabled && (
+                  <div data-edit-id="redeem" className="space-y-2">
+                    {!redeemOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => setRedeemOpen(true)}
+                        className={`text-[12px] font-medium underline underline-offset-2 transition-colors ${dk ? 'text-white/45 hover:text-white/70' : 'text-ui-muted hover:text-ui-text'}`}
+                      >
+                        Van ajándékutalványod?
+                      </button>
+                    ) : (
+                      <div>
+                        <input
+                          value={redeemCode}
+                          onChange={(e) => { setRedeemCode(e.target.value.toUpperCase()); setRedeemValid(null); setRedeemError(null) }}
+                          onBlur={checkRedeemCode}
+                          placeholder="XXXX-XXXX"
+                          className={inputClass}
+                        />
+                        {redeemChecking && <p className={`mt-1 text-[11px] ${labelCls}`}>Ellenőrzés…</p>}
+                        {redeemError && <p role="alert" className="mt-1 text-[12px] text-red-500">{redeemError}</p>}
+                        {redeemValid && <p className="mt-1 text-[12px] text-emerald-500">Érvényes utalvány — jóváírva a foglaláskor.</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
 
               <Button
                 onClick={() => { if (validateDetails()) goStep(DEPOSIT_STEP ?? CONSENT_STEP ?? REVIEW_STEP) }}

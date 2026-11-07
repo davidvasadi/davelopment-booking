@@ -88,6 +88,8 @@ export const Restaurants: CollectionConfig = {
       required: true,
       unique: true,
       label: 'URL slug',
+      // létrehozáskor megadható; utólag CSAK admin írhatja át (átírva minden kiadott link, QR-kód, e-mail elromlana)
+      access: { update: ({ req }) => req.user?.role === 'admin' },
       admin: { description: 'A nyilvános URL: /[slug]. A névből generálódik, de később nem írja át magát — a kiadott linkek így nem törnek el.' },
       validate: uniqueSlugAcrossTenants('restaurants', 'salons'),
       hooks: {

@@ -309,7 +309,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
 /** Keret a `data-edit-id` elem körül — fix pozíciójú réteg, így semmi nem vágja le
  *  (overflow, telefonkeret). Animációk és görgetés miatt képkockánként követi az elemet. */
 function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean }) {
-  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number; radius: number } | null>(null)
   const raf = useRef<number | null>(null)
 
   useLayoutEffect(() => {
@@ -320,8 +320,12 @@ function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean
       const el = els.find((x) => x.offsetParent !== null || x.getClientRects().length > 0)
       if (el) {
         const r = el.getBoundingClientRect()
-        setRect((prev) => (prev && prev.top === r.top && prev.left === r.left && prev.width === r.width && prev.height === r.height)
-          ? prev : { top: r.top, left: r.left, width: r.width, height: r.height })
+        // a keret lekerekítése az elemét követi (pl. a borítókép nagy sarka) — különben a sarkoknál „levágódik”
+        // (ha maga az elem szögletes, de egy szülője kerekre vágja — pl. a borítóképet a keret —, annak a sarkát)
+        let radius = 0
+        for (let n: HTMLElement | null = el, i = 0; n && i < 4 && !radius; n = n.parentElement, i++) radius = parseFloat(getComputedStyle(n).borderTopLeftRadius) || 0
+        setRect((prev) => (prev && prev.top === r.top && prev.left === r.left && prev.width === r.width && prev.height === r.height && prev.radius === radius)
+          ? prev : { top: r.top, left: r.left, width: r.width, height: r.height, radius })
       } else setRect(null)
       raf.current = requestAnimationFrame(tick)
     }
@@ -335,8 +339,11 @@ function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed z-[200] rounded-[10px]"
+      className="pointer-events-none fixed z-[200]"
       style={{
+        // a borító a szerkesztő kerekre vágott előnézet-ablakát (iframe, rounded-ui-container = 34px) tölti ki — ezt
+        // az iframe-en belülről nem látni, ezért a keret a 34px-es sarkot kapja (a 3px-es beljebb-húzással)
+        borderRadius: isCover ? 34 + pad : Math.max(10, rect.radius + pad),
         top: rect.top - pad,
         left: rect.left - pad,
         width: rect.width + pad * 2,

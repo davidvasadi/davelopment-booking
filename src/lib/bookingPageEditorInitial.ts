@@ -67,7 +67,7 @@ export function buildBookingPageEditorInitial(
     servicesExpandedOnMain: !!br.services_expanded_on_main,
     sectionOrder: ordered(br.public_section_order, isSalon ? ['services', 'voucher', 'staff', 'reviews'] : ['reviews', 'slots', 'voucher']),
     hiddenSections: br.public_sections_hidden ?? [],
-    fieldOrder: ordered(br.form_field_order, ['name', 'email', 'phone', 'address', 'questions', 'notes']),
+    fieldOrder: ordered(br.form_field_order, ['name', 'email', 'phone', 'address', 'questions', 'notes', 'newsletter', 'occasions']),
     // Étteremnél a saját `lead_time_hours` a minimum foglalási idő.
     minLeadHours: isSalon ? br.min_lead_hours ?? null : (restaurant.lead_time_hours || null),
     bookingRules: br as Record<string, unknown>,
