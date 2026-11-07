@@ -6,6 +6,9 @@ import { ArrowRight, Clock, MapPin, Phone } from 'lucide-react'
 import { DAYS_OF_WEEK, dayLabels } from '@/lib/restaurantTemplates'
 import { displayCloseTime } from '@/lib/utils'
 import { Button } from '@/components/ui-kit'
+import { EditableText, EditorSelection, PageTexts } from '@/components/booking/EditableText'
+import { PreviewQuickBar } from '@/components/booking/PreviewQuickBar'
+import { stripRich } from '@/lib/richText'
 import { ACCENT, BookingPausedCard, DefaultCover, GalleryStrip, GalleryViewer, GoodToKnow, InfoList, PageNav, RatingBadges, SocialIcons, VoucherPill, type HoursInfo, type InfoItem, type RatingItem } from '@/components/blocks/public'
 import { PageLangPills } from '@/components/booking/PageLangPills'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
@@ -14,8 +17,8 @@ import { RestaurantCard, type RestaurantCardProps } from '@/components/restauran
 import { SalonCtaWrapper } from '@/components/booking/SalonCtaWrapper'
 import { cn, nextImageSrc } from '@/lib/utils'
 import { t, type Locale } from '@/lib/i18n'
-import { isEditorMessage, postToEditor, type EditorToPreview } from '@/lib/editorBridge'
-import { accentForeground, type GalleryItem, type PublicPageStyle } from '@/lib/publicPageView'
+import { isEditorMessage, postToEditor, type BarTool, type EditorToPreview } from '@/lib/editorBridge'
+import { accentForeground, DARK_BG, toneColor, type GalleryItem, type HeroKey, type PublicPageStyle } from '@/lib/publicPageView'
 
 /**
  * Egy üzlet külső foglalóoldala (borító, felső sáv, hős-blokk, foglaló kártya) — KÖZÖS a
@@ -75,7 +78,7 @@ export type PlaceViewData = PlaceViewBase & (
   | { kind: 'restaurant'; card: RestaurantCardData }
 )
 
-type StaffEdit = { name?: string; bio?: string | null; role_title?: string | null; social_links?: { url: string }[] }
+type StaffEdit = { name?: string; bio?: string | null; role_title?: string | null; show_role_title?: boolean; social_links?: { url: string }[] }
 type Patch = Partial<PlaceViewBase> & {
   card?: Partial<SalonCardData> & Partial<RestaurantCardData>
   /** Munkatársankénti, még nem mentett módosítások (id → mezők). */
@@ -85,6 +88,8 @@ type Patch = Partial<PlaceViewBase> & {
 export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: PlaceViewData; nextSlotNode?: ReactNode; editor?: boolean }) {
   const [patch, setPatch] = useState<Patch>({})
   const [selected, setSelected] = useState<string | null>(null)
+  const [selLabel, setSelLabel] = useState<string | null>(null)
+  const [selTools, setSelTools] = useState<BarTool[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
   const [editorView, setEditorView] = useState<EditorView | null>(null)
 
@@ -93,12 +98,25 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
     const onMessage = (e: MessageEvent) => {
       if (!isEditorMessage<EditorToPreview>(e)) return
       if (e.data.type === 'draft') setPatch(e.data.patch as Patch)
-      else if (e.data.type === 'select') setSelected(e.data.id)
+      else if (e.data.type === 'select') { setSelected(e.data.id); setSelLabel(e.data.label ?? null); setSelTools(e.data.tools ?? []) }
       else if (e.data.type === 'view') setEditorView(e.data.view as EditorView)
     }
     window.addEventListener('message', onMessage)
     postToEditor({ type: 'ready' })
     return () => window.removeEventListener('message', onMessage)
+  }, [editor])
+
+  // a szerkesztő előnézetében a foglaló mezőkbe nem lehet vendégként írni: csak a kijelölt mező helykitöltője írható
+  // (`data-ph-edit`) és a helyben írható szövegek (contentEditable) — minden más beírást elnyelünk
+  useEffect(() => {
+    if (!editor) return
+    const block = (e: Event) => {
+      const el = e.target as HTMLElement | null
+      // (a gyors-sáv saját mezője — pl. a link címe — írható)
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.hasAttribute('data-ph-edit') && !el.closest('[data-edit-bar]')) e.preventDefault()
+    }
+    document.addEventListener('beforeinput', block, true)
+    return () => document.removeEventListener('beforeinput', block, true)
   }, [editor])
 
   const { staffEdits, card: cardPatch, ...topPatch } = patch
@@ -113,12 +131,18 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
   const onClickCapture = (e: MouseEvent) => {
     if (!editor) return
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-id], [data-edit-pass], [data-edit-step]')
-    if (el?.hasAttribute('data-edit-pass')) return
+    // átengedett kattintás (pl. mobilon a foglaló megnyitása): a kijelölés és a gyors-sáv megszűnik, hogy ne maradjon kint
+    // egy régi buborék — kivéve, ha magán a gyors-sávon kattintottak
+    if (el?.hasAttribute('data-edit-pass')) { if (!el.closest('[data-edit-bar]')) postToEditor({ type: 'close' }); return }
     e.preventDefault()
     e.stopPropagation()
     // Foglalás-indító gomb: nem kijelöl, hanem a szerkesztő a folyamat adott lépésére vált.
     const stepTo = el?.getAttribute('data-edit-step')
     if (stepTo) { postToEditor({ type: 'step', view: stepTo }); return }
+    // egy foglalási lépésben az üres területre (pl. a lap mögé) kattintva csak a kijelölés szűnik meg — nem a borító
+    // jelölődik ki (az az Oldal lépésre vinne vissza)
+    // (a gyökér maga is „cover” — az üres terület kattintása idáig jut)
+    if ((!el || el.getAttribute('data-edit-id') === 'cover') && editorView && editorView !== 'main') { setSelected(null); postToEditor({ type: 'close' }); return }
     const id = el?.getAttribute('data-edit-id') ?? 'cover'
     setSelected(id)
     postToEditor({ type: 'pick', id })
@@ -127,7 +151,9 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
   const onPointerOver = (e: PointerEvent) => {
     if (!editor || e.pointerType !== 'mouse') return
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-id]')
-    setHovered(el?.getAttribute('data-edit-id') ?? null)
+    const id = el?.getAttribute('data-edit-id') ?? null
+    // foglalási lépésben a borító nem jelölhető, ne is keretezzük egér alatt
+    setHovered(id === 'cover' && editorView && editorView !== 'main' ? null : id)
   }
 
   // ── a design 21.1 elemei, élő adattal ──
@@ -155,10 +181,35 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
   const [infoOpen, setInfoOpen] = useState(false)
   const [galleryAt, setGalleryAt] = useState<number | null>(null)
   // a borító sötétítése (Beállítások › Foglalóoldal › Borítókép): nincs / enyhe (alap) / erős — a szöveg mindig olvasható
-  const dimTop = pg.dim === 'none' ? 'from-ui-dark/45' : 'from-ui-dark/70'
-  const dimBottom = pg.dim === 'none' ? 'h-2/5 from-ui-dark/75' : 'h-3/5 from-ui-dark/90'
+  // a borító sötétítése: Ki (semmi), Enyhe (alap: felül és alul átmenet), Erős (plusz egy teljes réteg)
+  const dimTop = 'from-ui-dark/70'
+  const dimBottom = 'h-3/5 from-ui-dark/90'
+
+  // ── a főoldal áthelyezhető elemei (design 21.6.3) ──
+  const textStyle = (c: string | null) => (c ? { color: c } : {})
+  const heroBlocks: Record<HeroKey, ReactNode> = {
+    gallery: galleryItems.length > 0 ? <div data-edit-id="gallery" className="w-fit"><GalleryStrip items={galleryItems} onOpen={(i) => setGalleryAt(Math.min(i, galleryItems.length - 1))} /></div> : null,
+    name: <EditableText as="h1" id="name" value={d.name} single className={cn('line-clamp-2 break-words text-ui-num leading-none lg:text-ui-page', pg.nameBold ? 'font-medium' : 'font-light', pg.nameItalic && 'italic')} style={textStyle(toneColor(pg.nameColor, pg.accent))} />,
+    // a cím a várossal együtt, egy szövegként írható (az utolsó vessző után a város) — és saját színe lehet
+    address: place ? <p className="flex items-center gap-1.5 text-ui-meta text-white/65" style={textStyle(toneColor(pg.addressColor, pg.accent))}><MapPin className="h-3.5 w-3.5 shrink-0" /><EditableText as="span" id="address" single value={place} /></p> : null,
+    rating: pg.showRating && ratingItems.length > 0 ? <div data-edit-id="rating" className="w-fit"><RatingBadges dark items={ratingItems} onOpen={pg.ratingOpens && googleUrl ? () => window.open(googleUrl, '_blank', 'noopener') : undefined} /></div> : null,
+    social: pg.showSocial && d.socialLinks.length > 0 ? <div data-edit-id="social" className="w-fit"><SocialIcons links={d.socialLinks} /></div> : null,
+    // a leírás: méret, szín (csak olvasható), mobilon 2 sor vagy teljes
+    desc: d.description ? <EditableText id="desc" rich value={d.description}
+      className={cn('max-w-[460px] text-white/70 lg:line-clamp-none', !pg.descFullMobile && 'line-clamp-2', pg.descSize === 'sm' ? 'text-ui-meta' : pg.descSize === 'lg' ? 'text-ui-row' : 'text-ui-body')}
+      style={textStyle(toneColor(pg.descColor, pg.accent))} /> : null,
+    gtk: info.length > 0 ? (
+      <div data-edit-id="gtk" className="relative">
+        <GoodToKnow items={pills} onMore={() => setInfoOpen(true)} />
+        {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:block" />}
+      </div>
+    ) : null,
+  }
 
   return (
+    // a kijelölés a foglaló kártya belsejének is (helyben írható munkatárs-bemutatkozás, köszönő cím)
+    <EditorSelection.Provider value={{ editor, selected }}>
+    <PageTexts.Provider value={{ successTitle: pg.successTitle, successColor: toneColor(pg.successTitleColor, pg.accent, pg.card === 'white' ? '#FFFFFF' : DARK_BG), placeholders: pg.placeholders, texts: pg.texts }}>
     <div
       data-edit-id={editor ? 'cover' : undefined}
       onClickCapture={editor ? onClickCapture : undefined}
@@ -168,7 +219,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
       style={{
         ...(embed ? { background: 'transparent' } : {}),
         // az üzlet márkaszíne: minden kiemelés (fő gomb, kiválasztott sor, időpont) — `ui-accent`
-        ...(pg.accent || pg.buttonText !== 'auto' ? { ['--biz-accent' as string]: pg.accent ?? '#FFD85F', ['--biz-accent-fg' as string]: accentForeground(pg.accent, pg.buttonText) } : {}),
+        ...(pg.accent || pg.buttonText !== 'auto' || pg.buttonTextColor ? { ['--biz-accent' as string]: pg.accent ?? '#FFD85F', ['--biz-accent-fg' as string]: accentForeground(pg.accent, pg.buttonText, pg.buttonTextColor) } : {}),
       }}
     >
       {/* A globals.css `html` elemnek van egy kemény krém háttérszíne — embed módban ez
@@ -189,11 +240,13 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
           className="z-0 object-cover [object-position:var(--cover-focal-m)] [transform-origin:var(--cover-focal-m)] lg:[object-position:var(--cover-focal-d)] lg:[transform-origin:var(--cover-focal-d)]"
           style={{ ['--cover-focal-d' as string]: coverFocal, ['--cover-focal-m' as string]: coverFocalMobile, transform: `scale(${d.coverZoom})` }}
         />
-      ) : <DefaultCover />)}
+      ) : <DefaultCover color={pg.coverColor} flat={pg.dim === 'none'} />)}
       {!embed && (
         <>
-          <div className={`pointer-events-none absolute inset-x-0 top-0 z-[1] h-1/4 bg-gradient-to-b ${dimTop} to-transparent`} />
-          <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t ${dimBottom} to-transparent`} />
+          {pg.dim !== 'none' && <>
+            <div className={`pointer-events-none absolute inset-x-0 top-0 z-[1] h-1/4 bg-gradient-to-b ${dimTop} to-transparent`} />
+            <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[1] bg-gradient-to-t ${dimBottom} to-transparent`} />
+          </>}
           {pg.dim === 'strong' && <div className="pointer-events-none absolute inset-0 z-[1] bg-ui-dark/35" />}
         </>
       )}
@@ -204,49 +257,38 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
           <nav className="relative z-50 lg:hidden">
             <PageNav mobile logo={d.logoUrl} logoAlt={d.name} letters={initials} counts={counts}
               voucher={voucherOn ? <VoucherPill mobile label={t(locale, 'public.voucher')} onClick={openVoucher} /> : null}
-              langs={<PageLangPills mobile current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs' }} />
+              langs={<PageLangPills mobile current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs', voucher: 'sec:voucher' }} />
           </nav>
           <nav className="relative z-50 hidden lg:block">
             <PageNav logo={d.logoUrl} logoAlt={d.name} letters={initials} counts={counts}
               voucher={voucherOn ? <VoucherPill label={t(locale, 'public.voucher')} onClick={openVoucher} /> : null}
-              langs={<PageLangPills current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs' }} />
+              langs={<PageLangPills current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs', voucher: 'sec:voucher' }} />
           </nav>
 
           {/* Az üzlet — EGY H1 (mobil és desktop közös): galéria-képsor, név, cím, értékelés + közösségi, leírás, jó tudni,
               desktopon a fő gomb és a legközelebbi szabad időpont (mobilon a gomb a foglaló kártyáé, alul tapad) */}
           <div className="absolute inset-x-5 bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] z-20 text-white lg:inset-x-auto lg:bottom-10 lg:left-8 lg:max-w-[46%]">
-            {galleryItems.length > 0 && <div data-edit-id="gallery" className="mb-4 w-fit"><GalleryStrip items={galleryItems} onOpen={(i) => setGalleryAt(Math.min(i, galleryItems.length - 1))} /></div>}
-            <h1 data-edit-id="name" className="line-clamp-2 break-words text-ui-num font-light leading-none lg:text-ui-page">{d.name}</h1>
-            {place && <p data-edit-id="address" className="mt-2 flex items-center gap-1.5 text-ui-meta text-white/65"><MapPin className="h-3.5 w-3.5 shrink-0" />{place}</p>}
-            {((pg.showRating && ratingItems.length > 0) || (pg.showSocial && d.socialLinks.length > 0)) && (
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                {pg.showRating && ratingItems.length > 0 && <span data-edit-id="rating"><RatingBadges dark items={ratingItems} onOpen={pg.ratingOpens && googleUrl ? () => window.open(googleUrl, '_blank', 'noopener') : undefined} /></span>}
-                {pg.showRating && ratingItems.length > 0 && pg.showSocial && d.socialLinks.length > 0 && <span className="h-4 w-px bg-white/20" />}
-                {pg.showSocial && d.socialLinks.length > 0 && <span data-edit-id="social"><SocialIcons links={d.socialLinks} /></span>}
-              </div>
-            )}
-            {(d.description || info.length > 0) && (
-              <div className="mt-3">
-                {d.description && <p data-edit-id="desc" className="mb-3 line-clamp-2 max-w-[460px] text-ui-body text-white/70 lg:line-clamp-none">{d.kind === 'restaurant' ? d.description.slice(0, 220) : d.description}</p>}
-                {info.length > 0 && (
-                  <div data-edit-id="gtk" className="relative">
-                    <GoodToKnow items={pills} onMore={() => setInfoOpen(true)} />
-                    {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:block" />}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* a főoldal elemei a beállított sorrendben (a szerkesztő gyors-sávjának nyilaival áthelyezhetők) — a foglalás
+                gomb mindig alul; ami üres, kimarad */}
+            <div className="flex flex-col items-start">
+              {(() => {
+                // közök a design szerint (21.1): a név és a cím szorosan (8 px), a galéria után 16 px, minden más között 12 px —
+                // bármilyen sorrendben; ami üres, kimarad (a közével együtt)
+                const shown = pg.heroOrder.filter((k) => heroBlocks[k])
+                return shown.map((k, i) => {
+                  const prev = shown[i - 1]
+                  const gap = !prev ? '' : (prev === 'name' && k === 'address') || (prev === 'address' && k === 'name') ? 'mt-2' : prev === 'gallery' ? 'mt-4' : 'mt-3'
+                  return <div key={k} className={cn('max-w-full', gap)}>{heroBlocks[k]}</div>
+                })
+              })()}
+            </div>
             {!d.paused && <div data-edit-id="cta" className="mt-5 hidden w-fit flex-wrap items-center gap-2 lg:flex">
               {d.kind === 'salon' ? (
                 <SalonCtaWrapper>
-                  <span data-edit-step="datetime" className="contents">
-                    <Button size="lg" href={`/${slug}/book`} className={cn('px-6', ACCENT)}>{ctaLabel}<ArrowRight className="h-4 w-4" /></Button>
-                  </span>
+                  <Button size="lg" href={`/${slug}/book`} className={cn('px-6', ACCENT)}><EditableText as="span" id="cta" single value={ctaLabel} /><ArrowRight className="h-4 w-4" /></Button>
                 </SalonCtaWrapper>
               ) : (
-                <span data-edit-step="datetime" className="contents">
-                  <Button size="lg" href={`/${slug}?book=1`} className={cn('px-6', ACCENT)}>{ctaLabel}<ArrowRight className="h-4 w-4" /></Button>
-                </span>
+                <Button size="lg" href={`/${slug}?book=1`} className={cn('px-6', ACCENT)}><EditableText as="span" id="cta" single value={ctaLabel} /><ArrowRight className="h-4 w-4" /></Button>
               )}
               {pg.ctaNextFree && nextSlotNode && (d.kind === 'salon' ? <SalonCtaWrapper>{nextSlotNode}</SalonCtaWrapper> : nextSlotNode)}
             </div>}
@@ -275,7 +317,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
           locale={locale}
           embed={embed}
           salonName={d.name}
-          salonDescription={d.description?.slice(0, 160) ?? null}
+          salonDescription={d.description ? stripRich(d.description).slice(0, 160) : null}
           salonAddress={d.address}
           salonCity={d.city}
           nextSlotNode={nextSlotNode}
@@ -301,16 +343,29 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
       )}
 
       {editor && <SelectionRing id={hovered && hovered !== selected ? hovered : null} soft />}
-      {editor && <SelectionRing id={selected} />}
+      {editor && <SelectionRing id={selected} bar={selected && selected !== 'cover' && selLabel ? <PreviewQuickBar id={selected} label={selLabel} tools={selTools} /> : null} />}
     </div>
+    </PageTexts.Provider>
+    </EditorSelection.Provider>
   )
 }
 
 /** Keret a `data-edit-id` elem körül — fix pozíciójú réteg, így semmi nem vágja le
  *  (overflow, telefonkeret). Animációk és görgetés miatt képkockánként követi az elemet. */
-function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean }) {
+function SelectionRing({ id, soft = false, bar }: { id: string | null; soft?: boolean; /** a kijelölt elem gyors-sávja (21.6.3): a keret fölött, ha ott nincs hely, alatta */ bar?: ReactNode }) {
   const [rect, setRect] = useState<{ top: number; left: number; width: number; height: number; radius: number } | null>(null)
   const raf = useRef<number | null>(null)
+  // a gyors-sáv mért szélessége — hogy a képernyőn belül maradjon (a jobb szélen lévő elemeknél balra tolódik)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const [barW, setBarW] = useState(0)
+  useLayoutEffect(() => {
+    const el = barRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setBarW(el.offsetWidth))
+    ro.observe(el)
+    setBarW(el.offsetWidth)
+    return () => ro.disconnect()
+  }, [bar, id])
 
   useLayoutEffect(() => {
     if (!id) { setRect(null); return }
@@ -336,7 +391,13 @@ function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean
   if (!id || !rect) return null
   const isCover = id === 'cover'
   const pad = isCover ? -3 : 4
+  const barAbove = rect.top - pad > 64
   return (
+    <>
+    {bar && (
+      // a sáv kattintható (a keret maga nem) — a kijelölt elem bal széléhez igazítva, fölötte 8 px-re
+      <div ref={barRef} data-edit-pass data-edit-bar className="fixed z-[201] max-w-[calc(100vw-24px)]" style={{ left: Math.max(12, Math.min(rect.left - pad, (typeof window === 'undefined' ? 0 : document.documentElement.clientWidth) - barW - 12)), ...(barAbove ? { top: rect.top - pad - 8, transform: 'translateY(-100%)' } : { top: rect.top + rect.height + pad + 8 }) }}>{bar}</div>
+    )}
     <div
       aria-hidden
       className="pointer-events-none fixed z-[200]"
@@ -352,8 +413,10 @@ function SelectionRing({ id, soft = false }: { id: string | null; soft?: boolean
         boxShadow: soft ? undefined : '0 0 0 4px rgba(241,206,69,.18)',
       }}
     />
+    </>
   )
 }
+
 
 /** A „Jó tudni” nyitvatartása: a heti rend hétfőtől, a mai kiemelve, felül a most-állapot (percenként frissül). A „most”
  *  csak a böngészőben számolódik (a szerver-render más időzónában lehet). Nincs megadva: null. */

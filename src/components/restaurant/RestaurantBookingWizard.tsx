@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button, FIELD, IconButton } from '@/components/ui-kit'
 import { ACCENT, CardDayPicker, CardSlotGrid, cardTone, GLASS_FIELD, type LiveCard } from '@/components/blocks/public'
+import { EditableText, useFieldPlaceholder, Txt } from '@/components/booking/EditableText'
 import { useDayStrip } from '@/components/booking/useDayStrip'
 import { Minus, Plus, Loader2, Trees, ArrowLeft, ChevronRight, HandCoins } from 'lucide-react'
 import { restaurantDepositLabel, type DepositInfo } from '@/lib/depositSummary'
@@ -241,6 +242,12 @@ export function RestaurantBookingWizard({
   // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is) —
   // ez FELÜLÍRJA a tulaj kikapcsolás-szándékát (számlázáshoz kell az előlegnél).
   const addressGateOn = depositEnabled || addressRequired
+  // a mezők helykitöltője: az üzlet saját szövege (a szerkesztőben a kijelölt mezőbe írva ezt írod át)
+  const phName = useFieldPlaceholder('name', tt('rbooking.field.name'))
+  const phEmail = useFieldPlaceholder('email', tt('rbooking.field.email'))
+  const phAddress = useFieldPlaceholder('address', addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address'))
+  const phNotes = useFieldPlaceholder('notes', tt('rbooking.field.note'))
+  const phCity = useFieldPlaceholder('city', addressGateOn ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city'), 'field:address')
   const effectiveAddressLevel = addressGateOn ? 'full' : addressDetailLevel
   const addressVisible = effectiveAddressLevel !== 'off'
   const addressCityOnly = effectiveAddressLevel === 'city'
@@ -259,7 +266,8 @@ export function RestaurantBookingWizard({
     if (key === 'taxNumber') return isCompany && !taxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
     return null
   }
-  const onFieldBlur = (key: FieldKey) => setErrors(prev => ({ ...prev, [key]: validateField(key) ?? undefined }))
+  // a szerkesztő előnézetében nincs hibaüzenet (ott nem a vendég tölti ki)
+  const onFieldBlur = (key: FieldKey) => { if (!editorStep) setErrors(prev => ({ ...prev, [key]: validateField(key) ?? undefined })) }
   const clearError = (key: FieldKey) => { if (errors[key]) setErrors(prev => ({ ...prev, [key]: undefined })) }
 
   const validateCustomQuestion = (q: NonNullable<typeof customQuestions>[number]): string | null => {
@@ -410,10 +418,10 @@ export function RestaurantBookingWizard({
           {step === 0 && (
             <>
               <div data-edit-id="pax">
-                <p className="text-ui-title font-light">{tt('rbooking.partySize')}</p>
+                <p className="text-ui-title font-light"><Txt k="rbooking.partySize">{tt('rbooking.partySize')}</Txt></p>
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <IconButton icon={Minus} label="−" size="md" variant={dk ? 'onDark' : 'cell'} disabled={pax <= minPax} onClick={() => setPax((p) => Math.max(minPax, p - 1))} />
-                  <span className="text-ui-num font-light tabular-nums">{pax} <span className={`text-ui-body ${c.meta}`}>{tt('rbooking.paxUnit')}</span></span>
+                  <span className="text-ui-num font-light tabular-nums">{pax} <span className={`text-ui-body ${c.meta}`}><Txt k="rbooking.paxUnit">{tt('rbooking.paxUnit')}</Txt></span></span>
                   <IconButton icon={Plus} label="+" size="md" variant={dk ? 'onDark' : 'cell'} disabled={pax >= maxPax} onClick={() => setPax((p) => Math.min(maxPax, p + 1))} />
                 </div>
                 {/* a legnagyobb online létszámnál: nagyobb társaság üzenetet küld / telefonál, nem foglal online */}
@@ -428,9 +436,9 @@ export function RestaurantBookingWizard({
               </div>
 
               <div data-edit-id="rules">
-                <p className="text-ui-title font-light">{tt('rbooking.when')}</p>
+                <p className="text-ui-title font-light"><Txt k="rbooking.when">{tt('rbooking.when')}</Txt></p>
                 {bookingWindowDays <= 0 ? (
-                  <p className={`mt-2 text-ui-meta ${c.meta}`}>{tt('dateStrip.closed')}</p>
+                  <p className={`mt-2 text-ui-meta ${c.meta}`}><Txt k="dateStrip.closed">{tt('dateStrip.closed')}</Txt></p>
                 ) : (
                   <>
                     <div ref={stripRef}><CardDayPicker c={c} className="mt-2" days={pickDays} onPick={setDate} /></div>
@@ -443,10 +451,10 @@ export function RestaurantBookingWizard({
                         <Button size="sm" variant={dk ? 'onDark' : 'cell'} className="mt-3" onClick={() => setSlotsReloadKey((k) => k + 1)}>{tt('rbooking.retry')}</Button>
                       </div>
                     ) : slots.length === 0 ? (
-                      <p className={`py-6 text-center text-ui-meta ${c.meta}`}>{tt('rbooking.noSlots')}</p>
+                      <p className={`py-6 text-center text-ui-meta ${c.meta}`}><Txt k="rbooking.noSlots">{tt('rbooking.noSlots')}</Txt></p>
                     ) : (
                       <>
-                        <CardSlotGrid c={c} className="mt-2" slots={slots.map((x) => x.start)} on={time || undefined} onPick={(t) => { setTime(t); goStep(1) }} />
+                        <div data-edit-id="sec:slots"><CardSlotGrid c={c} className="mt-2" slots={slots.map((x) => x.start)} on={time || undefined} onPick={(t) => { setTime(t); goStep(1) }} /></div>
                         {/* ahol a beltér megtelt: csak teraszon (kültéren) foglalható */}
                         {slots.some((x) => x.onlyOutdoor) && (
                           <p className={`mt-2 flex items-center gap-1.5 text-ui-label ${c.meta}`}><Trees className="h-3.5 w-3.5 shrink-0" />{tt('rbooking.onlyOutdoor')}: {slots.filter((x) => x.onlyOutdoor).map((x) => x.start).join(', ')}</p>
@@ -465,7 +473,7 @@ export function RestaurantBookingWizard({
               {/* Összegző kártya */}
               <div className="bg-ui-dark rounded-[20px] p-5 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-white/60 text-xs font-medium mb-1">{tt("rbooking.summary")}</p>
+                  <p className="text-white/60 text-xs font-medium mb-1"><Txt k="rbooking.summary">{tt('rbooking.summary')}</Txt></p>
                   <p className="text-ui-yellow font-semibold text-base">{tt('rbooking.guests', { n: pax })}</p>
                   <p className="text-white/60 text-xs mt-1">{format(selectedDateObj, 'MMM d.', { locale: dfLocale(locale) })} · {time}</p>
                 </div>
@@ -487,7 +495,7 @@ export function RestaurantBookingWizard({
                 </div>
               )}
               <div className={`${cardClass} space-y-3`} style={cardStyle}>
-                <p className={`text-ui-title font-light`}>{tt("rbooking.details")}</p>
+                <p className={`text-ui-title font-light`}><Txt k="rbooking.details">{tt('rbooking.details')}</Txt></p>
                 {/* Az űrlap mezői a beállított sorrendben (`booking_rules.form_field_order`) — ugyanaz a
                     blokk-felosztás, mint a szalon foglalóján. */}
                 {(() => {
@@ -497,10 +505,10 @@ export function RestaurantBookingWizard({
                     <input
                       ref={fieldRefs.name}
                       className={cn(inputClass, errors.name && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                      placeholder={tt("rbooking.field.name")}
                       aria-label={tt("rbooking.field.name")}
                       value={name}
                       onChange={(e) => { setName(e.target.value); clearError('name') }}
+                      {...phName}
                       onBlur={() => onFieldBlur('name')}
                       autoComplete="name"
                       aria-invalid={!!errors.name}
@@ -517,10 +525,10 @@ export function RestaurantBookingWizard({
                       type="email"
                       inputMode="email"
                       autoComplete="email"
-                      placeholder={tt("rbooking.field.email")}
                       aria-label={tt("rbooking.field.email")}
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); clearError('email') }}
+                      {...phEmail}
                       onBlur={() => onFieldBlur('email')}
                       aria-invalid={!!errors.email}
                       aria-describedby={errors.email ? 'rbk-email-err' : undefined}
@@ -550,8 +558,8 @@ export function RestaurantBookingWizard({
                   {/* Előlegnél a cím a SZÁMLÁHOZ kell — egyszer, fejlécként mondjuk el (nem mezőnként) */}
                   {depositEnabled && (
                     <div className="pt-1">
-                      <p className={`text-ui-title font-light`}>{tt('booking.details.billing')}</p>
-                      <p className={`text-[12px] ${dk ? 'text-white/45' : 'text-ui-muted'}`}>{tt('booking.details.billingWhy')}</p>
+                      <p className={`text-ui-title font-light`}><Txt k="booking.details.billing">{tt('booking.details.billing')}</Txt></p>
+                      <p className={`text-[12px] ${dk ? 'text-white/45' : 'text-ui-muted'}`}><Txt k="booking.details.billingWhy">{tt('booking.details.billingWhy')}</Txt></p>
                     </div>
                   )}
                   <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
@@ -559,11 +567,11 @@ export function RestaurantBookingWizard({
                       ref={fieldRefs.city}
                       className={cn(inputClass, errors.city && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
                       autoComplete="address-level2"
-                      placeholder={addressGateOn ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city')}
                       aria-label={addressGateOn ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
                       aria-invalid={!!errors.city}
                       value={city}
                       onChange={(e) => { setCity(e.target.value); clearError('city') }}
+                      {...phCity}
                       onBlur={() => onFieldBlur('city')}
                     />
                     {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
@@ -575,11 +583,11 @@ export function RestaurantBookingWizard({
                       ref={fieldRefs.address}
                       className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
                       autoComplete="street-address"
-                      placeholder={addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
                       aria-label={addressGateOn ? tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '') : tt('booking.field.address')}
                       aria-invalid={!!errors.address}
                       value={address}
                       onChange={(e) => { setAddress(e.target.value); clearError('address') }}
+                      {...phAddress}
                       onBlur={() => onFieldBlur('address')}
                     />
                     {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
@@ -589,7 +597,7 @@ export function RestaurantBookingWizard({
                   {depositEnabled && invoicingEnabled && (
                     <>
                       <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-ui-cell')}>
-                        <span className={`text-[13px] ${textCls}`}>{tt('public.voucher.companyToggle')}</span>
+                        <span className={`text-[13px] ${textCls}`}><Txt k="public.voucher.companyToggle">{tt('public.voucher.companyToggle')}</Txt></span>
                         <Switch checked={isCompany} onChange={setIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
                       {isCompany && (
@@ -604,7 +612,7 @@ export function RestaurantBookingWizard({
                             onChange={(e) => { setTaxNumber(e.target.value); clearError('taxNumber') }}
                             onBlur={() => onFieldBlur('taxNumber')}
                           />
-                          {errors.taxNumber ? <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.taxNumber}</p> : <p className={`mt-1 text-[11px] ${labelCls}`}>{tt('public.voucher.taxNumberHint')}</p>}
+                          {errors.taxNumber ? <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.taxNumber}</p> : <p className={`mt-1 text-[11px] ${labelCls}`}><Txt k="public.voucher.taxNumberHint">{tt('public.voucher.taxNumberHint')}</Txt></p>}
                         </div>
                       )}
                     </>
@@ -661,16 +669,16 @@ export function RestaurantBookingWizard({
                   })
                     }</div>),
                     notes: (
-                  <textarea data-edit-id="field:notes" className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <textarea data-edit-id="field:notes" className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} {...phNotes} />
                     ),
                     newsletter: (marketingVisible || (editorStep && newsletterEnabled)) ? (
                   <div data-edit-id="newsletter" className={cn('space-y-1.5', editorStep && !marketingVisible && 'opacity-35 pointer-events-none')}>
                     <div className="flex items-center justify-between gap-3 py-1">
-                      <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ui-text'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                      <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ui-text'}`}><Txt k="custom.marketing">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</Txt></span>
                       <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
                     </div>
                     <p className={`text-[11px] ${dk ? 'text-white/40' : 'text-ui-muted'}`}>
-                      Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${dk ? 'hover:text-white/70' : 'hover:text-ui-text'}`}>Adatvédelmi tájékoztató</a>.
+                      <Txt k="custom.unsubscribe">Bármikor leiratkozhatok. Részletek:</Txt> <a href="/privacy#marketing" target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${dk ? 'hover:text-white/70' : 'hover:text-ui-text'}`}><Txt k="custom.privacyLink">Adatvédelmi tájékoztató</Txt></a>.
                     </p>
                   </div>
                     ) : null,
@@ -678,8 +686,8 @@ export function RestaurantBookingWizard({
                     occasions: eventTypes.length > 0 ? (
               <div data-edit-id="occasions" className="space-y-3 pt-1">
                   <div>
-                    <p className={`text-ui-title font-light`}>{tt('rbooking.occasion')}</p>
-                    <p className={`mt-0.5 text-[12px] ${dk ? 'text-white/40' : 'text-ui-muted'}`}>{tt('rbooking.occasionHint')}</p>
+                    <p className={`text-ui-title font-light`}><Txt k="rbooking.occasion">{tt('rbooking.occasion')}</Txt></p>
+                    <p className={`mt-0.5 text-[12px] ${dk ? 'text-white/40' : 'text-ui-muted'}`}><Txt k="rbooking.occasionHint">{tt('rbooking.occasionHint')}</Txt></p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -694,7 +702,7 @@ export function RestaurantBookingWizard({
                       }`}
                       style={dk && occasionIdx !== null ? { background: 'rgba(255,255,255,0.08)' } : undefined}
                     >
-                      {tt('rbooking.occasionNone')}
+                      <Txt k="rbooking.occasionNone">{tt('rbooking.occasionNone')}</Txt>
                     </button>
                     {eventTypes.map((et, i) => {
                       const Icon = eventIconByKey(et.icon)
@@ -742,7 +750,7 @@ export function RestaurantBookingWizard({
                         onClick={() => setRedeemOpen(true)}
                         className={`text-[12px] font-medium underline underline-offset-2 transition-colors ${dk ? 'text-white/45 hover:text-white/70' : 'text-ui-muted hover:text-ui-text'}`}
                       >
-                        Van ajándékutalványod?
+                        <Txt k="custom.voucherLink">Van ajándékutalványod?</Txt>
                       </button>
                     ) : (
                       <div>
@@ -755,7 +763,7 @@ export function RestaurantBookingWizard({
                         />
                         {redeemChecking && <p className={`mt-1 text-[11px] ${labelCls}`}>Ellenőrzés…</p>}
                         {redeemError && <p role="alert" className="mt-1 text-[12px] text-red-500">{redeemError}</p>}
-                        {redeemValid && <p className="mt-1 text-[12px] text-emerald-500">Érvényes utalvány — jóváírva a foglaláskor.</p>}
+                        {redeemValid && <p className="mt-1 text-[12px] text-emerald-500"><Txt k="custom.voucherValid">Érvényes utalvány — jóváírva a foglaláskor.</Txt></p>}
                       </div>
                     )}
                   </div>
@@ -767,7 +775,7 @@ export function RestaurantBookingWizard({
                 onClick={() => { if (validateDetails()) goStep(DEPOSIT_STEP ?? CONSENT_STEP ?? REVIEW_STEP) }}
                 className={cn('w-full', ACCENT)}
               >
-                {tt('booking.next')}
+                <Txt k="booking.next">{tt('booking.next')}</Txt>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </>
@@ -776,7 +784,7 @@ export function RestaurantBookingWizard({
           {/* Step 2 (ha van előleg): Előleg-fizetés */}
           {step === DEPOSIT_STEP && depositEnabled && (
             <div data-edit-id="deposit" className={cardClass} style={cardStyle}>
-              <p className={`text-ui-title font-light mb-3`}>{tt('public.deposit.title')}</p>
+              <p className={`text-ui-title font-light mb-3`}><Txt k="public.deposit.title">{tt('public.deposit.title')}</Txt></p>
               {editorStep ? (
                 <p className={`text-[13px] leading-relaxed ${labelCls}`}>Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.</p>
               ) : time && (
@@ -796,15 +804,15 @@ export function RestaurantBookingWizard({
           {/* Beleegyező nyilatkozat */}
           {step === CONSENT_STEP && consentEnabled && (
             <div data-edit-id="consent" className={cardClass} style={cardStyle}>
-              <p className={`text-ui-title font-light mb-3`}>{consentTitle?.trim() || tt('public.consent.title')}</p>
+              <EditableText as="div" id="consentTitle" single value={consentTitle?.trim() || tt('public.consent.title')} className="mb-3 text-ui-title font-light" />
               <div
                 className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed ${dk ? 'text-white/75' : 'text-ui-muted'}`}
                 style={{ background: dk ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', border: dk ? '1.5px solid rgba(255,255,255,0.10)' : '1.5px solid rgba(0,0,0,0.06)' }}
               >
-                {consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'}
+                <EditableText as="div" id="consentText" value={consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'} />
               </div>
               <div className="flex items-center justify-between gap-3 py-1">
-                <span className={`text-[13px] ${textCls}`}>Elolvastam és elfogadom a fenti nyilatkozatot</span>
+                <span className={`text-[13px] ${textCls}`}><Txt k="custom.consentAccept">Elolvastam és elfogadom a fenti nyilatkozatot</Txt></span>
                 <Switch checked={consentGiven} onChange={setConsentGiven} ariaLabel="Nyilatkozat elfogadása" />
               </div>
               <Button
@@ -812,7 +820,7 @@ export function RestaurantBookingWizard({
                 disabled={!consentGiven}
                 className={cn('w-full', ACCENT)}
               >
-                {tt('booking.next')}
+                <Txt k="booking.next">{tt('booking.next')}</Txt>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -823,7 +831,7 @@ export function RestaurantBookingWizard({
             <>
               {/* Összegzés — egy kártyában, ugyanabban a sorrendben, mint a szalon foglalóján
                   (foglalás → vendég adatai → előleg / utalvány). A hosszú értékek törnek. */}
-              <h2 className="text-ui-title font-light">{tt('booking.summary.title')}</h2>
+              <h2 className="text-ui-title font-light"><Txt k="booking.summary.title">{tt('booking.summary.title')}</Txt></h2>
               <div data-edit-id="summary" className={cn(cardClass, 'py-1')} style={cardStyle}>
                 {[
                   { label: tt('rbooking.label.guests'), value: tt('rbooking.guests', { n: pax }) },
@@ -855,14 +863,14 @@ export function RestaurantBookingWizard({
                 {submitting ? (
                   <><Loader2 className="h-4 w-4 animate-spin" />{tt('rbooking.submitting')}</>
                 ) : (
-                  <>{tt('rbooking.confirm')}<HoverArrow className="h-4 w-4" /></>
+                  <><Txt k="rbooking.confirm">{tt('rbooking.confirm')}</Txt><HoverArrow className="h-4 w-4" /></>
                 )}
               </Button>
               {((termsSections && termsSections.length > 0) || company) && (
                 <div data-edit-id="terms" className={`text-center text-xs ${dk ? 'text-white/40' : 'text-ui-muted'}`}>
                   {tt('rbooking.termsPrefix')}{' '}
                   <TermsModal sections={termsSections} company={company} locale={locale} />
-                  {company?.privacy_url && <>. {tt('rbooking.privacyPrefix')}{' '}<a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{tt('rbooking.privacyLink')}</a></>}
+                  {company?.privacy_url && <>. {tt('rbooking.privacyPrefix')}{' '}<a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2"><Txt k="rbooking.privacyLink">{tt('rbooking.privacyLink')}</Txt></a></>}
                 </div>
               )}
             </>

@@ -1,3 +1,4 @@
+import { stripRich } from './richText'
 import type { Metadata } from 'next'
 import type { Salon, Restaurant, Media } from '@/payload/payload-types'
 import type { Pricing } from '@/lib/pricing'
@@ -25,7 +26,8 @@ export function mediaUrl(m: string | Media | null | undefined): string | null {
  *  `description`-je korábban richText-objektum volt, egy korlátlanul cache-elt, séma-váltás
  *  előtti bejegyzés még a régi alakot adhatja vissza. */
 export function descriptionText(desc: Salon['description'] | Restaurant['description']): string {
-  return typeof desc === 'string' ? desc.trim() : ''
+  // a szerkesztő jelölései (**félkövér**, *dőlt*, [link](…)) a Google-leírásba és a strukturált adatba nem kellenek
+  return typeof desc === 'string' ? stripRich(desc).trim() : ''
 }
 
 /** Rövid, találati-listára szánt leírás: a saját leírás, vagy egy értelmes fallback. */

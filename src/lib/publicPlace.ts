@@ -161,7 +161,7 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
 function publicStaff(s: StaffMember): StaffMember {
   return {
     id: s.id, name: s.name, bio: s.bio, social_links: s.social_links, salon: typeof s.salon === 'object' && s.salon ? s.salon.id : s.salon,
-    avatar: s.avatar, is_active: s.is_active, role_title: s.role_title, department: s.department,
+    avatar: s.avatar, is_active: s.is_active, role_title: s.role_title, show_role_title: s.show_role_title !== false, department: s.department,
     booking_buffer_minutes: s.booking_buffer_minutes, min_lead_hours: s.min_lead_hours, default_breaks: s.default_breaks,
     stripe_connect_onboarded: !!s.stripe_connect_onboarded && !!s.stripe_connect_account_id,
     updatedAt: s.updatedAt, createdAt: s.createdAt,

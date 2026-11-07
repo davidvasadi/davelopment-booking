@@ -11,7 +11,7 @@ import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
 import { PublicPlaceView, type PlaceViewData } from '@/components/booking/PublicPlaceView'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
-import { galleryOf, pageStyleOf } from '@/lib/publicPageView'
+import { galleryOf, ownLocaleTexts, pageStyleOf } from '@/lib/publicPageView'
 import { placeJsonLd, placeBreadcrumbJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
@@ -87,7 +87,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     coverFocalMobileX: restaurant.cover_focal_mobile_x ?? null,
     coverFocalMobileY: restaurant.cover_focal_mobile_y ?? null,
     logoUrl,
-    page: pageStyleOf(restaurant),
+    // a saját szövegek a vendég nyelvén — ami nincs lefordítva, ott az alap szöveg (nem a magyar)
+    page: { ...pageStyleOf(restaurant), ...(await ownLocaleTexts(await getPayloadClient() as never, 'restaurants', restaurant.id, locale)) },
     gallery: galleryOf(restaurant),
     socialLinks: (restaurant.social_links ?? []).map((s) => s.url),
     goodToKnow: restaurant.good_to_know ?? [],

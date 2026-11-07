@@ -1,11 +1,12 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { CalendarPlus, Check, Clock } from 'lucide-react'
 import { Button, IconCircle } from '@/components/ui-kit'
 import { ACCENT, cardTone, type LiveCard } from '@/components/blocks/public'
 import { makeT, type Locale } from '@/lib/i18n'
+import { EditableText, PageTexts, Txt } from './EditableText'
 
 /** „24 órával és 2 nappal” — az emlékeztető-időzítés szövege a visszaigazoló képernyőn. */
 const REMINDER_WORDS: Record<string, { h: string; d: string; and: string }> = {
@@ -48,6 +49,7 @@ export function BookingSuccess({
 }) {
   const tt = makeT(locale)
   const c = cardTone(card)
+  const texts = useContext(PageTexts)
   // design 21.7 „Kész”: pipa a márkaszínben (jóváhagyásra várva óra), cím, a foglalás egy sorban, Naptárba / Kész
   return (
     <div data-edit-id="confirm" className={`flex flex-col items-center px-1 py-6 text-center ${className}`}>
@@ -55,7 +57,10 @@ export function BookingSuccess({
         <IconCircle size="lg" icon={confirmed ? Check : Clock} className={confirmed ? ACCENT : ''} tone={confirmed ? undefined : c.dark ? 'onDark' : 'cell'} />
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }} className="w-full min-w-0">
-        <div className="mt-4 text-ui-sub font-light [overflow-wrap:anywhere]">{confirmed ? tt('public.success.title') : tt('public.success.titlePending')}</div>
+        {/* a köszönő cím: az üzlet saját szövege és színe (a szerkesztőben helyben írható), különben az alap */}
+        {confirmed
+          ? <EditableText as="div" id="successTitle" single rich value={texts.successTitle ?? tt('public.success.title')} className="mt-4 text-ui-sub font-light [overflow-wrap:anywhere]" style={texts.successColor ? { color: texts.successColor } : undefined} />
+          : <div className="mt-4 text-ui-sub font-light [overflow-wrap:anywhere]"><Txt k="public.success.titlePending">{tt('public.success.titlePending')}</Txt></div>}
         <p className={`mt-1 text-ui-meta leading-relaxed ${c.meta}`}>
           {confirmed ? tt('public.success.welcome') : tt('public.success.pendingBody')}
           {hasEmail && confirmEmailEnabled && <> {confirmed ? tt('public.success.subtitle') : tt('public.success.emailLater')}</>}
@@ -65,8 +70,8 @@ export function BookingSuccess({
           <p className={`mt-3 text-ui-label leading-relaxed ${c.meta}`}>{tt('public.success.reminder', { when: reminderWhen(locale, reminderHours) })}</p>
         )}
         <div className="mt-4 grid w-full grid-cols-2 gap-1.5">
-          {icsHref && <Button variant={c.dark ? 'onDark' : 'cell'} icon={CalendarPlus} href={icsHref}>{tt('email.addToCalendar')}</Button>}
-          <Button variant={c.dark ? 'onDark' : 'cell'} onClick={onDone} className={icsHref ? '' : 'col-span-2'}>{tt('public.success.done')}</Button>
+          {icsHref && <Button variant={c.dark ? 'onDark' : 'cell'} icon={CalendarPlus} href={icsHref}><Txt k="email.addToCalendar">{tt('email.addToCalendar')}</Txt></Button>}
+          <Button variant={c.dark ? 'onDark' : 'cell'} onClick={onDone} className={icsHref ? '' : 'col-span-2'}><Txt k="public.success.done">{tt('public.success.done')}</Txt></Button>
         </div>
       </motion.div>
     </div>

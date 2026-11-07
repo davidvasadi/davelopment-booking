@@ -1,7 +1,9 @@
-import { ArrowRight, ChevronLeft, ChevronRight, Eye, Redo2, Settings, Undo2, X, type LucideIcon } from 'lucide-react'
-import { Avatar, Button, IconButton, IconCircle, ListRow, Pill, MarqueeText } from '@/components/ui-kit'
+import { ArrowRight, ChevronLeft, ChevronRight, Eye, Settings, X, type LucideIcon } from 'lucide-react'
+import { Avatar, IconButton, IconCircle, ListRow, Pill, MarqueeText } from '@/components/ui-kit'
 import { Ring } from './charts'
 import { BIZ_LOGO, PoweredBy } from './brand'
+// a közzétételi sáv állapotot tart (nyelv-menü) — külön kliens-fájlban, hogy ez a fájl szerver-oldalon is használható maradjon
+export { EditorPublishBar } from './editor-publish-bar'
 
 /* Élő szerkesztő darabjai — a /design (a régi szerkesztő képe — ma már csak a landing használja; az új: /design 21.6) és a landing („Saját bemutatkozó weboldal”) is ezeket mutatja. */
 
@@ -69,27 +71,33 @@ export function BookingPagePreview({ className = '' }: { className?: string }) {
   )
 }
 
-/** A szerkesztő alsó sávja: visszavonás / újra, nyelvek, módosítások száma, Közzététel. Élőben `onUndo` / `onRedo`
- *  (`canUndo` / `canRedo`), `langs` + `onLang` (a szerkesztett nyelv), `changes`, `onPublish` (`busy`). */
-export function EditorPublishBar({ onUndo, onRedo, canUndo = true, canRedo = false, langs = [{ code: 'hu', active: true }, { code: 'en', active: false }, { code: 'de', active: false }], onLang, changes = 3, onPublish, busy = false, publishLabel = 'Közzététel' }: {
-  onUndo?: () => void; onRedo?: () => void; canUndo?: boolean; canRedo?: boolean
-  langs?: { code: string; active: boolean }[]; onLang?: (code: string) => void
-  changes?: number; onPublish?: () => void; busy?: boolean; publishLabel?: string
-}) {
+/** Helyben szerkesztés (design 21.6.3): a kijelölt elem fölötti sötét gyors-sáv — ugyanaz a felület, mint a közzétételi
+ *  sávé. Elöl az elem neve (sárga pill), utána az elem eszközei (`children`: szövegnél félkövér, dőlt, link, szín; mezőnél
+ *  kötelező, elrejt, sorrend), a végén a kijelölés vége (X). A beállítások desktopon a jobb panelen, mobilon a lapon. */
+export function EditorQuickBar({ name, onClose, settings = false, onSettings, children, className = '' }: { name: string; onClose?: () => void
+  /** mobil: a beállítások gombja (a lapot nyitja) az X előtt */ settings?: boolean; onSettings?: () => void; children?: React.ReactNode; className?: string }) {
   return (
-    <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-ui-dark p-1.5 text-white shadow-ui-float">
-      <IconButton icon={Undo2} label="Visszavonás" size="sm" variant="ghostDark" onClick={onUndo} disabled={!canUndo} className="disabled:opacity-40" />
-      <IconButton icon={Redo2} label="Újra" size="sm" variant="ghostDark" onClick={onRedo} disabled={!canRedo} className="disabled:opacity-40" />
-      {langs.length > 1 && <>
-        <span className="mx-1 h-5 w-px shrink-0 bg-white/15" />
-        {langs.map((l) => onLang
-          ? <button key={l.code} type="button" onClick={() => onLang(l.code)} aria-pressed={l.active} className="ui-press shrink-0 rounded-full"><Pill tone={l.active ? 'onDark' : 'ghostDark'}>{l.code.toUpperCase()}</Pill></button>
-          : <Pill key={l.code} tone={l.active ? 'onDark' : 'ghostDark'}>{l.code.toUpperCase()}</Pill>)}
-      </>}
+    <div className={`inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-ui-dark p-1.5 text-white shadow-ui-float [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}>
+      <Pill tone="yellow" size="sm" className="ml-0.5 shrink-0">{name}</Pill>
+      {children}
+      {settings && <IconButton icon={Settings} label="Beállítások" size="sm" variant="ghostDark" onClick={onSettings} className="shrink-0" />}
       <span className="mx-1 h-5 w-px shrink-0 bg-white/15" />
-      <span className="mr-1 shrink-0 text-ui-meta text-white/55">{changes ? `${changes} módosítás` : 'Nincs módosítás'}</span>
-      <Button variant="yellow" onClick={onPublish} loading={busy} disabled={!changes} className="shrink-0">{publishLabel}</Button>
+      <IconButton icon={X} label="Kijelölés vége" size="sm" variant="ghostDark" onClick={onClose} className="shrink-0" />
     </div>
+  )
+}
+
+/** A gyors-sáv egy eszköze (ikon-gomb a sötét sávon); `on`: bekapcsolva (pl. félkövér). */
+export function QuickTool({ icon, label, on = false, onClick }: { icon: LucideIcon; label: string; on?: boolean; onClick?: () => void }) {
+  return <IconButton icon={icon} label={label} size="sm" variant={on ? 'onDark' : 'ghostDark'} onClick={onClick} className="shrink-0" />
+}
+
+/** A gyors-sávon a szöveg színe: pötty a jelenlegi színnel (`fill`: osztály, pl. bg-white/70) — rákattintva a színminták. */
+export function QuickColor({ fill = '', css, onClick }: { fill?: string; /** élőben: a jelenlegi szín (CSS) */ css?: string; onClick?: () => void }) {
+  return (
+    <button type="button" aria-label="Szöveg színe" onClick={onClick} className="ui-press flex h-9 w-9 shrink-0 items-center justify-center rounded-full"> {/* ui-allow: a szín-pötty gombja a sáv ikon-gombjainak méretében */}
+      <span className={`block h-[18px] w-[18px] rounded-full ring-2 ring-white/35 ${fill}`} style={css ? { background: css } : undefined} /> {/* ui-allow: a pötty maga a választott szín */}
+    </button>
   )
 }
 

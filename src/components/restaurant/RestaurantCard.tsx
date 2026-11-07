@@ -596,8 +596,9 @@ export function RestaurantCard({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
+              // a szerkesztőben egy foglalási lépés előnézete nyitva marad (a lépést a szerkesztő váltja, nem a háttér)
               onClick={() => {
-                if (view !== 'success') setSheetOpen(false)
+                if (view !== 'success' && (!editorView || editorView === 'main')) setSheetOpen(false)
               }}
             />
           )}
@@ -647,7 +648,7 @@ export function RestaurantCard({
           dragConstraints={{ top: 0, bottom: 0 }}
           dragElastic={{ top: 0, bottom: 1 }}
           onDragEnd={(_e, info) => {
-            if (info.offset.y > 120 || info.velocity.y > 500) setSheetOpen(false)
+            if ((info.offset.y > 120 || info.velocity.y > 500) && (!editorView || editorView === 'main')) setSheetOpen(false)
           }}
           // a kártya stílusa (design 21.2): sötét üveg (alap) · fekete · világos üveg · fehér
           className={cn('flex flex-col overflow-hidden', c.box, embed ? 'rounded-ui-card' : 'rounded-t-ui-card shadow-ui-popup lg:rounded-ui-card')}

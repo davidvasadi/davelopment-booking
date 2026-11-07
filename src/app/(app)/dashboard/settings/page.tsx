@@ -204,6 +204,7 @@ export default async function SettingsPage() {
           id: String(m.id),
           name: m.name,
           role_title: m.role_title ?? '',
+          show_role_title: m.show_role_title !== false,
           bio: m.bio ?? '',
           social_links: (m.social_links ?? []).map((l: { url: string }) => l.url),
         })),

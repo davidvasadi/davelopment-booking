@@ -139,9 +139,9 @@ const DARK_ROW = 'rounded-ui-inner border border-white/10 bg-white/[0.04]' // ui
 
 /** Az alap arculat háttere (még nincs borítókép): semleges, mély sötét — felül egy halvány fehér fény, alul sötétebb, így
  *  van mélysége, de nem színes; a márkaszín csak a gombokon jelenik meg. */
-export function DefaultCover() {
+export function DefaultCover({ color, flat = false }: { /** az üzlet választott alap színe — fentről a saját sötétebb árnyalatába fut */ color?: string | null; /** kikapcsolt sötétítés: egyszínű, átmenet nélkül */ flat?: boolean }) {
   return (
-    <div className="absolute inset-0 overflow-hidden bg-gradient-to-b from-ui-dark to-black">
+    <div className="absolute inset-0 overflow-hidden bg-gradient-to-b from-ui-dark to-black" style={color ? { background: flat ? color : `linear-gradient(to bottom, ${color}, color-mix(in srgb, ${color} 55%, black))` } : undefined}> {/* ui-allow: az üzlet saját borító-színe */}
       <div className="absolute -top-[35%] left-[10%] h-[80%] w-[80%] rounded-full bg-white/[0.07] blur-[120px]" /> {/* ui-allow: halvány fény */}
     </div>
   )
@@ -149,7 +149,8 @@ export function DefaultCover() {
 
 /** Logó helyett: az üzlet nevének kezdőbetűi sötét üveg-négyzetben (mint a fotón ülő elemek), fehér betűvel. */
 function Monogram({ mobile = false, letters = 'FB' }: { mobile?: boolean; letters?: string }) {
-  return <span className={`flex items-center justify-center rounded-ui-control font-medium text-white ${ON_PHOTO} ${mobile ? 'h-8 w-8 text-ui-meta' : 'h-10 w-10 text-ui-body'}`}>{letters}</span>
+  // a sáv többi eleme (utalvány, nyelvek) Pill md = 36 px — a monogram is ennyi, mobilon és desktopon is
+  return <span className={`flex h-9 w-9 items-center justify-center rounded-ui-control font-medium text-white ${ON_PHOTO} ${mobile ? 'text-ui-meta' : 'text-ui-body'}`}>{letters}</span>
 }
 
 /** Felső sáv a borítón: az üzlet logója (a mi jelünk csak a foglaló kártya alján), középen a számlálók, jobbra az
@@ -160,7 +161,7 @@ export function PageNav({ mobile = false, blank = false, restaurant = false, log
   logo?: string | null; letters?: string; logoAlt?: string; counts?: [string, string][]
   voucher?: React.ReactNode | null; langs?: React.ReactNode
   /** a szerkesztő kijelöléséhez (`data-edit-id`) */
-  editIds?: { logo?: string; counts?: string; langs?: string }
+  editIds?: { logo?: string; counts?: string; langs?: string; voucher?: string }
 }) {
   const live = logo !== undefined
   const showLogo = live ? !!logo : !blank
@@ -169,12 +170,13 @@ export function PageNav({ mobile = false, blank = false, restaurant = false, log
     <div className={`relative z-10 flex items-center justify-between gap-3 ${mobile ? 'px-5 pt-5' : 'px-8 pt-6'}`}>
       {/* logó nélkül: monogram (az üzlet nevének kezdőbetűi) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <span data-edit-id={editIds?.logo}>{showLogo ? <img src={live ? logo! : BIZ_LOGO} alt={logoAlt} className={`w-auto max-w-[160px] object-contain ${mobile ? 'h-8' : 'h-10'}`} /> : <Monogram mobile={mobile} letters={letters ?? (restaurant ? 'BA' : 'FB')} />}</span>
+      <span data-edit-id={editIds?.logo}>{showLogo ? <img src={live ? logo! : BIZ_LOGO} alt={logoAlt} className="h-9 w-auto max-w-[160px] object-contain" /> : <Monogram mobile={mobile} letters={letters ?? (restaurant ? 'BA' : 'FB')} />}</span>
       {!mobile && cnt.length > 0 && <span data-edit-id={editIds?.counts} className="flex items-center gap-5 text-ui-meta text-white/70">{cnt.map(([n, l], i) => <span key={l} className="flex items-center gap-5">{i > 0 && <span className="h-4 w-px bg-white/20" />}<span><span className="text-white">{n}</span> {l}</span></span>)}</span>}
       {/* jobbra: az ajándékutalvány (ugyanaz a kártya, a vásárlás lépéseivel) és a nyelv-váltó — az aktív nyelv fehér */}
-      <span className="flex gap-1">
-        {live ? voucher : <Pill size="sm" tone="onDark" className={ON_PHOTO}><Gift className="h-3.5 w-3.5" />{!mobile && 'Ajándékutalvány'}</Pill>}
-        <span data-edit-id={editIds?.langs} className="flex gap-1">{live ? langs : ['HU', 'EN', 'DE'].map((l, i) => <Pill key={l} size="sm" tone={i === 0 ? 'white' : 'onDark'} className={i ? ON_PHOTO : ''}>{l}</Pill>)}</span>
+      {/* a sáv jobb oldala: utalvány + nyelvek — mind 36 px magas, egy vonalban (mobilon és desktopon is) */}
+      <span className="flex items-center gap-1">
+        {live ? (voucher && <span data-edit-id={editIds?.voucher} className="flex items-center">{voucher}</span>) : <Pill tone="onDark" className={ON_PHOTO}><Gift className="h-4 w-4" />{!mobile && 'Ajándékutalvány'}</Pill>}
+        <span data-edit-id={editIds?.langs} className="flex items-center gap-1">{live ? langs : ['HU', 'EN', 'DE'].map((l, i) => <Pill key={l} tone={i === 0 ? 'white' : 'onDark'} className={`justify-center ${i ? ON_PHOTO : 'border border-white'}`}>{l}</Pill>)}</span>
       </span>
     </div>
   )
@@ -182,12 +184,12 @@ export function PageNav({ mobile = false, blank = false, restaurant = false, log
 
 /** Az ajándékutalvány-gomb a sávban (a fotón): élőben kattintásra a foglaló kártya az utalvány-vásárlásra vált. */
 export function VoucherPill({ label, mobile = false, onClick }: { label: string; mobile?: boolean; onClick?: () => void }) {
-  return <button type="button" onClick={onClick} className="ui-press rounded-full"><Pill tone="onDark" className={ON_PHOTO}><Gift className="h-4 w-4" />{!mobile && label}</Pill></button>
+  return <button type="button" onClick={onClick} className="ui-press flex rounded-full"><Pill tone="onDark" className={ON_PHOTO}><Gift className="h-4 w-4" />{!mobile && label}</Pill></button>
 }
 
 /** Nyelv-váltó a sávban: az aktív fehér, a többi sötét üveg. Élőben `onSelect` (ugyanazon az URL-en vált — süti). */
 export function LangPills({ langs, onSelect, busy = false }: { langs: { code: string; active: boolean }[]; onSelect: (code: string) => void; busy?: boolean }) {
-  return <>{langs.map((l) => <button key={l.code} type="button" disabled={busy} aria-pressed={l.active} onClick={() => onSelect(l.code)} className="ui-press rounded-full disabled:opacity-60"><Pill tone={l.active ? 'white' : 'onDark'} className={`justify-center ${l.active ? 'border border-white' : ON_PHOTO}`}>{l.code.toUpperCase()}</Pill></button>)}</>
+  return <>{langs.map((l) => <button key={l.code} type="button" disabled={busy} aria-pressed={l.active} onClick={() => onSelect(l.code)} className="ui-press flex rounded-full disabled:opacity-60"><Pill tone={l.active ? 'white' : 'onDark'} className={`justify-center ${l.active ? 'border border-white' : ON_PHOTO}`}>{l.code.toUpperCase()}</Pill></button>)}</>
 }
 
 export const SOCIALS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'website']
@@ -480,7 +482,15 @@ function VoucherStep({ c, step, restaurant }: { c: CardTone; step: number; resta
 
 /** A foglaló lépései — szalon: Szolgáltatás · Szakember · Időpont · Adatok (+ Kész); étterem: Időpont · Adatok ·
  *  Összefoglalás (+ Kész). */
-function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaurant: boolean }) {
+/** A szerkesztőben a kártyán kijelölt elem (21.6.3): időpontok, megjegyzés-mező, a feltételek szövege, a köszönő cím. */
+export type CardSel = 'slots' | 'note' | 'terms' | 'done' | 'staff'
+/** Kijelölés a kártyán: ugyanaz a sárga keret, mint a borítón (`sel`), fölötte a szerkesztő gyors-sávja (`quick`). */
+function SelWrap({ on, quick, children }: { on: boolean; quick?: React.ReactNode; children: React.ReactNode }) {
+  if (!on) return <>{children}</>
+  return <>{quick && <div className="my-3">{quick}</div>}<div className="rounded-ui-inner outline-dashed outline-[3px] outline-offset-4 outline-ui-yellow">{children}</div></>
+}
+
+function CardStep({ c, step, restaurant, sel, quick }: { c: CardTone; step: number; restaurant: boolean; sel?: CardSel; quick?: React.ReactNode }) {
   const slots = { cell: CARD_DAY.cell(c), onClass: ACCENT, busyClass: c.dark ? 'text-white/30 line-through' : 'ui-hatch-cell text-ui-muted line-through' }
   const next = (t = 'Tovább') => <Button className={`mt-5 w-full ${ACCENT}`}>{t}<ArrowRight className="h-4 w-4" /></Button>
   if (restaurant) {
@@ -490,7 +500,7 @@ function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaura
         <div className="mt-2 grid grid-cols-6 gap-1.5">{['1', '2', '3', '4', '5', '6+'].map((n, i) => <Pill key={n} tone={i === 1 ? (c.dark ? 'white' : 'dark') : c.pill} className="justify-center">{n}</Pill>)}</div>
         <div className="mt-5 text-ui-title font-light">Mikor?</div>
         <CardDayPicker c={c} className="mt-2" />
-        <SlotGrid className="mt-2" {...slots} slots={['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00']} on="19:30" busy={['18:30', '20:00']} />
+        <div className="mt-2"><SelWrap on={sel === 'slots'} quick={quick}><SlotGrid {...slots} slots={['17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00']} on="19:30" busy={['18:30', '20:00']} /></SelWrap></div>
         <div className="mt-3 flex items-center justify-between"><span className="text-ui-body">Teraszon, ha lehet</span><span className="flex gap-1">{cardPills(c, ['Mindegy', 'Terasz'], 1)}</span></div>
         {next()}
       </>
@@ -501,7 +511,7 @@ function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaura
         <GuestFields c={c} />
         <div className={`mt-4 text-ui-label ${c.meta}`}>Milyen alkalomból? (nem kötelező)</div>
         <div className="mt-1.5 flex flex-wrap gap-1.5">{cardPills(c, ['Születésnap', 'Évforduló', 'Üzleti', 'Más'], 0)}</div>
-        <div className="mt-3"><CardField c={c} label="Megjegyzés" value="Születésnapi torta 21:00-ra" /></div>
+        <div className="mt-3"><SelWrap on={sel === 'note'} quick={quick}><CardField c={c} label="Megjegyzés" value="Születésnapi torta 21:00-ra" /></SelWrap></div>
         {next()}
       </>
     )
@@ -511,7 +521,7 @@ function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaura
         <div className="mt-3 space-y-1">
           {([['Mikor', 'péntek, nov. 7. · 19:30'], ['Hányan', '2 fő · terasz'], ['Név', 'Juhász Hanna · +36 30 555 1234'], ['Alkalom', 'Születésnap — torta 21:00-ra']] as const).map(([k, v]) => <CardRow key={k} c={c} title={v} meta={k} />)}
         </div>
-        <TermsLine c={c} extra=" Az asztalt 15 percig tartjuk." />
+        <SelWrap on={sel === 'terms'} quick={quick}><TermsLine c={c} extra=" Az asztalt 15 percig tartjuk." /></SelWrap>
         {next('Foglalás véglegesítése')}
       </>
     )
@@ -535,6 +545,7 @@ function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaura
               <CardRow c={c} on={on} leading={<Avatar size="md" src={`${AV}/${img}.webp`} />} title={n} meta={r} trailing={<span className="text-ui-meta">{nx}</span>} />
               {/* a kiválasztott bemutatkozása (a munkatárs profiljából: bio, Instagram) */}
               {on && (
+                <SelWrap on={sel === 'staff'} quick={quick}>
                 <div className={`mt-1 px-3 py-2.5 ${c.row}`}>
                   <div className="text-ui-meta leading-relaxed">12 éve festek, a balayage és a természetes szőke a kedvencem. Ha nem tudod, mit szeretnél, egy rövid konzultációval kezdünk.</div>
                   <div className={`mt-2 flex items-center gap-2 text-ui-label ${c.meta}`}>
@@ -542,6 +553,7 @@ function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaura
                     <img src={socialIconDataUri('instagram')} alt="" className="h-6 w-6 rounded-full" />@viktoria.hair — munkái
                   </div>
                 </div>
+                </SelWrap>
               )}
             </div>
           ))}
@@ -584,7 +596,7 @@ function CardStep({ c, step, restaurant }: { c: CardTone; step: number; restaura
   return (
     <div className="mt-2 flex flex-col items-center text-center">
       <IconCircle size="lg" icon={Check} className={ACCENT} />
-      <div className="mt-4 text-ui-sub font-light">{restaurant ? 'Várunk, Hanna!' : 'Lefoglaltuk, Hanna!'}</div>
+      <div className="mt-4"><SelWrap on={sel === 'done'} quick={quick}><div className="text-ui-sub font-light">{restaurant ? 'Várunk, Hanna!' : 'Lefoglaltuk, Hanna!'}</div></SelWrap></div>
       <div className={`mt-1 text-ui-meta ${c.meta}`}>A visszaigazolást elküldtük ide: hanna.juhasz@gmail.com</div>
       <div className={`mt-5 w-full px-4 py-4 text-left ${c.row}`}>
         <div className={`text-ui-meta ${c.meta}`}>{restaurant ? 'péntek, nov. 7. · 2 fő · terasz' : 'kedd, nov. 11. · Viktória'}</div>
@@ -604,7 +616,7 @@ export type LiveFlow = 'booking' | 'voucher'
  *  rendszer jele. `card`: sötét üveg (alap), fekete, világos üveg vagy fehér. `step`: szalonnál 0–4 (a 4. az előleg), étteremnél 0–2,
  *  utána a Kész (szalon 5, étterem 3) — ott nincs állapotsor. `flow`: foglalás vagy utalvány-vásárlás; `terms`: a
  *  foglalási feltételek nyitva (az Adatok lépés linkjéről). `sheet`: mobilon a felcsúszó lap. */
-function LiveBookingCard({ className = '', card = 'dark', sheet = false, step = 0, restaurant = false, flow = 'booking', terms = false }: { className?: string; card?: LiveCard; sheet?: boolean; step?: number; restaurant?: boolean; flow?: LiveFlow; terms?: boolean }) {
+function LiveBookingCard({ className = '', card = 'dark', sheet = false, step = 0, restaurant = false, flow = 'booking', terms = false, sel, quick }: { className?: string; card?: LiveCard; sheet?: boolean; step?: number; restaurant?: boolean; flow?: LiveFlow; terms?: boolean; sel?: CardSel; quick?: React.ReactNode }) {
   const c = LIVE_CARD[card]
   const total = flow === 'voucher' ? 4 : restaurant ? 3 : 5 // szalon: az 5. az előleg (ha az üzlet kér előleget)
   return (
@@ -617,7 +629,7 @@ function LiveBookingCard({ className = '', card = 'dark', sheet = false, step = 
           <span className={`text-ui-meta ${c.meta}`}>{step + 1}/{total}</span>
         </div>
       )}
-      {terms ? <TermsPanel c={c} restaurant={restaurant} /> : flow === 'voucher' ? <VoucherStep c={c} step={step} restaurant={restaurant} /> : <CardStep c={c} step={step} restaurant={restaurant} />}
+      {terms ? <TermsPanel c={c} restaurant={restaurant} /> : flow === 'voucher' ? <VoucherStep c={c} step={step} restaurant={restaurant} /> : <CardStep c={c} step={step} restaurant={restaurant} sel={sel} quick={quick} />}
       <div className="mt-4 flex justify-center"><PoweredBy dark={c.dark} /></div>
     </div>
   )
@@ -626,7 +638,7 @@ function LiveBookingCard({ className = '', card = 'dark', sheet = false, step = 
 /** Az élő koncepció az új elemekkel: teljes képes borító (az üzlet fotója) felül és alul sötétedő átmenettel, fent a
  *  sáv, desktopon bal alul az üzlet (név, cím, értékelés, leírás, fő gomb + legközelebbi időpont), jobbra a sötét
  *  üveg-kártya a foglalóval; mobilon alul az üzlet és a gomb, a foglaló felcsúszó sötét üveg-lapon. */
-export type LiveArea = 'cover' | 'nav' | 'gallery' | 'intro' | 'rating' | 'social' | 'cta' | 'card'
+export type LiveArea = 'cover' | 'nav' | 'gallery' | 'intro' | 'desc' | 'rating' | 'social' | 'cta' | 'card'
 
 // a két minta-üzlet adatai: szalon (időpont) és étterem (asztal)
 const RESTO_PHOTO = '/landing/tips/asztalfoglalas-online-etterem-davelopment-booking.jpg'
@@ -640,11 +652,15 @@ const BIZ = {
  *  `blank`: az alap arculat — új üzlet, még semmi nincs beállítva: fotó helyett semleges sötét háttér, logó helyett
  *  monogram, és ami üres (galéria, értékelés, közösségi, leírás, jó tudni), az nem jelenik meg.
  *  `step`: a foglaló kártya lépése (LiveBookingCard); `restaurant`: az étterem (asztalfoglalás, TripAdvisor). */
-export function LiveStage({ mobile = false, open = false, photo, sel, card = 'dark', info, gallery = false, blank = false, step = 0, restaurant = false, flow = 'booking', terms = false, paused = false }: { /** az online foglalás szünetel (az előfizetés lejárt / szünetel): a foglaló kártya és a CTA helyén a BookingPausedCard */ paused?: boolean; mobile?: boolean; open?: boolean; photo?: string; sel?: LiveArea; card?: LiveCard; info?: 'open'; gallery?: boolean; blank?: boolean; step?: number; restaurant?: boolean; flow?: LiveFlow; terms?: boolean }) {
+export function LiveStage({ mobile = false, open = false, photo, sel, card = 'dark', info, gallery = false, blank = false, step = 0, restaurant = false, flow = 'booking', terms = false, paused = false, quick, desc, accent, cardSel }: { /** az online foglalás szünetel (az előfizetés lejárt / szünetel): a foglaló kártya és a CTA helyén a BookingPausedCard */ paused?: boolean; mobile?: boolean; open?: boolean; photo?: string; sel?: LiveArea; card?: LiveCard; info?: 'open'; gallery?: boolean; blank?: boolean; step?: number; restaurant?: boolean; flow?: LiveFlow; terms?: boolean
+  /** helyben szerkesztés (21.6.3): a kijelölt elem (`sel` / `cardSel`) fölötti gyors-sáv */ quick?: React.ReactNode
+  /** a leírás szövege (pl. szerkesztés közben, kiemeléssel) — mobilon csak kijelölve látszik */ desc?: React.ReactNode
+  /** a márkaszín és a gomb-betűszín [háttér, betű] — a `ui-accent` elemek ezt kapják */ accent?: [string, string]
+  /** a foglaló kártyán kijelölt elem */ cardSel?: CardSel }) {
   const b = BIZ[restaurant ? 'restaurant' : 'salon']
   const hl = (a: LiveArea) => (sel === a ? 'rounded-ui-inner outline-dashed outline-[3px] outline-offset-8 outline-ui-yellow' : '')
   return (
-    <div className={`relative overflow-hidden rounded-ui-container bg-ui-dark ${mobile ? 'h-[780px] w-[360px] shrink-0' : 'min-h-[780px]'}`}>
+    <div className={`relative overflow-hidden rounded-ui-container bg-ui-dark ${mobile ? 'h-[780px] w-[360px] shrink-0' : 'min-h-[780px]'}`} style={accent ? { ['--biz-accent' as string]: accent[0], ['--biz-accent-fg' as string]: accent[1] } : undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {blank ? <DefaultCover /> : <img src={photo ?? b.photo} alt="" className="absolute inset-0 h-full w-full object-cover" />}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-ui-dark/70 to-transparent" />
@@ -658,15 +674,13 @@ export function LiveStage({ mobile = false, open = false, photo, sel, card = 'da
           <div className={`font-light leading-none ${mobile ? 'text-ui-num' : 'text-ui-page'}`}>{b.name}</div>
           <div className="mt-2 flex items-center gap-1.5 text-ui-meta text-white/65"><MapPin className="h-3.5 w-3.5" />{b.addr}</div>
         </div>
-        {/* értékelés, mellette a közösségi linkek (élesben a social_links, a platform a linkből ismerve) */}
+        {/* az értékelések egymás mellett, alattuk a közösségi linkek (élesben a social_links, a platform a linkből ismerve) */}
         {!blank && <>
-        <div className="mt-3 flex items-center gap-3">
-          <div className={hl('rating')}><RatingBadges dark restaurant={restaurant} /></div>
-          <span className="h-4 w-px bg-white/20" />
-          <SocialIcons className={hl('social')} />
-        </div>
+        <div className={`mt-3 w-fit ${hl('rating')}`}><RatingBadges dark restaurant={restaurant} /></div>
+        <SocialIcons className={`mt-2 w-fit ${hl('social')}`} />
         <div className={`mt-3 ${hl('intro')}`}>
-          {!mobile && <div className="mb-3 max-w-[460px] text-ui-body text-white/70">{b.desc}</div>}
+          {sel === 'desc' && quick && <div className="mb-4">{quick}</div>}
+          {(!mobile || sel === 'desc') && <div className={`mb-3 max-w-[460px] text-ui-body text-white/70 ${hl('desc')}`}>{desc ?? b.desc}</div>}
           <div className="relative">
             <GoodToKnow restaurant={restaurant} />
             {!mobile && info === 'open' && <InfoList className="absolute bottom-full left-0 z-30 mb-2 w-[400px] shadow-ui-popup" />}
@@ -674,14 +688,17 @@ export function LiveStage({ mobile = false, open = false, photo, sel, card = 'da
         </div>
         </>}
         {paused ? (mobile && <BookingPausedCard restaurant={restaurant} className="mt-5" />) : (
+        <>
+        {sel === 'cta' && quick && <div className="mt-5">{quick}</div>}
         <div className={`mt-5 flex gap-2 ${mobile ? 'flex-col' : 'w-fit flex-wrap items-center'} ${hl('cta')}`}>
           <Button className={`${mobile ? 'w-full' : ''} ${ACCENT}`}>{b.cta}<ArrowRight className="h-4 w-4" /></Button>
           <Button variant="onDark" icon={Clock} className={`${ON_PHOTO} ${mobile ? 'w-full' : ''}`}>Legközelebb szabad: {b.next}</Button>
         </div>
+        </>
         )}
       </div>
       {!mobile && paused && <BookingPausedCard restaurant={restaurant} className="absolute right-8 top-1/2 z-10 w-[420px] -translate-y-1/2" />}
-      {!mobile && !paused && <LiveBookingCard card={card} step={step} restaurant={restaurant} flow={flow} terms={terms} className={`absolute right-8 top-1/2 z-10 w-[420px] -translate-y-1/2 ${hl('card')}`} />}
+      {!mobile && !paused && <LiveBookingCard card={card} step={step} restaurant={restaurant} flow={flow} terms={terms} sel={cardSel} quick={cardSel ? quick : undefined} className={`absolute right-8 top-1/2 z-10 w-[420px] -translate-y-1/2 ${hl('card')}`} />}
       {gallery && <GalleryViewer mobile={mobile} />}
       {mobile && info === 'open' && (
         <>
@@ -692,7 +709,7 @@ export function LiveStage({ mobile = false, open = false, photo, sel, card = 'da
       {mobile && open && (
         <>
           <div className="absolute inset-0 z-20 bg-ui-dark/40" />
-          <div className="absolute inset-x-0 bottom-0 z-30 max-h-[94%] overflow-hidden"><SheetHandle className="pb-2 [&>*]:bg-white/40" /><LiveBookingCard card={card} sheet step={step} restaurant={restaurant} flow={flow} terms={terms} /></div>
+          <div className="absolute inset-x-0 bottom-0 z-30 max-h-[94%] overflow-hidden"><SheetHandle className="pb-2 [&>*]:bg-white/40" /><LiveBookingCard card={card} sheet step={step} restaurant={restaurant} flow={flow} terms={terms} sel={cardSel} quick={cardSel ? quick : undefined} /></div>
         </>
       )}
     </div>

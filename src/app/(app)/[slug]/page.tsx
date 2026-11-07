@@ -18,7 +18,7 @@ import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicView'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
 import { PublicPlaceView, type PlaceViewData } from '@/components/booking/PublicPlaceView'
-import { galleryOf, pageStyleOf } from '@/lib/publicPageView'
+import { galleryOf, ownLocaleTexts, pageStyleOf } from '@/lib/publicPageView'
 import { canEditPlace } from '@/lib/canEditPlace'
 import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
@@ -127,7 +127,8 @@ export default async function SalonPublicPage({
   // `typeof === 'string'` védelem: a `description` mostanáig richText-objektum volt, egy
   // korlátlanul cache-elt (`getPublicSalon`), séma-váltás előtti bejegyzés még a régi alakot
   // adhatja vissza, amíg az adott szalonnál nem történik újabb módosítás (revalidál).
-  const salonDescription = typeof salon.description === 'string' ? (salon.description.trim().slice(0, 160) || null) : null
+  // teljes szöveg (a jelöléseket nem vághatjuk félbe) — a hős-blokk sorokra vágja, a meta-leírást a publicSeo tisztítja
+  const salonDescription = typeof salon.description === 'string' ? (salon.description.trim() || null) : null
 
   const coverUrl = salon.cover_image && typeof salon.cover_image === 'object'
     ? (salon.cover_image as Media).url ?? null
@@ -160,7 +161,8 @@ export default async function SalonPublicPage({
     coverFocalMobileX: salon.cover_focal_mobile_x ?? null,
     coverFocalMobileY: salon.cover_focal_mobile_y ?? null,
     logoUrl,
-    page: pageStyleOf(salon),
+    // a saját szövegek a vendég nyelvén — ami nincs lefordítva, ott az alap szöveg (nem a magyar)
+    page: { ...pageStyleOf(salon), ...(await ownLocaleTexts(await getPayloadClient() as never, 'salons', salon.id, locale)) },
     gallery: galleryOf(salon),
     socialLinks: (salon.social_links ?? []).map((s) => s.url),
     goodToKnow: salon.good_to_know ?? [],

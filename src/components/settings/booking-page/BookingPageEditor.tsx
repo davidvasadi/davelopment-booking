@@ -1,28 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TextareaHTMLAttributes } from 'react'
+import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { useRouter } from 'next/navigation'
-import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion'
+import { animate, AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion'
+import { SHEET_MOBILE, SHEET_SPRING } from '@/lib/motion'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowUpRight, Briefcase, Check, ChevronLeft, ChevronRight, GripVertical, Image as ImageIcon, Images, Link2, Loader2, MousePointerClick, Palette, PanelTop, Plus, QrCode, Share2, Star, Trash2, Type, Upload, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Briefcase, Check, ChevronLeft, ChevronRight, GripVertical, Image as ImageIcon, Images, Link2, List, Loader2, MousePointerClick, Palette, PanelTop, Plus, QrCode, Share2, Star, Trash2, Type, Upload, X, type LucideIcon } from 'lucide-react'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
 import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
 import { BusinessQrLauncher } from '@/components/settings/BusinessQrLauncher'
 import { compressImage } from '@/lib/compressImage'
-import { LOCALE_LABELS, LOCALES, resolveAvailableLocales, type Locale } from '@/lib/i18n'
-import { isEditorMessage, postToPreview, type PreviewToEditor } from '@/lib/editorBridge'
+import { LOCALE_LABELS, LOCALES, resolveAvailableLocales, t, type Locale } from '@/lib/i18n'
+import { isEditorMessage, postToPreview, type BarTool, type PreviewToEditor } from '@/lib/editorBridge'
 import { reminderOffsets } from '@/lib/reminders'
 import { bookableDayCount, budapestToday, daysBetween, effectiveWindowEnd, huDate, periodEndFrom, type BookingWindowSource } from '@/lib/bookingWindow'
 import { CustomQuestionsEditor, type CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
 import type { EditorView } from '@/components/booking/ProfileCard'
 import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
 import { cn } from '@/lib/utils'
-import { Button, Card, FIELD, Field as KitField, IconButton, IconCircle, Input, ListRow, Modal, Note, Pill, Segmented, SheetHandle, StatusPill, UploadBox, MarqueeText } from '@/components/ui-kit'
+import { Button, Card, FIELD, Field as KitField, IconButton, IconCircle, Input, ListRow, Modal, Note, Pill, Segmented, SheetHandle, SLIDE_SPRING, StatusPill, UploadBox, MarqueeText } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { UploadTile } from '@/components/blocks/upload'
 import { Switch } from '@/components/ui/toggle-switch'
+import { ColorPicker } from '@/components/blocks/color-picker'
 import { EditorGroup, EditorOverview, EditorPublishBar, EditorRow, EditorStepBar, EditorStepSwitch, Swatches } from '@/components/blocks/editor'
-import type { PublicPageStyle } from '@/lib/publicPageView'
+import { DARK_BG, HERO_KEYS, makeReadable, PLACEHOLDER_KEYS, readable, textsOf, type FieldPlaceholders, type HeroKey, type PublicPageStyle } from '@/lib/publicPageView'
 
 /**
  * Beállítások → Foglalóoldal: Framer-szerű élő szerkesztő.
@@ -38,6 +41,8 @@ export type EditorStaff = {
   id: string
   name: string
   role_title: string
+  /** a pozíció látszik-e a foglalásnál (a név alatt) */
+  show_role_title: boolean
   bio: string
   social_links: string[]
 }
@@ -159,6 +164,12 @@ type LocDraft = {
   description: string
   /** a foglalás gomb felirata és a galéria-feliratok (index szerint) ezen a nyelven */
   ctaLabel: string
+  /** a köszönő cím ezen a nyelven */
+  successTitle: string
+  /** a foglaló mezők helykitöltője ezen a nyelven (üres: a magyar / az alap) */
+  placeholders: Record<keyof FieldPlaceholders, string>
+  /** a foglalás lépéseinek saját szövegei ezen a nyelven */
+  texts: Record<string, string>
   captions: string[]
   goodToKnow: GoodToKnowItem[]
   staffBio: Record<string, string>
@@ -191,7 +202,7 @@ const fieldCls = `${FIELD} min-h-9 py-2`
 const ELEMENT_TITLES: Record<string, string> = {
   cover: 'Borítókép', logo: 'Logó', name: 'Üzlet neve', address: 'Cím', desc: 'Leírás', counts: 'Számláló sáv', link: 'Link & QR-kód',
   langs: 'Nyelvek', contact: 'Kapcsolat', 'sec:services': 'Szolgáltatások', 'sec:staff': 'Munkatársak',
-  'sec:voucher': 'Ajándékutalvány', 'sec:reviews': 'Google-értékelések', gtk: 'Jó tudni',
+  'sec:voucher': 'Ajándékutalvány', 'sec:reviews': 'Google-értékelések', gtk: 'Jó tudni', successTitle: 'Köszönő cím', city: 'Város', consentTitle: 'Nyilatkozat címe', consentText: 'Nyilatkozat szövege',
   rules: 'Foglalási szabályok', confirm: 'Visszaigazolás & emlékeztetők', 'field:name': 'Név mező', 'field:email': 'E-mail mező',
   'field:phone': 'Telefonszám mező', 'field:address': 'Cím mező', 'field:notes': 'Megjegyzés mező', questions: 'Egyedi kérdések',
   consent: 'Hozzájáruló nyilatkozat', deposit: 'Előleg', terms: 'Foglalási feltételek', newsletter: 'Hírlevél-feliratkozás',
@@ -212,17 +223,43 @@ const PARTS: { id: string; icon: LucideIcon; title: string; panels: string[]; do
   { id: 'services', icon: Briefcase, title: 'Szolgáltatások', panels: ['servicesPart', 'sec:services'], dom: 'sec:services', note: 'A képek, árak és időtartamok a Szolgáltatások oldalon szerkeszthetők — itt csak a megjelenés.' },
 ]
 /** az előnézetben kattintott elem → melyik rész nyíljon */
-const PICK_TO_PART: Record<string, string> = Object.fromEntries(PARTS.flatMap((p) => [[p.dom, p.id], ...p.panels.map((x) => [x, p.id])]).concat([['rating', 'reviews'], ['social', 'social']]))
+const PICK_TO_PART: Record<string, string> = Object.fromEntries(PARTS.flatMap((p) => [[p.dom, p.id], ...p.panels.map((x) => [x, p.id])]).concat([['rating', 'reviews'], ['social', 'social'], ['city', 'intro']]))
+/** az előnézetben kattintott elem → a hozzá tartozó beállítás (rész / elem); a munkatárs bemutatkozása a munkatársé */
+const partOf = (id: string) => PICK_TO_PART[id] ?? (id.startsWith('staffbio:') ? `staff:${id.slice(9)}` : id === 'consentTitle' || id === 'consentText' ? 'consent' : id)
+/** a foglaló űrlap mezői (a gyors-sáv: kötelező, elrejt, sorrend) — az előnézet azonosítójából a sorrend-kulcs */
+const fieldKeyOf = (dom: string) => (dom.startsWith('field:') ? dom.slice(6) : ['questions', 'newsletter', 'occasions'].includes(dom) ? dom : null)
+/** a gomb betűszíne: ugyanaz a 4 kör-minta, mint a márkaszínnél (fehér, sötét, sárga, zöld) — csak az olvashatók */
+const BUTTON_TEXT_COLORS = ['#FFFFFF', '#383838', '#FFD85F', '#2F5D50'] // ui-allow: a választható betűszínek maguk a minták
+/** a szöveg színe a fotón / a kártyán: fehér, halvány (szürke), krém, arany — mind jól olvasható a sötét fotón;
+ *  az érték kulcsszó (white / soft) vagy hex. A minták megjelenése: ahogy a sötét háttéren látszanak. */
+const TEXT_TONES = ['white', 'soft', 'accent'] as const
+const TONE_PALETTE: { v: string; css: string; label: string }[] = [
+  { v: 'white', css: '#FFFFFF', label: 'Fehér' }, // ui-allow: a választható szövegszínek maguk a minták
+  { v: 'soft', css: '#C3C3C3', label: 'Szürke' }, // ui-allow: a halvány fehér, ahogy a sötét fotón látszik
+  { v: '#F1E6CF', css: '#F1E6CF', label: 'Krém' }, // ui-allow
+  { v: '#E9C46A', css: '#E9C46A', label: 'Arany' }, // ui-allow
+]
 /** a márkaszín-minták és a kártya-stílusok (design 21.6 Arculat) */
 const ACCENTS = ['#FFD85F', '#2F5D50', '#7A2E3A', '#1F3A5F'] // ui-allow: a márkaszín-minták maguk a választható színek
 const CARD_STYLES: { id: PublicPageStyle['card']; fill: string }[] = [{ id: 'dark', fill: 'bg-ui-dark/60' }, { id: 'black', fill: 'bg-ui-dark' }, { id: 'white', fill: 'bg-white' }, { id: 'glass', fill: 'bg-ui-cell/70' }]
 
 /** a foglalóoldal megjelenése → a `public_page` csoport (a PATCH az egész csoportot cseréli, ezért mindig a teljeset küldjük) */
-const publicPageBody = (p: PublicPageStyle, ctaLabel: string | null) => ({
+/** a nem i18n-kulcsos (kézzel írt) szövegek alapja — a panel helykitöltőjéhez */
+const CUSTOM_TEXT_DEFAULTS: Record<string, string> = {
+  'custom.marketing': 'Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről', 'custom.voucherLink': 'Van ajándékutalványod?',
+  'custom.consentAccept': 'Elolvastam és elfogadom a fenti nyilatkozatot', 'custom.unsubscribe': 'Bármikor leiratkozhatok. Részletek:',
+  'custom.privacyLink': 'Adatvédelmi tájékoztató', 'custom.voucherValid': 'Érvényes utalvány — jóváírva a foglaláskor.',
+}
+/** a saját szövegek tárolt alakja: csak a nem üresek, JSON-ként (üresen null) */
+const textsJson = (t: Record<string, string>) => { const o = Object.fromEntries(Object.entries(t).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()])); return Object.keys(o).length ? JSON.stringify(o) : null }
+const publicPageBody = (p: PublicPageStyle, ctaLabel: string | null, successTitle: string | null = p.successTitle, ph: Partial<Record<keyof FieldPlaceholders, string | null>> = p.placeholders, texts: Record<string, string> = p.texts) => ({
   accent_color: p.accent, card_style: p.card, card_text: p.cardText, button_text: p.buttonText, cover_dim: p.dim,
   show_rating: p.showRating, rating_opens: p.ratingOpens, show_social: p.showSocial, cta_label: ctaLabel?.trim() || null,
   cta_next_free: p.ctaNextFree, cta_deposit_badge: p.ctaDeposit, services_filter: p.servicesFilter, services_images: p.servicesImages,
   services_price: p.servicesPrice, services_order: p.servicesOrder,
+  button_text_color: p.buttonTextColor, desc_color: p.descColor, name_color: p.nameColor, address_color: p.addressColor, hero_order: p.heroOrder.join(','), cover_color: p.coverColor, name_style: [p.nameBold && 'bold', p.nameItalic && 'italic'].filter(Boolean).join(',') || null, desc_size: p.descSize, desc_full_mobile: p.descFullMobile,
+  success_title: successTitle?.trim() || null, success_title_color: p.successTitleColor,
+  ph_name: ph.name?.trim() || null, ph_email: ph.email?.trim() || null, ph_address: ph.address?.trim() || null, ph_city: ph.city?.trim() || null, ph_notes: ph.notes?.trim() || null, texts: textsJson(texts),
 })
 
 const draftFrom = (i: BookingPageEditorInitial): Draft => {
@@ -267,7 +304,23 @@ export function BookingPageEditor({
   // Telefonon (lg alatt) nincs eszközváltó: mindig a mobil előnézet, és a kijelölt elem
   // panelje alulról felcsúszó lapként jelenik meg (a tartalom közös, a desktopra is hat).
   const [narrow, setNarrow] = useState(false)
+  // a portál csak a böngészőben (a <body> kell hozzá) — a layout effectben, az első kirajzolás előtt
+  const [portalReady, setPortalReady] = useState(false)
+  useLayoutEffect(() => { setPortalReady(true) }, [])
+  // belépő animáció — a portál miatt a Beállítások panel-váltó animációja már nem éri el, ezért ugyanazt itt kapja:
+  // desktopon oldalról becsúszik és előtűnik (SLIDE_SPRING), mobilon felúszik (a lapok rugója, SHEET_SPRING)
+  const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    const el = rootRef.current
+    if (!portalReady || !el) return
+    // a végén a transform törlése: a gyökérben lévő `fixed` elemek (közzétételi sáv, lapok) különben a gyökérhez kötődnének
+    const done = () => { el.style.transform = '' }
+    if (window.matchMedia('(min-width: 1024px)').matches) void animate(el, { x: [56, 0] }, SLIDE_SPRING).then(done)
+    else void animate(el, { y: [40, 0] }, SHEET_SPRING).then(done)
+    animate(el, { opacity: [0, 1] }, { duration: 0.2, ease: 'easeOut' })
+  }, [portalReady])
+  // az első kirajzolás ELŐTT (layout effect): különben telefonon egy pillanatra a desktop elrendezés villanna fel
+  useLayoutEffect(() => {
     // Ugyanaz a töréspont, mint a vászon+panel `xl:flex-row` egymás-mellé-kerülése (lásd
     // lentebb) — amíg a kettő egymás ALATT van (oszlopban), addig "keskeny" (mobil-szerű,
     // teljes szélességű, keret/sticky nélküli) nézetet kapsz, utána a tényleges desktop-
@@ -280,6 +333,15 @@ export function BookingPageEditor({
     return () => mq.removeEventListener('change', update)
   }, [])
   const [sel, setSel] = useState<string | null>(null)
+  // az előnézetben pontosan erre az elemre kattintottak (pl. `desc`) — a keret és a gyors-sáv ezen van, nem a rész fő elemén
+  const [picked, setPicked] = useState<string | null>(null)
+  /** kijelölés a szerkesztőből (sáv, lista, áttekintő) — nem az előnézetben kattintott elem, így mobilon a lap nyílik */
+  // mobil: a beállító lap — a gyors-sáv fogaskerekére, vagy ha a listából / a sávból választanak
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const selectPart = (id: string | null) => { setPicked(null); setSel(id); setSheetOpen(true) }
+  // mobil: az „Elemek” gomb — az oldal elemei felcsúszó lapon
+  const [elemsOpen, setElemsOpen] = useState(false)
+  useEffect(() => { if (sel) setElemsOpen(false) }, [sel])
   const [step, setStep] = useState<EditorView>('main')
   const [ready, setReady] = useState(false)
   const frameRef = useRef<HTMLIFrameElement>(null)
@@ -318,6 +380,84 @@ export function BookingPageEditor({
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => { remember(); setDraft((d) => ({ ...d, [key]: value })) }
   const setPage = (patch: Partial<PublicPageStyle>) => { remember(); setDraft((d) => ({ ...d, page: { ...d.page, ...patch } })) }
   const setLoc = (patch: Partial<LocDraft>) => setLocDrafts((all) => ({ ...all, [lang]: { ...(all[lang] as LocDraft), ...patch } }))
+  // helyben írt szöveg az előnézetből: név, leírás (a szerkesztett nyelven), munkatárs bemutatkozása
+  const onTextRef = useRef<(id: string, value: string) => void>(() => {})
+  onTextRef.current = (id, value) => {
+    if (id === 'name') set('name', value)
+    else if (id === 'address') {
+      // a cím és a város egy szövegként írható („Hajós utca 25., Budapest VI.”) — az utolsó vessző után a város
+      const v = value.replace(/\n/g, ' ')
+      const at = v.lastIndexOf(',')
+      remember()
+      setDraft((d) => ({ ...d, address: (at < 0 ? v : v.slice(0, at)).trim(), city: at < 0 ? d.city : v.slice(at + 1).trim() }))
+    }
+    else if (id === 'cta') { const v = value.replace(/\n/g, ' ').slice(0, 24); if (loc) setLoc({ ctaLabel: v }); else setPage({ ctaLabel: v || null }) }
+    else if (id === 'consentTitle') { const v = value.replace(/\n/g, ' '); if (loc) setLoc({ consentTitle: v }); else set('consentTitle', v) }
+    else if (id === 'consentText') { if (loc) setLoc({ consentText: value }); else set('consentText', value) }
+    else if (id.startsWith('txt:')) {
+      // a foglalás egy szövege (cím, magyarázó sor, gomb) — a szerkesztett nyelven
+      const k = id.slice(4)
+      const v = value.replace(/\n/g, ' ').slice(0, 300)
+      if (loc) setLoc({ texts: { ...loc.texts, [k]: v } }); else setPage({ texts: { ...draft.page.texts, [k]: v } })
+    }
+    else if (id.startsWith('ph:')) {
+      // a foglaló mező helykitöltője (a kijelölt mezőbe írva) — a szerkesztett nyelven
+      const k = id.slice(3) as keyof FieldPlaceholders
+      if (!(PLACEHOLDER_KEYS as readonly string[]).includes(k)) return
+      const v = value.replace(/\n/g, ' ').slice(0, k === 'notes' ? 120 : 60)
+      if (loc) setLoc({ placeholders: { ...loc.placeholders, [k]: v } }); else setPage({ placeholders: { ...draft.page.placeholders, [k]: v || null } })
+    }
+    else if (id === 'successTitle') { const v = value.replace(/\n/g, ' ').slice(0, 60); if (loc) setLoc({ successTitle: v }); else setPage({ successTitle: v || null }) }
+    else if (id === 'desc') { if (loc) setLoc({ description: value }); else set('description', value) }
+    else if (id.startsWith('staffbio:')) { const sid = id.slice(9); if (loc) setLoc({ staffBio: { ...loc.staffBio, [sid]: value } }); else setStaff(sid, { bio: value }) }
+  }
+  // a gyors-sáv gombjai az előnézetből: szín, kötelező / elrejt / sorrend, beállítások (mobilon a lap), megnyitás
+  const onActionRef = useRef<(id: string, action: string, value: string | null) => void>(() => {})
+  onActionRef.current = (id, action, value) => {
+    if (action === 'settings') { setSheetOpen(true); return }
+    if (action === 'step') { const first = flow.find((f) => f.id !== 'main'); if (first) goStep(first.id); return }
+    if (action === 'hours') { router.push(`${adminBase}/availability`); return }
+    if (action === 'color') {
+      // kulcsszó (fehér / halvány / márkaszín) vagy saját hex — a saját csak ha olvasható a háttéren
+      const bg = id === 'successTitle' && draft.page.card === 'white' ? '#FFFFFF' : DARK_BG // ui-allow: a háttér, amihez mérünk
+      // saját szín: ha nem lenne olvasható, a rendszer annyit igazít rajta, amennyi kell
+      const v = !value ? null : (TEXT_TONES as readonly string[]).includes(value) ? value : makeReadable(value, bg)
+      if (id === 'desc') setPage({ descColor: v === 'soft' ? null : v })
+      else if (id === 'name') setPage({ nameColor: v === 'white' ? null : v })
+      else if (id === 'address') setPage({ addressColor: v === 'soft' ? null : v })
+      else if (id === 'successTitle') setPage({ successTitleColor: v === 'white' ? null : v })
+      return
+    }
+    if (action === 'name-bold') { setPage({ nameBold: !draft.page.nameBold }); return }
+    if (action === 'name-italic') { setPage({ nameItalic: !draft.page.nameItalic }); return }
+    if (action === 'hero-up' || action === 'hero-down') {
+      // csere a legközelebbi LÁTHATÓ szomszéddal (ami üres — pl. nincs galéria —, azt átugorjuk)
+      const shown: Record<HeroKey, boolean> = {
+        gallery: draft.gallery.some((g) => g.url), name: true, address: !!(draft.address || draft.city), rating: draft.page.showRating,
+        social: draft.page.showSocial && draft.socialLinks.some((u) => u.trim()), desc: !!draft.description.trim(), gtk: true,
+      }
+      const order = [...draft.page.heroOrder]
+      const i = order.indexOf(id as HeroKey)
+      if (i < 0) return
+      let j = i
+      do { j += action === 'hero-up' ? -1 : 1 } while (j >= 0 && j < order.length && !shown[order[j]])
+      if (j < 0 || j >= order.length) return
+      ;[order[i], order[j]] = [order[j], order[i]]
+      setPage({ heroOrder: order })
+      return
+    }
+    const fk = fieldKeyOf(id)
+    if (!fk) return
+    if (action === 'required') { if (fk === 'phone') set('requirePhone', !draft.requirePhone); else if (fk === 'address') set('requireAddress', !draft.requireAddress) }
+    else if (action === 'hide' && (fk === 'phone' || fk === 'notes')) set('hiddenFields', draft.hiddenFields.includes(fk) ? draft.hiddenFields.filter((f) => f !== fk) : [...draft.hiddenFields, fk])
+    else if (action === 'up' || action === 'down') {
+      // sorrend a látható mezők közt (mint a panel húzható listája)
+      const vis = [...shownFields]; const i = vis.indexOf(fk); const j = i + (action === 'up' ? -1 : 1)
+      if (i < 0 || j < 0 || j >= vis.length) return
+      ;[vis[i], vis[j]] = [vis[j], vis[i]]
+      set('fieldOrder', [...vis, ...draft.fieldOrder.filter((x) => !vis.includes(x))])
+    }
+  }
   const setStaff = (id: string, patch: Partial<EditorStaff>) =>
     setDraft((d) => ({ ...d, staff: d.staff.map((m) => (m.id === id ? { ...m, ...patch } : m)) }))
 
@@ -352,6 +492,9 @@ export function BookingPageEditor({
           required: !!q.required,
         })),
         ctaLabel: typeof doc.public_page?.cta_label === 'string' ? doc.public_page.cta_label : '',
+        successTitle: typeof doc.public_page?.success_title === 'string' ? doc.public_page.success_title : '',
+        placeholders: Object.fromEntries(PLACEHOLDER_KEYS.map((k) => { const v = doc.public_page?.[`ph_${k}`]; return [k, typeof v === 'string' ? v : ''] })) as LocDraft['placeholders'],
+        texts: textsOf(typeof doc.public_page?.texts === 'string' ? doc.public_page.texts : null),
         captions: draft.gallery.map((g) => {
           const row = Array.isArray(doc.gallery) ? (doc.gallery as { id?: string; caption?: string | null }[]).find((x) => x.id === g.key) : null
           return typeof row?.caption === 'string' ? row.caption : ''
@@ -373,20 +516,25 @@ export function BookingPageEditor({
 
   // ── Előnézet: a draft → PlaceViewData-patch ──
   const previewPatch = useMemo(() => {
-    const description = (loc?.description || draft.description).trim().slice(0, 160) || null
+    const description = (loc?.description || draft.description).trim() || null
     const goodToKnow = loc && loc.goodToKnow.some((g) => g.title || g.body) ? loc.goodToKnow : draft.goodToKnow
     const staffEdits: Record<string, unknown> = {}
     for (const m of draft.staff) {
       staffEdits[m.id] = {
         name: m.name,
         role_title: m.role_title,
+        show_role_title: m.show_role_title,
         bio: (loc?.staffBio[m.id] || m.bio) || null,
         social_links: m.social_links.filter((u) => u.trim()).map((url) => ({ url })),
       }
     }
     return {
       // a megjelenés (design 21.x) — az élő oldal ugyanezt kapja a szervertől
-      page: { ...draft.page, ctaLabel: (loc?.ctaLabel || draft.page.ctaLabel || '').trim() || null },
+      page: { ...draft.page, ctaLabel: (loc?.ctaLabel || draft.page.ctaLabel || '').trim() || null, // a saját szövegek (köszönő cím, helykitöltők, a lépések szövegei) más nyelven CSAK az ott írt változat — ami nincs
+        // lefordítva, ott az adott nyelv alapszövege látszik, nem a magyar (ugyanígy, mint élesben: ownLocaleTexts)
+        successTitle: ((loc ? loc.successTitle : draft.page.successTitle) || '').trim() || null,
+        placeholders: Object.fromEntries(PLACEHOLDER_KEYS.map((k) => [k, ((loc ? loc.placeholders[k] : draft.page.placeholders[k]) || '').trim() || null])) as FieldPlaceholders,
+        texts: Object.fromEntries(Object.entries(loc ? loc.texts : draft.page.texts).filter(([, v]) => v.trim())) },
       gallery: draft.gallery.filter((g) => g.url).map((g, i) => ({ url: g.url as string, caption: (loc?.captions[i] || g.caption || '').trim() })),
       socialLinks: draft.socialLinks.filter((u) => u.trim()),
       goodToKnow,
@@ -446,15 +594,53 @@ export function BookingPageEditor({
       if (e.source === frame2Ref.current?.contentWindow && e.data.type === 'ready') { setReady2(true); return }
       if (e.source !== frameRef.current?.contentWindow && e.source !== frame2Ref.current?.contentWindow) return
       if (e.data.type === 'ready') setReady(true)
-      else if (e.data.type === 'pick') { setStep('main'); setSel(PICK_TO_PART[e.data.id] ?? e.data.id) }
+      // a foglalás egy lépésében kattintott elem (mező, munkatárs, feltételek…) a lépésen marad — csak az oldal elemei visznek az Oldalra
+      else if (e.data.type === 'pick') { if (PICK_TO_PART[e.data.id]) setStep('main'); setSel(partOf(e.data.id)); setPicked(e.data.id); setSheetOpen(false) }
       else if (e.data.type === 'step') { setStep(e.data.view as EditorView); setSel(null) }
+      else if (e.data.type === 'close') setSel(null)
+      else if (e.data.type === 'text') onTextRef.current(e.data.id, e.data.value)
+      else if (e.data.type === 'action') onActionRef.current(e.data.id, e.data.action, e.data.value ?? null)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [])
   useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'draft', patch: previewPatch }) }, [ready, previewPatch])
-  useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'select', id: PARTS.find((x) => x.id === sel)?.dom ?? sel }) }, [ready, sel])
-  useEffect(() => { if (ready2) postToPreview(frame2Ref.current, { type: 'select', id: PARTS.find((x) => x.id === sel)?.dom ?? sel }) }, [ready2, sel])
+  // a keretezett elem: amire kattintottak (ha ehhez a részhez tartozik), különben a rész fő eleme; a neve a gyors-sáv elejére
+  const selDom = sel ? (picked && partOf(picked) === sel ? picked : PARTS.find((x) => x.id === sel)?.dom ?? sel) : null
+  const sheet = narrow && ((!!sel && sheetOpen) || elemsOpen)
+  const closeSheet = () => { setSel(null); setElemsOpen(false); setSheetOpen(false) }
+  const staffOf = (dom: string | null) => dom ? draft.staff.find((m) => dom === `staff:${m.id}` || dom === `staffbio:${m.id}`) ?? null : null
+  // a gyors-sávon rövid név (a panel címe lehet hosszabb) — hogy a sáv kiférjen a telefonon is
+  const selLabel = sel ? (selDom === 'sec:slots' ? 'Időpontok' : selDom?.startsWith('txt:') ? 'Szöveg' : selDom?.startsWith('staffbio:') ? `${staffOf(selDom)?.name ?? ''} — bemutatkozás` : sel.startsWith('staff:') ? staffOf(sel)?.name : ELEMENT_TITLES[selDom ?? ''] ?? PARTS.find((x) => x.id === sel)?.title) ?? null : null
+
+  // ── a kijelölt elem gyors-sávja (design 21.6.3): az elem eszközei; mobilon a végén a beállítások (a lap) ──
+  const accentHex = draft.page.accent ?? '#FFD85F' // ui-allow: a davelopment sárgája, ha nincs saját márkaszín
+  const toneOptions = TONE_PALETTE
+  const barTools: BarTool[] = (() => {
+    if (!selDom) return []
+    const t: BarTool[] = []
+    if (selDom === 'name') t.push({ t: 'icon', action: 'name-bold', label: 'Félkövér', icon: 'bold', on: draft.page.nameBold }, { t: 'icon', action: 'name-italic', label: 'Dőlt', icon: 'italic', on: draft.page.nameItalic }, { t: 'color', value: draft.page.nameColor ?? 'white', options: toneOptions })
+    else if (selDom === 'address') t.push({ t: 'color', value: draft.page.addressColor ?? 'soft', options: toneOptions })
+    else if (selDom === 'desc') t.push({ t: 'format' }, { t: 'color', value: draft.page.descColor ?? 'soft', options: toneOptions })
+    else if (selDom === 'successTitle') t.push({ t: 'format' }, { t: 'color', value: draft.page.successTitleColor ?? 'white', options: toneOptions })
+    else if (selDom.startsWith('staffbio:')) t.push({ t: 'format' })
+    else if (selDom === 'cta') t.push({ t: 'button', action: 'step', label: 'Foglalás megnyitása' })
+    else if (selDom === 'sec:slots') t.push({ t: 'button', action: 'hours', label: 'Nyitvatartás' })
+    // a főoldal elemei: áthelyezhetők (a foglalás gomb mindig alul)
+    if ((HERO_KEYS as readonly string[]).includes(selDom) && step === 'main') t.push({ t: 'icon', action: 'hero-up', label: 'Feljebb', icon: 'up' }, { t: 'icon', action: 'hero-down', label: 'Lejjebb', icon: 'down' })
+    const fk = fieldKeyOf(selDom)
+    if (fk) {
+      if (fk === 'phone') t.push({ t: 'toggle', action: 'required', label: 'Kötelező', on: draft.requirePhone })
+      if (fk === 'address') t.push({ t: 'toggle', action: 'required', label: 'Kötelező', on: draft.requireAddress })
+      if (fk === 'phone' || fk === 'notes') t.push({ t: 'toggle', action: 'hide', label: 'Elrejt', on: draft.hiddenFields.includes(fk) })
+      t.push({ t: 'icon', action: 'up', label: 'Feljebb', icon: 'up' }, { t: 'icon', action: 'down', label: 'Lejjebb', icon: 'down' })
+    }
+    if (narrow) t.push({ t: 'icon', action: 'settings', label: 'Beállítások', icon: 'settings' })
+    return t
+  })()
+  const toolsKey = JSON.stringify(barTools)
+  useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'select', id: selDom, label: selLabel, tools: JSON.parse(toolsKey) }) }, [ready, selDom, selLabel, toolsKey])
+  useEffect(() => { if (ready2) postToPreview(frame2Ref.current, { type: 'select', id: selDom, label: selLabel, tools: JSON.parse(toolsKey) }) }, [ready2, selDom, selLabel, toolsKey])
   // telefon-nézetben a bal kijelző az oldalt mutatja, a jobb a foglalót (az adott lépéssel, vagy az 1. lépéssel)
   const twoUp = device === 'mobile' && !narrow
   useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'view', view: twoUp ? 'main' : step }) }, [ready, step, twoUp])
@@ -573,6 +759,7 @@ export function BookingPageEditor({
         await patchJson(`/api/staff/${m.id}`, {
           name: m.name,
           role_title: m.role_title,
+          show_role_title: m.show_role_title,
           bio: m.bio,
           social_links: m.social_links.filter((u) => u.trim()).map((url) => ({ url: url.trim() })),
         })
@@ -592,7 +779,7 @@ export function BookingPageEditor({
             custom_questions: value.customQuestions,
             ...(isRestaurant ? { event_types: d.eventTypes.map((e, i) => ({ ...e, label: value.eventTypeLabels[i] ?? '' })) } : {}),
             // a gomb felirata és a képfeliratok ezen a nyelven (a csoport / a tömb többi mezője a mentett állapot)
-            public_page: publicPageBody(d.page, value.ctaLabel),
+            public_page: publicPageBody(d.page, value.ctaLabel, value.successTitle, value.placeholders, value.texts),
             gallery: d.gallery.map((g, i) => ({ id: g.key, image: g.imageId, caption: value.captions[i]?.trim() || null })),
           })
         }
@@ -691,7 +878,7 @@ export function BookingPageEditor({
     const ro = new ResizeObserver(([entry]) => setCanvasW(entry.contentRect.width))
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [portalReady])
   const frame = FRAME[device]
   // Ez a `scale` KIZÁRÓLAG a desktopos szimulált (mobil VAGY asztali) előnézethez kell —
   // ott 100%-nál sose nagyítunk fel (különben egy egérrel nézett "mobil szimuláció" óriásira
@@ -774,7 +961,7 @@ export function BookingPageEditor({
   const publicUrl = `${origin}/${baseline.slug}`
 
   const stepLabel = STEPS.find((st) => st.id === step)?.label ?? ''
-  const title = member ? member.name : sel ? ELEMENT_TITLES[sel] ?? 'Elem' : step === 'main' ? 'Az oldal elemei' : stepLabel
+  const title = member ? member.name : sel ? (sel.startsWith('txt:') ? 'Szöveg' : ELEMENT_TITLES[sel] ?? 'Elem') : step === 'main' ? 'Az oldal elemei' : stepLabel
 
   // `compact`: a mobil fejlécbe portálozott gomb — pontosan ugyanaz a méret/forma
   // (h-[52px] w-[52px], kör, ugyanaz a háttér/árnyék/press-animáció), mint a DashboardNav
@@ -810,8 +997,11 @@ export function BookingPageEditor({
     return { id: x.id, icon: x.icon, title: x.title, status, todo: !!todo }
   }).filter((x) => !(isRestaurant && x.id === 'services'))
 
-  return (
-    <div className="fixed inset-0 z-[90] overflow-y-auto bg-ui-page font-onest" data-lenis-prevent>
+  // a teljes képernyős szerkesztő a <body>-ba kerül (portál): a Beállítások oldal nyitó animációja (transform) különben a
+  // szülő dobozához kötné a `fixed` réteget, és megnyitáskor csak egy levágott csík látszana belőle
+  if (!portalReady) return null
+  return createPortal(
+    <div ref={rootRef} className="fixed inset-0 z-[90] overflow-y-auto bg-ui-page font-onest" data-lenis-prevent>
       <div className="mx-auto w-full max-w-[1760px] p-[5px] pb-28">
       {/* fejléc: vissza a Beállításokhoz, cím, Élő, Telefon / Desktop */}
       {/* keskeny kijelzőn ragadós (görgetéskor is fent marad), benne a lépés-váltó is — helyet spórolva */}
@@ -819,15 +1009,16 @@ export function BookingPageEditor({
         <div className="flex shrink-0 items-center gap-2">
           <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" size="sm" onClick={exit} />
           <span className="text-ui-title font-normal text-ui-text">Foglalóoldal</span>
-          <StatusPill status="ok">Élő</StatusPill>
+          {/* mobilon nincs hely: az „Élő” jelzés és a megnyitás gomb csak desktopon */}
+          {!narrow && <StatusPill status="ok">Élő</StatusPill>}
         </div>
         {/* jobbra: (keskenyen) a lépés-váltó, a foglalóoldal megnyitása (keskenyen csak ikon), Telefon / Desktop */}
         <div className={cn('flex min-w-0 items-center gap-2', narrow && 'flex-1 justify-end')}>
           {/* keskenyen tömör lépés-váltó (‹ lépés neve ›) — ha nem fér ki, a név elúszik */}
           {narrow && <EditorStepSwitch compact onLabel={() => setStepsOpen(true)} className="min-w-0 max-w-[220px] flex-1" active={flowIdx} onSelect={(i) => goStep(flow[i].id)} steps={flow.map((f) => ({ label: f.id === 'main' ? 'Oldal' : f.label }))} />}
-          {narrow
-            ? <IconButton icon={ArrowUpRight} label="A foglalóoldal megnyitása" href={publicUrl} className="shrink-0" />
-            : <Button variant="glass" href={publicUrl} className="min-w-0 shrink">{publicUrl.replace(/^https?:\/\//, '')} <ArrowUpRight className="h-3.5 w-3.5" /></Button>}
+          {/* mobil: az aktuális lépés elemei felcsúszó lapon (design 21.6.4) */}
+          {narrow && <IconButton icon={List} label="Elemek" variant="dark" size="sm" onClick={() => { setSel(null); setElemsOpen(true) }} />}
+          {!narrow && <Button variant="glass" href={publicUrl} className="min-w-0 shrink">{publicUrl.replace(/^https?:\/\//, '')} <ArrowUpRight className="h-3.5 w-3.5" /></Button>}
           {!narrow && <Segmented options={['Telefon', 'Desktop']} active={device === 'mobile' ? 0 : 1} onSelect={(i) => setDevice(i === 0 ? 'mobile' : 'desktop')} />}
         </div>
       </div>
@@ -849,7 +1040,7 @@ export function BookingPageEditor({
         {/* bal: az oldal részei — kijelölve jobbra nyílik a beállításuk */}
         <Card pad="none" className="hidden flex-col items-center gap-1.5 self-start py-3 xl:flex">
           {PARTS.filter((x) => !(isRestaurant && x.id === 'services')).map((x) => (
-            <IconButton key={x.id} icon={x.icon} label={x.title} variant={sel === x.id ? 'dark' : 'ghost'} size="sm" onClick={() => { setStep('main'); setSel(x.id) }} />
+            <IconButton key={x.id} icon={x.icon} label={x.title} variant={sel === x.id ? 'dark' : 'ghost'} size="sm" onClick={() => { setStep('main'); selectPart(x.id) }} />
           ))}
         </Card>
         {/* Vászon — a vastag telefon-keret (ring) csak akkor indokolt, ha egy NAGYOBB
@@ -867,9 +1058,11 @@ export function BookingPageEditor({
                 key={src}
                 src={src}
                 title="Foglalóoldal előnézet"
-                className="w-full rounded-ui-container border-0"
-                // telefonon az élő kép legfeljebb a képernyő ~78%-a — alatta is látszik a szerkesztés (az oldal benne görgethető)
-                style={{ width: canvasW, height: `min(${frame.h}px, 78dvh)` }}
+                // betöltés közben nem látszik (nincs félkész kép) — a `ready` üzenetre úszik be
+                className={cn('w-full rounded-ui-container border-0 transition-opacity duration-300', ready ? 'opacity-100' : 'opacity-0')}
+                // telefonon az élő kép a fejléc alatti hely — ha látszik a közzétételi sáv, az alja fölötte ér véget (12 px közzel:
+                // fejléc ~70 px, a sáv 20 px-re az aljától, ~56 px magas), hogy a sáv ne takarja; az oldal benne görgethető
+                style={{ width: canvasW, height: `min(${frame.h}px, calc(100dvh - ${changes > 0 || publishing ? 160 : 86}px - env(safe-area-inset-bottom)))`, transition: 'height .25s ease' }}
               />
             )
           ) : (
@@ -878,7 +1071,7 @@ export function BookingPageEditor({
                 {scale > 0 && (
                   // keret nélkül, a valódi képarányban (design 21.6) — nincs telefon-keret
                   <iframe ref={frameRef} key={src} src={src} title="Foglalóoldal előnézet"
-                    className="absolute left-0 top-0 origin-top-left rounded-ui-container border-0 bg-ui-dark"
+                    className={cn('absolute left-0 top-0 origin-top-left rounded-ui-container border-0 bg-ui-dark transition-opacity duration-300', ready ? 'opacity-100' : 'opacity-0')}
                     style={{ width: frame.w, height: frame.h, transform: `scale(${scale})` }} />
                 )}
               </div>
@@ -886,7 +1079,7 @@ export function BookingPageEditor({
               {device === 'mobile' && scale > 0 && (
                 <div className="relative" style={{ width: frame.w * scale, height: frame.h * scale }}>
                   <iframe ref={frame2Ref} key={`${src}-2`} src={src} title="Foglaló előnézet"
-                    className="absolute left-0 top-0 origin-top-left rounded-ui-container border-0 bg-ui-dark"
+                    className={cn('absolute left-0 top-0 origin-top-left rounded-ui-container border-0 bg-ui-dark transition-opacity duration-300', ready2 ? 'opacity-100' : 'opacity-0')}
                     style={{ width: frame.w, height: frame.h, transform: `scale(${scale})` }} />
                 </div>
               )}
@@ -896,19 +1089,30 @@ export function BookingPageEditor({
 
         {/* Tulajdonság-panel */}
         {/* mobilon a kijelölt elem lapja a közös felugró ablak mobil-lapjának kinézetével (sötétítés, fehér lap, fogantyú) */}
-        {narrow && sel && <div className="fixed inset-0 z-[92] bg-ui-dark/25 backdrop-blur-sm" onClick={() => setSel(null)} aria-hidden />}
-        <aside
+        {/* mobilon a lap ugyanúgy nyílik, mint a közös felugró ablak (PopupModal): elhalványuló háttér, rugós felcsúszás */}
+        <AnimatePresence>
+          {sheet && <motion.div key="sheet-bg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="fixed inset-0 z-[92] bg-ui-dark/25 backdrop-blur-sm" onClick={closeSheet} aria-hidden />}
+        </AnimatePresence>
+        <AnimatePresence initial={false}>
+        {(!narrow || sheet) && (
+        <motion.aside
+          key={sheet ? 'sheet' : 'panel'}
+          variants={sheet ? SHEET_MOBILE : undefined}
+          initial={sheet ? 'hidden' : false}
+          animate={sheet ? 'show' : undefined}
+          exit={sheet ? 'exit' : undefined}
           className={cn(
             'w-full space-y-4 p-5',
-            narrow && sel
+            sheet
               ? 'fixed inset-x-0 bottom-0 z-[93] max-h-[85dvh] overflow-y-auto rounded-t-ui-card bg-white pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-ui-popup'
               : 'self-start rounded-ui-card bg-white',
           )}
         >
-          {narrow && sel && (
+          {sheet && (
             /* mobil: csak fogantyú (koppintásra zár) — X nélkül, mint a többi alulról nyíló lap */
             <div className="-mt-2 flex items-center justify-center">
-              <button type="button" onClick={() => setSel(null)} aria-label="Bezárás" className="w-full py-2">
+              <button type="button" onClick={closeSheet} aria-label="Bezárás" className="w-full py-2">
                 <SheetHandle />
               </button>
             </div>
@@ -922,6 +1126,40 @@ export function BookingPageEditor({
           ) : step !== 'main' && (
             <div><div className="text-ui-label text-ui-muted">Foglalás folyamata</div><div className="mt-0.5 text-ui-sub font-light text-ui-text">{stepLabel}</div></div>
           )}
+          {/* a szerkesztett nyelv — a közzétételi sáv csak módosításnál jelenik meg, ezért itt is váltható */}
+          {!sel && languages.length > 1 && (
+            <EditorRow label="Szerkesztett nyelv">
+              <Segmented tone="cell" size="sm" options={languages.map((l) => l.toUpperCase())} active={languages.indexOf(lang)} onSelect={(i) => void selectLang(languages[i] as Locale)} />
+            </EditorRow>
+          )}
+          {/* a foglalás egy kijelölt szövege (cím, magyarázó sor, gomb) — az előnézetben helyben is írható */}
+          {selDom?.startsWith('txt:') && (() => {
+            const k = selDom.slice(4)
+            const own = loc ? loc.texts[k] ?? '' : draft.page.texts[k] ?? ''
+            const base = CUSTOM_TEXT_DEFAULTS[k] ?? t(lang, k as Parameters<typeof t>[1])
+            const setText = (v: string) => (loc ? setLoc({ texts: { ...loc.texts, [k]: v } }) : setPage({ texts: { ...draft.page.texts, [k]: v } }))
+            return (
+              <div>
+                <KitField label={`Szöveg (${LOCALE_LABELS[lang]})`} hint="Üresen: az alap szöveg. Az előnézetben rákattintva helyben is írhatod.">
+                  <Input size="sm" maxLength={300} value={own} placeholder={base} onChange={(e) => setText(e.target.value)} />
+                </KitField>
+                {own.trim() && <Button variant="cell" size="sm" className="mt-2" onClick={() => setText('')}>Alap szöveg visszaállítása</Button>}
+              </div>
+            )
+          })()}
+          {/* a kijelölt foglaló mező helykitöltője (név, e-mail, cím, megjegyzés) — az előnézetben a mezőbe írva is */}
+          {(() => {
+            const fk = selDom ? fieldKeyOf(selDom) : null
+            if (!fk || !(PLACEHOLDER_KEYS as readonly string[]).includes(fk)) return null
+            // a cím-mezőnek két fele van: utca, házszám és város
+            const keys: (keyof FieldPlaceholders)[] = fk === 'address' ? ['city', 'address'] : [fk as keyof FieldPlaceholders]
+            return keys.map((k) => (
+              <KitField key={k} label={`Helykitöltő${keys.length > 1 ? (k === 'city' ? ' — város' : ' — utca, házszám') : ''} (${LOCALE_LABELS[lang]})`} hint={k === keys[keys.length - 1] ? 'Halványan látszik a mezőben, amíg a vendég nem ír bele. Üresen: az alap. Az előnézetben a mezőbe kattintva is írhatod.' : undefined}>
+                <Input size="sm" maxLength={k === 'notes' ? 120 : 60} value={loc ? loc.placeholders[k] : draft.page.placeholders[k] ?? ''} placeholder={loc ? draft.page.placeholders[k] ?? '' : undefined}
+                  onChange={(e) => (loc ? setLoc({ placeholders: { ...loc.placeholders, [k]: e.target.value } }) : setPage({ placeholders: { ...draft.page.placeholders, [k]: e.target.value || null } }))} />
+              </KitField>
+            ))
+          })()}
 
           {/* A panel tartalma kijelölés/lépés-váltáskor villanás helyett rövid, mobilbarát
               crossfade+csúszás animációval cserélődik (ugyanaz az easing, mint a többi
@@ -942,26 +1180,30 @@ export function BookingPageEditor({
               <EditorRow label="Márkaszín" hint="minden kiemelés: fő gomb, kiválasztott sor, időpont">
                 <Swatches fills={ACCENTS} on={ACCENTS.indexOf(draft.page.accent ?? '#FFD85F')} onSelect={(i) => setPage({ accent: i === 0 ? null : ACCENTS[i] })}
                   add={
-                    <label title="Saját szín" className="ui-press relative flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-ui-dark/30 text-ui-muted"> {/* ui-allow: szaggatott „saját szín” kör, a minták méretében */}
-                      {draft.page.accent && !ACCENTS.includes(draft.page.accent) ? <span className="absolute inset-0" style={{ background: draft.page.accent }} /> : <Plus className="h-3.5 w-3.5" />}
-                      <input type="color" className="absolute inset-0 cursor-pointer opacity-0" value={draft.page.accent ?? '#FFD85F'} onChange={(e) => setPage({ accent: e.target.value.toUpperCase() })} aria-label="Saját szín" />
-                    </label>
+                    <ColorPicker value={draft.page.accent && !ACCENTS.includes(draft.page.accent) ? draft.page.accent : null} onChange={(c) => setPage({ accent: c })} />
                   } />
               </EditorRow>
               <EditorRow label="Foglaló kártya" hint={{ dark: 'sötét üveg', black: 'fekete', white: 'fehér', glass: 'világos üveg' }[draft.page.card]}>
                 <Swatches fills={CARD_STYLES.map((x) => x.fill)} on={CARD_STYLES.findIndex((x) => x.id === draft.page.card)} onSelect={(i) => setPage({ card: CARD_STYLES[i].id })} />
               </EditorRow>
-              <EditorGroup title="Betűszín a márkaszínű gombokon">
-                <EditorRow label="A gombokon"><Segmented tone="cell" size="sm" options={['Magától', 'Fehér', 'Sötét']} active={['auto', 'light', 'dark'].indexOf(draft.page.buttonText)} onSelect={(i) => setPage({ buttonText: (['auto', 'light', 'dark'] as const)[i] })} /></EditorRow>
-              </EditorGroup>
+              <EditorRow label="Betűszín a gombokon" hint={draft.page.buttonTextColor ? 'a kijelöltre kattintva: magától' : 'magától (a márkaszínhez igazodik)'}><ButtonTextSwatches value={draft.page.buttonTextColor} accent={accentHex} onChange={(v) => setPage({ buttonTextColor: v })} /></EditorRow>
               <div className="mt-3 border-t border-dashed border-ui-divider pt-3"><span className="text-ui-label text-ui-muted">Logó</span></div>
             </div>
           )}
 
           {/* ── Borító: sötétítés (a kép és a fókuszpont a borító-panelen) ── */}
           {shown('cover') && (
-            <EditorRow label="Sötétítés" hint="a szöveg minden képen olvasható marad">
-              <Segmented tone="cell" size="sm" options={['Nincs', 'Enyhe', 'Erős']} active={['none', 'soft', 'strong'].indexOf(draft.page.dim)} onSelect={(i) => setPage({ dim: (['none', 'soft', 'strong'] as const)[i] })} />
+            // a váltó a felirat alatt, teljes szélességben — mellette a magyarázat nem fér el (a három fül lelógna)
+            <div>
+              <span className="block text-ui-body text-ui-muted">Sötétítés</span>
+              <span className="block text-ui-label text-ui-muted">Kikapcsolva a fotón nincs semmi; a név finom árnyékot kap.</span>
+              <Segmented tone="cell" size="sm" full className="mt-2" options={['Ki', 'Enyhe', 'Erős']} active={['none', 'soft', 'strong'].indexOf(draft.page.dim)} onSelect={(i) => setPage({ dim: (['none', 'soft', 'strong'] as const)[i] })} />
+            </div>
+          )}
+          {/* a borító alap színe, ha nincs kép: sötét tónusok (a fehér szöveg mindig olvasható rajta) + saját */}
+          {shown('cover') && (
+            <EditorRow label="Alap szín" hint="ha nincs borítókép">
+              <CoverColorSwatches value={draft.page.coverColor} onChange={(v) => setPage({ coverColor: v })} />
             </EditorRow>
           )}
 
@@ -1031,6 +1273,8 @@ export function BookingPageEditor({
                   onChange={(e) => (loc ? setLoc({ ctaLabel: e.target.value }) : setPage({ ctaLabel: e.target.value || null }))} />
               </KitField>
               <div className="mt-2">
+                <EditorRow label="Márkaszín" hint="gomb, kiválasztott sor, időpont"><Swatches fills={ACCENTS} on={ACCENTS.indexOf(accentHex)} onSelect={(i) => setPage({ accent: i === 0 ? null : ACCENTS[i] })} /></EditorRow>
+                <EditorRow label="Betűszín a gombon" hint={draft.page.buttonTextColor ? 'a kijelöltre kattintva: magától' : 'magától (a márkaszínhez igazodik)'}><ButtonTextSwatches value={draft.page.buttonTextColor} accent={accentHex} onChange={(v) => setPage({ buttonTextColor: v })} /></EditorRow>
                 <EditorRow label="Legközelebb szabad" hint="a gomb mellett, a legkorábbi szabad időponttal"><Switch checked={draft.page.ctaNextFree} onChange={(v) => setPage({ ctaNextFree: v })} ariaLabel="Legközelebb szabad" /></EditorRow>
               </div>
             </div>
@@ -1058,8 +1302,8 @@ export function BookingPageEditor({
 
           {/* default nézet (még nincs kijelölve semmi): mennyire kész az oldal, a részek az állapotukkal, megosztás */}
           {!sel && step === 'main' && (
-            <EditorOverview parts={overview} onOpen={(id) => setSel(id)}
-              share={<EditorRow label="Link és QR-kód"><span className="flex gap-1.5"><IconButton icon={Link2} label="Link másolása" size="sm" variant="cell" onClick={copyLink} /><Button variant="cell" size="sm" icon={QrCode} onClick={() => setSel('link')}>QR-kód</Button></span></EditorRow>} />
+            <EditorOverview parts={overview} onOpen={(id) => selectPart(id)}
+              share={<EditorRow label="Link és QR-kód"><span className="flex gap-1.5"><IconButton icon={Link2} label="Link másolása" size="sm" variant="cell" onClick={copyLink} /><Button variant="cell" size="sm" icon={QrCode} onClick={() => selectPart('link')}>QR-kód</Button></span></EditorRow>} />
           )}
 
           {!sel && step !== 'main' && (
@@ -1087,7 +1331,7 @@ export function BookingPageEditor({
                         : id === 'occasions' ? `${draft.eventTypes.filter((e) => e.enabled).length} db` : 'Opcionális'
                       return (
                         <GripReorderItem key={id} id={id}>
-                          <button type="button" onClick={() => setSel(selId)} className={cn('min-w-0 flex-1 truncate text-left text-ui-body font-medium', hiddenByChoice ? 'text-ui-muted' : 'text-ui-text')}>
+                          <button type="button" onClick={() => selectPart(selId)} className={cn('min-w-0 flex-1 truncate text-left text-ui-body font-medium', hiddenByChoice ? 'text-ui-muted' : 'text-ui-text')}>
                             {ELEMENT_TITLES[selId]}
                           </button>
                           <Pill tone={badge === 'Kötelező' ? 'dark' : 'cell'} size="sm" className="shrink-0">{badge}</Pill>
@@ -1106,7 +1350,7 @@ export function BookingPageEditor({
                 : step === 'success' ? (['confirm'] as const)
                 : step === 'deposit' ? (['deposit'] as const)
                 : (['sec:voucher'] as const)
-              ).map((id) => <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />)}
+              ).map((id) => <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => selectPart(id)} />)}
               {/* Bekapcsoláskor az előnézet RÖGTÖN a nyilatkozat-lépésre ugrik (különben az Adatokon
                   maradva úgy tűnt, mintha meg sem jelenne); szöveg nélkül a lépés nem él → a szövegszerkesztő nyílik. */}
               <ToggleRow
@@ -1117,9 +1361,9 @@ export function BookingPageEditor({
                 onChange={() => {
                   const next = !draft.consentEnabled
                   set('consentEnabled', next)
-                  if (next) { if (draft.consentText.trim()) goStep('consent'); else setSel('consent') }
+                  if (next) { if (draft.consentText.trim()) goStep('consent'); else selectPart('consent') }
                 }}
-                onView={consentOn ? () => goStep('consent') : draft.consentEnabled ? () => setSel('consent') : undefined}
+                onView={consentOn ? () => goStep('consent') : draft.consentEnabled ? () => selectPart('consent') : undefined}
                 viewLabel={consentOn ? 'Megnézem' : 'Szöveg megadása'}
               />
               <ToggleRow
@@ -1144,7 +1388,7 @@ export function BookingPageEditor({
               <div className="text-ui-label font-medium text-ui-muted">Foglalási szabályok</div>
               {/* a kit listasorai (szaggatott elválasztó), keretes doboz helyett */}
               <div>
-                {[...rulesSummary.map((r) => ({ key: r.label, label: r.label, value: r.value, off: r.off, go: () => { setStep(r.step); setSel(r.sel) } })),
+                {[...rulesSummary.map((r) => ({ key: r.label, label: r.label, value: r.value, off: r.off, go: () => { setStep(r.step); selectPart(r.sel) } })),
                   { key: 'notif', label: 'Új foglalás értesítés neked', value: 'Értesítések', off: false, go: () => onNavigate?.('notifications') }].map((r) => (
                   <button key={r.key} type="button" onClick={r.go} className="block w-full rounded-ui-inner text-left outline-none transition-colors hover:bg-ui-cell/60 focus-visible:ring-2 focus-visible:ring-ui-dark/20">
                     <ListRow className="px-0" title={r.label} trailing={<span className={cn('flex shrink-0 items-center gap-1 text-ui-meta', r.off ? 'text-ui-muted' : 'text-ui-text')}>{r.value}<ChevronRight className="h-3.5 w-3.5 text-ui-muted" /></span>} />
@@ -1155,12 +1399,22 @@ export function BookingPageEditor({
           )}
 
           {shown('name') && (
-            <Field label="Üzlet neve"><input className={fieldCls} value={draft.name} onChange={(e) => set('name', e.target.value)} /></Field>
+            <>
+              <Field label="Üzlet neve"><input className={fieldCls} value={draft.name} onChange={(e) => set('name', e.target.value)} /></Field>
+              <EditorRow label="A név stílusa">
+                <span className="flex gap-1.5">
+                  <button type="button" aria-pressed={draft.page.nameBold} onClick={() => setPage({ nameBold: !draft.page.nameBold })} className="ui-press rounded-full"><Pill size="sm" tone={draft.page.nameBold ? 'dark' : 'cell'}>{draft.page.nameBold && <Check className="h-3 w-3" strokeWidth={2.5} />}Félkövér</Pill></button>
+                  <button type="button" aria-pressed={draft.page.nameItalic} onClick={() => setPage({ nameItalic: !draft.page.nameItalic })} className="ui-press rounded-full"><Pill size="sm" tone={draft.page.nameItalic ? 'dark' : 'cell'}>{draft.page.nameItalic && <Check className="h-3 w-3" strokeWidth={2.5} />}Dőlt</Pill></button>
+                </span>
+              </EditorRow>
+              <EditorRow label="A név színe" hint="a fotón csak olvasható szín"><TextToneSwatches value={draft.page.nameColor ?? 'white'} accent={accentHex} bg={DARK_BG} onChange={(v) => setPage({ nameColor: v === 'white' ? null : v })} /></EditorRow>
+            </>
           )}
 
           {shown('address') && (
             <>
               <Field label="Cím"><input className={fieldCls} value={draft.address} placeholder="Utca, házszám" onChange={(e) => set('address', e.target.value)} /></Field>
+              <EditorRow label="A cím színe" hint="a fotón csak olvasható szín"><TextToneSwatches value={draft.page.addressColor ?? 'soft'} accent={accentHex} bg={DARK_BG} onChange={(v) => setPage({ addressColor: v === 'soft' ? null : v })} /></EditorRow>
               {isRestaurant ? (
                 <Field label="Város"><input className={fieldCls} value={draft.city} onChange={(e) => set('city', e.target.value)} /></Field>
               ) : (
@@ -1182,6 +1436,25 @@ export function BookingPageEditor({
                 onChange={(e) => (loc ? setLoc({ description: e.target.value }) : set('description', e.target.value))}
               />
             </Field>
+          )}
+          {shown('desc') && (
+            <div>
+              <EditorRow label="Szöveg színe" hint="a fotón csak olvasható szín"><TextToneSwatches value={draft.page.descColor ?? 'soft'} accent={accentHex} bg={DARK_BG} onChange={(v) => setPage({ descColor: v === 'soft' ? null : v })} /></EditorRow>
+              <EditorRow label="Betűméret"><Segmented tone="cell" size="sm" options={['Kicsi', 'Normál', 'Nagy']} active={['sm', 'md', 'lg'].indexOf(draft.page.descSize)} onSelect={(i) => setPage({ descSize: (['sm', 'md', 'lg'] as const)[i] })} /></EditorRow>
+              <EditorRow label="Mobilon"><Segmented tone="cell" size="sm" options={['2 sor', 'Teljes']} active={draft.page.descFullMobile ? 1 : 0} onSelect={(i) => setPage({ descFullMobile: i === 1 })} /></EditorRow>
+              <p className="mt-2 text-ui-label text-ui-muted">A szöveget az oldalon is írhatod: kijelölve félkövér, dőlt és link a sávon.</p>
+            </div>
+          )}
+
+          {/* ── Köszönő cím (a foglalás után, Kész lépés): saját szöveg nyelvenként és színe ── */}
+          {shown('successTitle') && (
+            <div>
+              <KitField label={`Felirat (${LOCALE_LABELS[lang]})`} hint="Üresen: az alap („Lefoglaltuk!”). Az oldalon is írhatod.">
+                <Input size="sm" maxLength={60} value={loc ? loc.successTitle : draft.page.successTitle ?? ''} placeholder={loc ? draft.page.successTitle ?? '' : 'Lefoglaltuk!'}
+                  onChange={(e) => (loc ? setLoc({ successTitle: e.target.value }) : setPage({ successTitle: e.target.value || null }))} />
+              </KitField>
+              <div className="mt-2"><EditorRow label="Szöveg színe" hint="a kártyán csak olvasható szín"><TextToneSwatches value={draft.page.successTitleColor ?? 'white'} accent={accentHex} bg={draft.page.card === 'white' ? '#FFFFFF' : DARK_BG} onChange={(v) => setPage({ successTitleColor: v === 'white' ? null : v })} /></EditorRow></div>
+            </div>
           )}
 
           {shown('cover') && (
@@ -1279,7 +1552,7 @@ export function BookingPageEditor({
             <>
               <p className="text-ui-meta leading-relaxed text-ui-muted">Kattints egy munkatársra a bemutatkozása és a közösségi linkjei szerkesztéséhez. Csak azok látszanak, akikhez legalább egy szolgáltatás tartozik.</p>
               <div className="space-y-2">
-                {draft.staff.map((m) => <Row key={m.id} label={m.name} onClick={() => setSel(`staff:${m.id}`)} />)}
+                {draft.staff.map((m) => <Row key={m.id} label={m.name} onClick={() => selectPart(`staff:${m.id}`)} />)}
               </div>
               <LinkButton href="/dashboard/staff">Munkatársak kezelése</LinkButton>
             </>
@@ -1288,6 +1561,7 @@ export function BookingPageEditor({
           {member && (
             <>
               <Field label="Név"><input className={fieldCls} value={member.name} onChange={(e) => setStaff(member.id, { name: e.target.value })} /></Field>
+              <ToggleRow label="Pozíció megjelenítése" hint="A foglalásnál a név alatt." checked={member.show_role_title} onChange={() => setStaff(member.id, { show_role_title: !member.show_role_title })} />
               <Field label="Titulus"><input className={fieldCls} value={member.role_title} onChange={(e) => setStaff(member.id, { role_title: e.target.value })} /></Field>
               <Field label={`Bemutatkozás (${LOCALE_LABELS[lang]})`} hint="Foglaláskor a kiválasztott szakember csíkjára koppintva kinyílik.">
                 <AutoGrowTextarea
@@ -1568,7 +1842,9 @@ export function BookingPageEditor({
           </motion.div>
           </AnimatePresence>
           {part?.note && <div className="border-t border-dashed border-ui-divider pt-3 text-ui-label text-ui-muted">{part.note}</div>}
-        </aside>
+        </motion.aside>
+        )}
+        </AnimatePresence>
       </div>
       </div>
       <PopupModal open={exitAsk} onClose={() => setExitAsk(false)} panel={exitAsk ? (
@@ -1582,15 +1858,20 @@ export function BookingPageEditor({
         </Modal>
       ) : undefined} />
 
-      {/* alul lebeg: visszavonás, nyelv, módosítások, Közzététel */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[92] flex justify-center px-3">
-        <div className="pointer-events-auto max-w-full">
-          <EditorPublishBar onUndo={undo} onRedo={redo} canUndo={past.length > 0} canRedo={future.length > 0}
-            langs={languages.map((l) => ({ code: l, active: l === lang }))} onLang={(l) => void selectLang(l as Locale)}
-            changes={changes} onPublish={() => void publish()} busy={publishing || langLoading} />
-        </div>
-      </div>
-    </div>
+      {/* alul lebeg: visszavonás, nyelv, módosítások, Közzététel — csak ha van mit közzétenni (felcsúszik, mint a lapok) */}
+      <AnimatePresence>
+        {(changes > 0 || publishing) && (
+          <motion.div variants={SHEET_MOBILE} initial="hidden" animate="show" exit="exit" className="pointer-events-none fixed inset-x-0 bottom-5 z-[92] flex justify-center px-3">
+            <div className="pointer-events-auto max-w-full">
+              <EditorPublishBar compact={narrow} onClose={exit} onUndo={undo} onRedo={redo} canUndo={past.length > 0} canRedo={future.length > 0}
+                langs={languages.map((l) => ({ code: l, active: l === lang }))} onLang={(l) => void selectLang(l as Locale)}
+                changes={changes} onPublish={() => void publish()} busy={publishing || langLoading} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>,
+    document.body,
   )
 }
 
@@ -1679,16 +1960,19 @@ function ImagePicker({ url, busy, onPick, onRemove, tall = false }: { url: strin
   const input = useRef<HTMLInputElement>(null)
   return (
     <div className="space-y-2">
-      <div className={cn('relative overflow-hidden rounded-ui-inner', url ? (tall ? 'bg-ui-dark' : 'bg-white ring-1 ring-ui-divider') : 'bg-ui-cell', tall ? 'h-32' : 'h-20 w-20')}>
+      {/* borító: kitölti a dobozt; logó: keret és háttér NÉLKÜL, kicsiben, ahogy feltöltötték (üresen a feltöltő-doboz) */}
+      <div className={cn('relative', tall ? cn('h-32 overflow-hidden rounded-ui-inner', url && 'bg-ui-dark') : url ? 'inline-block' : 'h-20 w-20 overflow-hidden rounded-ui-inner')}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {url ? <img src={url} alt="" className={cn('h-full w-full', tall ? 'object-cover' : 'object-contain')} /> : <UploadBox className="h-full w-full">Kép</UploadBox>}
+        {/* üresen maga a doboz a feltöltés (rákattintva tallóz) — nincs külön gomb */}
+        {url ? <img src={url} alt="" className={tall ? 'h-full w-full object-cover' : 'block h-12 w-auto max-w-[200px] object-contain'} />
+          : <button type="button" onClick={() => input.current?.click()} disabled={busy} className="ui-press block h-full w-full rounded-ui-inner outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><UploadBox className="h-full w-full">Kép feltöltése</UploadBox></button>}
         {busy && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-white" /></div>}
       </div>
       <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = '' }} />
-      <div className="flex gap-1.5">
-        <Button variant="cell" size="sm" icon={Upload} loading={busy} onClick={() => input.current?.click()}>{url ? 'Csere' : 'Feltöltés'}</Button>
-        {url && <Button variant="cell" size="sm" icon={Trash2} onClick={onRemove}>Eltávolítás</Button>}
-      </div>
+      {url && <div className="flex gap-1.5">
+        <Button variant="cell" size="sm" icon={Upload} loading={busy} onClick={() => input.current?.click()}>Csere</Button>
+        <Button variant="danger" size="sm" icon={Trash2} onClick={onRemove}>Eltávolítás</Button>
+      </div>}
     </div>
   )
 }
@@ -1713,4 +1997,47 @@ function LinkButton({ href, children }: { href: string; children: ReactNode }) {
 
 function NavButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return <Button variant="cell" size="sm" onClick={onClick}>{children}<ChevronRight className="h-4 w-4" /></Button>
+}
+
+/** A gomb betűszíne (design 21.6.3): ugyanaz a 4 kör-minta, mint a márkaszínnél + saját szín — csak ami olvasható a
+ *  márkaszínen (WCAG 3:1); a kijelöltre újra kattintva vissza a „magától”-ra. */
+function ButtonTextSwatches({ value, accent, onChange }: { value: string | null; accent: string; onChange: (v: string | null) => void }) {
+  const fills = BUTTON_TEXT_COLORS.filter((c) => readable(c, accent))
+  const custom = value && !fills.includes(value) ? value : null
+  return (
+    <Swatches fills={fills} on={value ? fills.indexOf(value) : -1} onSelect={(i) => onChange(fills[i] === value ? null : fills[i])}
+      add={
+        <ColorPicker value={custom} label="Saját betűszín" onChange={(c) => onChange(makeReadable(c, accent))} />
+      } />
+  )
+}
+
+/** A szöveg színe (design 21.6.3): fehér · szürke · krém · arany + saját — a minták úgy, ahogy a sötét fotón / kártyán
+ *  látszanak; a saját szín (ha van) külön mintaként a „+” előtt, a „+” mindig ott van. Csak olvasható szín választható (`bg`). */
+function TextToneSwatches({ value, bg, onChange }: { value: string; accent?: string; bg: string; onChange: (v: string) => void }) {
+  const v = value.toUpperCase() === '#FFFFFF' ? 'white' : value
+  const idx = TONE_PALETTE.findIndex((x) => x.v.toLowerCase() === v.toLowerCase())
+  const custom = idx < 0 && v.startsWith('#') ? v : null
+  const fills = [...TONE_PALETTE.map((x) => x.css), ...(custom ? [custom] : [])]
+  return (
+    <Swatches fills={fills} on={custom ? fills.length - 1 : idx} onSelect={(i) => onChange(i < TONE_PALETTE.length ? TONE_PALETTE[i].v : custom!)}
+      add={
+        <ColorPicker value={null} onChange={(c) => onChange(makeReadable(c, bg))} />
+      } />
+  )
+}
+
+/** A borító alap színei (ha nincs kép): a davelopment sötétje (alap), éjkék, erdőzöld, bordó + saját (bármilyen — a
+ *  szöveg alatt ott a sötétítés, sötétítés nélkül a név árnyékot kap). */
+const COVER_COLORS = ['#383838', '#1F2A3A', '#22332B', '#3A1F24'] // ui-allow: a választható borító-színek maguk a minták
+function CoverColorSwatches({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const idx = value ? COVER_COLORS.findIndex((c) => c.toLowerCase() === value.toLowerCase()) : 0
+  const custom = value && idx < 0 ? value : null
+  const fills = [...COVER_COLORS, ...(custom ? [custom] : [])]
+  return (
+    <Swatches fills={fills} on={custom ? fills.length - 1 : idx} onSelect={(i) => onChange(i === 0 ? null : fills[i])}
+      add={
+        <ColorPicker value={null} label="Saját borító-szín" onChange={(c) => onChange(c)} />
+      } />
+  )
 }

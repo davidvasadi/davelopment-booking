@@ -9,7 +9,8 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Loader2, Users, Gift, HandCoins } from 'lucide-react'
 import { Avatar, Button, FIELD, IconButton, IconCircle, Pill } from '@/components/ui-kit'
 import { useDayStrip } from './useDayStrip'
-import { ACCENT, CardDayPicker, CardPills, CardRow, CardSlotGrid, CardThumb, cardTone, GLASS_FIELD, type LiveCard } from '@/components/blocks/public'
+import { ACCENT, CardDayPicker, CardPills, CardRow, CardSlotGrid, CardThumb, cardTone, GLASS_FIELD, SocialIcons, type LiveCard } from '@/components/blocks/public'
+import { EditableText, useFieldPlaceholder, Txt } from './EditableText'
 import { PoweredBy } from '@/components/blocks/brand'
 import { CookieFooterLink } from '@/components/blocks/consent'
 import { openCookieSettings } from '@/components/booking/MarketingTrackingScripts'
@@ -513,6 +514,12 @@ export function ProfileCard({
   // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is) —
   // ez a kapcsoló FELÜLÍRJA a tulaj kikapcsolás-szándékát (számlázáshoz kell az előlegnél).
   const addressGateOn = depositEnabled || addressRequired
+  // a mezők helykitöltője: az üzlet saját szövege (a szerkesztőben a kijelölt mezőbe írva ezt írod át)
+  const phName = useFieldPlaceholder('name', tt('booking.field.namePlaceholder'))
+  const phEmail = useFieldPlaceholder('email', tt('booking.field.emailPlaceholder'))
+  const phAddress = useFieldPlaceholder('address', 'Pl. Fő utca 12.')
+  const phNotes = useFieldPlaceholder('notes', tt('booking.field.notePlaceholder'))
+  const phCity = useFieldPlaceholder('city', tt('booking.field.cityPlaceholder'), 'field:address')
   // Előleg aktív esetén FÜGGETLENÜL mindig a teljes cím érvényesül (számlázáshoz kell) —
   // ez felülírja a tulaj "csak város"/"kikapcsolva" beállítását.
   const effectiveAddressLevel = addressGateOn ? 'full' : addressDetailLevel
@@ -537,6 +544,7 @@ export function ProfileCard({
   }
 
   const onFieldBlur = (key: FieldKey) => {
+    if (editorView) return // a szerkesztő előnézetében nincs hibaüzenet (ott nem a vendég tölti ki)
     const msg = validateField(key)
     setErrors(prev => ({ ...prev, [key]: msg ?? undefined }))
   }
@@ -735,7 +743,7 @@ export function ProfileCard({
   const Picked = ({ title, meta, onChange }: { title: string; meta: string; onChange: () => void }) => {
     const av = bookingStaff?.avatar && typeof bookingStaff.avatar === 'object' ? (bookingStaff.avatar as Media).url ?? null : null
     return <CardRow c={c} onClick={onChange} leading={bookingStaff ? <Avatar size="sm" src={av} name={bookingStaff.name} /> : <IconCircle tone={c.dark ? 'onDark' : 'cell'} size="sm" icon={Users} />}
-      title={title} meta={meta} trailing={<Pill size="sm" tone={c.dark ? 'white' : 'cell'}>{tt('public.change')}</Pill>} />
+      title={title} meta={meta} trailing={<Pill size="sm" tone={c.dark ? 'white' : 'cell'}><Txt k="public.change">{tt('public.change')}</Txt></Pill>} />
   }
   // a napok sora: görgethető, mától a foglalási ablak végéig; ahol a választott szolgáltatásra / munkatársra nincs hely, sötétebb
   const { days: pickDays, stripRef } = useDayStrip({
@@ -767,7 +775,8 @@ export function ProfileCard({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={() => setSheetOpen(false)}
+            // a szerkesztőben egy foglalási lépés előnézete nyitva marad (a lépést a szerkesztő váltja, nem a háttér)
+            onClick={() => { if (!editorView || editorView === 'main') setSheetOpen(false) }}
           />
         )}
       </AnimatePresence>
@@ -815,7 +824,7 @@ export function ProfileCard({
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_e, info) => {
-          if (info.offset.y > 120 || info.velocity.y > 500) setSheetOpen(false)
+          if ((info.offset.y > 120 || info.velocity.y > 500) && (!editorView || editorView === 'main')) setSheetOpen(false)
         }}
         // a kártya stílusa (design 21.2): sötét üveg (alap) · fekete · világos üveg · fehér — a `cardTone` adja a felületet
         className={cn('flex flex-col overflow-hidden', c.box, embed ? 'rounded-ui-card' : 'rounded-t-ui-card shadow-ui-popup lg:rounded-ui-card')}
@@ -881,7 +890,7 @@ export function ProfileCard({
                   időtartammal, árral — a megjelenésük a Foglalóoldal › Szolgáltatások beállítása szerint */}
               {view === 'services' && (
                 <div data-edit-id="sec:services" className="pb-2">
-                  <div className="text-ui-title font-light">{tt('public.whatWouldYouLike')}</div>
+                  <div className="text-ui-title font-light"><Txt k="public.whatWouldYouLike">{tt('public.whatWouldYouLike')}</Txt></div>
                   {preStaff && <div className={`mt-1 text-ui-meta ${c.meta}`}>{tt('public.staffServices', { name: preStaff.name })}</div>}
                   {servicesDisplay.filter && categoryGroups.length > 0 && (
                     <CardPills c={c} className="mt-3" options={[tt('public.all'), ...categoryGroups.map((g) => g.name)]}
@@ -898,7 +907,7 @@ export function ProfileCard({
                   fotóval, szerepkörrel / bemutatkozással és a közösségi linkjeivel. A választás rögtön az időpontra visz. */}
               {view === 'serviceDetail' && selectedService && (
                 <div className="pb-2">
-                  <div className="text-ui-title font-light">{tt('booking.whoTitle')}</div>
+                  <div className="text-ui-title font-light"><Txt k="booking.whoTitle">{tt('booking.whoTitle')}</Txt></div>
                   <div className={`mt-1 text-ui-meta ${c.meta}`}>{selectedService.name} · {selectedService.duration_minutes} {tt('booking.minutes')} · {priceLabel(selectedService.price, selectedService.currency)}</div>
                   {selectedService.description && <p className={`mt-2 text-ui-meta leading-relaxed ${c.meta}`}>{selectedService.description}</p>}
                   <div className="mt-3 space-y-1">
@@ -908,13 +917,23 @@ export function ProfileCard({
                     )}
                     {(preStaff ? [preStaff] : serviceStaff).map((m) => {
                       const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
-                      const about = (m as { role_title?: string | null }).role_title?.trim() || m.bio?.trim() || null
+                      // a név alatt a pozíció (ha az üzlet mutatja), alatta a bemutatkozás és a közösségi linkek (design 21.7)
+                      const mm = m as { role_title?: string | null; show_role_title?: boolean | null }
+                      const about = mm.show_role_title !== false ? mm.role_title?.trim() || null : null
+                      const bio = m.bio?.trim() || ''
+                      const socials = (m.social_links ?? []).map((l) => l.url).filter(Boolean)
                       const nf = nextFree?.staff[String(m.id)]
                       return (
                         <div key={m.id} data-edit-id={`staff:${m.id}`}>
                           <CardRow c={c} onClick={() => pickStaff(String(m.id))} leading={<Avatar size="md" src={avatarUrl} name={m.name} />}
                             title={m.name} meta={about ?? undefined}
                             trailing={nextFree ? <span className={`shrink-0 text-ui-meta ${nf ? '' : c.meta}`}>{nextLabel(nf ?? null)}</span> : <ChevronRight className={`h-4 w-4 shrink-0 ${c.meta}`} />} />
+                          {(bio || socials.length > 0) && (
+                            <div className={`mt-1 px-3 py-2.5 ${c.row}`}>
+                              {bio && <EditableText id={`staffbio:${m.id}`} rich value={bio} className="line-clamp-3 text-ui-meta leading-relaxed" />}
+                              {socials.length > 0 && <SocialIcons links={socials} className={bio ? 'mt-2' : ''} />}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -929,9 +948,9 @@ export function ProfileCard({
                   <Picked title={`${bookingService.name} · ${bookingStaffId ? bookingStaff?.name ?? '' : tt('booking.staff.any')}`}
                     meta={`${bookingService.duration_minutes} ${tt('booking.minutes')} · ${priceLabel(bookingService.price, bookingService.currency)}`}
                     onChange={() => { setDir(-1); setView('serviceDetail') }} />
-                  <div className="mt-5 text-ui-title font-light">{tt('booking.when.title')}</div>
+                  <div className="mt-5 text-ui-title font-light"><Txt k="booking.when.title">{tt('booking.when.title')}</Txt></div>
                   {bookingWindowDays <= 0 ? (
-                    <p className={`mt-2 text-ui-meta ${c.meta}`}>{tt('dateStrip.closed')}</p>
+                    <p className={`mt-2 text-ui-meta ${c.meta}`}><Txt k="dateStrip.closed">{tt('dateStrip.closed')}</Txt></p>
                   ) : (
                     <>
                       <div data-edit-id="rules" ref={stripRef}>
@@ -947,12 +966,12 @@ export function ProfileCard({
                         </div>
                       ) : slots.length === 0 ? (
                         <div className="py-6 text-center">
-                          <p className={`text-ui-meta ${c.meta}`}>{tt('booking.noSlots')}</p>
-                          <p className={`mt-1 text-ui-label ${c.meta}`}>{tt('booking.noSlotsHint')}</p>
+                          <p className={`text-ui-meta ${c.meta}`}><Txt k="booking.noSlots">{tt('booking.noSlots')}</Txt></p>
+                          <p className={`mt-1 text-ui-label ${c.meta}`}><Txt k="booking.noSlotsHint">{tt('booking.noSlotsHint')}</Txt></p>
                         </div>
                       ) : (
-                        <CardSlotGrid c={c} className="mt-2" slots={slots.map((x) => x.start)} on={bookingSlot?.start}
-                          onPick={(t) => { const slot = slots.find((x) => x.start === t); if (!slot) return; setBookingSlot(slot); setTimeout(() => { setDir(1); setView('details') }, 260) }} />
+                        <div data-edit-id="sec:slots"><CardSlotGrid c={c} className="mt-2" slots={slots.map((x) => x.start)} on={bookingSlot?.start}
+                          onPick={(t) => { const slot = slots.find((x) => x.start === t); if (!slot) return; setBookingSlot(slot); setTimeout(() => { setDir(1); setView('details') }, 260) }} /></div>
                       )}
                     </>
                   )}
@@ -962,7 +981,7 @@ export function ProfileCard({
               {/* DETAILS */}
               {view === 'details' && (
                 <div>
-                  <h2 className="mb-4 text-ui-title font-light">{tt('booking.details.title')}</h2>
+                  <h2 className="mb-4 text-ui-title font-light"><Txt k="booking.details.title">{tt('booking.details.title')}</Txt></h2>
                   {/* Előleg-tájékoztató MÁR az adatoknál — a vendég előre tudja, mennyi, mikor és visszajár-e */}
                   {depositEnabled && depositInfo && (
                     <div data-edit-id="deposit" className={`mb-4 flex gap-3 rounded-ui-inner p-4 ${c.row}`}>
@@ -977,7 +996,7 @@ export function ProfileCard({
                     <p className={`-mt-2 mb-3 text-ui-label ${c.meta}`}>
                       {tt('booking.details.remembered')}{' '}
                       <button type="button" onClick={forgetRememberedGuest} className="font-semibold opacity-80 underline underline-offset-2">
-                        {tt('booking.details.forget')}
+                        <Txt k="booking.details.forget">{tt('booking.details.forget')}</Txt>
                       </button>
                     </p>
                   )}
@@ -988,13 +1007,13 @@ export function ProfileCard({
                       const fieldBlocks: Record<FormFieldId, ReactNode> = {
                         name: (
                       <div data-edit-id="field:name" key={`name-${detailsShakeKey}`} className={cn('space-y-1', errors.name && 'animate-shake')}>
-                        <Label htmlFor="bk-name" className={`text-ui-label ${c.meta}`}>{tt('booking.field.name')}</Label>
+                        <Label htmlFor="bk-name" className={`text-ui-label ${c.meta}`}><Txt k="booking.field.name">{tt('booking.field.name')}</Txt></Label>
                         <Input
                           id="bk-name" ref={fieldRefs.name} value={customerName}
                           onChange={e => { setCustomerName(e.target.value); clearError('name') }}
                           onBlur={() => onFieldBlur('name')}
                           autoComplete="name" aria-invalid={!!errors.name}
-                          placeholder={tt('booking.field.namePlaceholder')}
+                          {...phName}
                           className={cn(inputCls, errors.name && 'ring-1 ring-red-400')}
                         />
                         {errors.name && <p role="alert" className="text-ui-label text-red-400">{errors.name}</p>}
@@ -1002,13 +1021,13 @@ export function ProfileCard({
                         ),
                         email: (
                       <div data-edit-id="field:email" key={`email-${detailsShakeKey}`} className={cn('space-y-1', errors.email && 'animate-shake')}>
-                        <Label htmlFor="bk-email" className={`text-ui-label ${c.meta}`}>{tt('booking.field.email')}</Label>
+                        <Label htmlFor="bk-email" className={`text-ui-label ${c.meta}`}><Txt k="booking.field.email">{tt('booking.field.email')}</Txt></Label>
                         <Input
                           id="bk-email" ref={fieldRefs.email} type="email" inputMode="email" autoComplete="email" value={customerEmail}
                           onChange={e => { setCustomerEmail(e.target.value); clearError('email') }}
                           onBlur={() => onFieldBlur('email')}
                           aria-invalid={!!errors.email}
-                          placeholder={tt('booking.field.emailPlaceholder')}
+                          {...phEmail}
                           className={cn(inputCls, errors.email && 'ring-1 ring-red-400')}
                         />
                         {errors.email && <p role="alert" className="text-ui-label text-red-400">{errors.email}</p>}
@@ -1033,8 +1052,8 @@ export function ProfileCard({
                       {/* Előlegnél a cím a SZÁMLÁHOZ kell — ezt egyszer, fejlécként mondjuk el (nem mezőnként) */}
                       {depositEnabled && (
                         <div className="pt-2">
-                          <p className="text-ui-label font-semibold uppercase tracking-[0.12em] opacity-80">{tt('booking.details.billing')}</p>
-                          <p className={`text-ui-label ${c.meta}`}>{tt('booking.details.billingWhy')}</p>
+                          <p className="text-ui-label font-semibold uppercase tracking-[0.12em] opacity-80"><Txt k="booking.details.billing">{tt('booking.details.billing')}</Txt></p>
+                          <p className={`text-ui-label ${c.meta}`}><Txt k="booking.details.billingWhy">{tt('booking.details.billingWhy')}</Txt></p>
                         </div>
                       )}
                       <div data-edit-id="field:address" key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
@@ -1046,7 +1065,7 @@ export function ProfileCard({
                           onChange={e => { setCustomerCity(e.target.value); clearError('city') }}
                           onBlur={() => onFieldBlur('city')}
                           aria-invalid={!!errors.city}
-                          autoComplete="address-level2" placeholder={tt('booking.field.cityPlaceholder')}
+                          autoComplete="address-level2" {...phCity}
                           className={cn(inputCls, errors.city && 'ring-1 ring-red-400')}
                         />
                         {errors.city && <p role="alert" className="text-ui-label text-red-400">{errors.city}</p>}
@@ -1062,7 +1081,7 @@ export function ProfileCard({
                           onChange={e => { setCustomerAddress(e.target.value); clearError('address') }}
                           onBlur={() => onFieldBlur('address')}
                           aria-invalid={!!errors.address}
-                          autoComplete="street-address" placeholder="Pl. Fő utca 12."
+                          autoComplete="street-address" {...phAddress}
                           className={cn(inputCls, errors.address && 'ring-1 ring-red-400')}
                         />
                         {errors.address && <p role="alert" className="text-ui-label text-red-400">{errors.address}</p>}
@@ -1072,7 +1091,7 @@ export function ProfileCard({
                       {depositEnabled && invoicingEnabled && (
                         <>
                           <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
-                            <span className="text-ui-meta opacity-80">{tt('public.voucher.companyToggle')}</span>
+                            <span className="text-ui-meta opacity-80"><Txt k="public.voucher.companyToggle">{tt('public.voucher.companyToggle')}</Txt></span>
                             <Switch checked={customerIsCompany} onChange={setCustomerIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                           </div>
                           {customerIsCompany && (
@@ -1086,7 +1105,7 @@ export function ProfileCard({
                                 placeholder="12345678-1-42"
                                 className={cn(inputCls, errors.taxNumber && 'ring-1 ring-red-400')}
                               />
-                              {errors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{errors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumberHint')}</p>}
+                              {errors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{errors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.taxNumberHint">{tt('public.voucher.taxNumberHint')}</Txt></p>}
                             </div>
                           )}
                         </>
@@ -1144,10 +1163,10 @@ export function ProfileCard({
                         ),
                         notes: (
                       <div data-edit-id="field:notes" className="space-y-1">
-                        <Label className={`text-ui-label ${c.meta}`}>{tt('booking.field.note')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}><Txt k="booking.field.note">{tt('booking.field.note')}</Txt></Label>
                         <Textarea
                           value={customerNotes} onChange={e => setCustomerNotes(e.target.value)}
-                          placeholder={tt('booking.field.notePlaceholder')} rows={3}
+                          {...phNotes} rows={3}
                           className={`${inputCls} h-auto min-h-[88px] resize-none py-3`}
                         />
                       </div>
@@ -1155,11 +1174,11 @@ export function ProfileCard({
                         newsletter: (marketingVisible || (editorView && newsletterEnabled)) ? (
                       <div data-edit-id="newsletter" className={cn('space-y-1.5', editorView && !marketingVisible && 'opacity-35 pointer-events-none')}>
                         <div className="flex items-center justify-between gap-3 py-1">
-                          <span className="text-ui-meta opacity-80">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                          <span className="text-ui-meta opacity-80"><Txt k="custom.marketing">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</Txt></span>
                           <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
                         </div>
                         <p className={`text-ui-label ${c.meta}`}>
-                          Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2">Adatvédelmi tájékoztató</a>.
+                          <Txt k="custom.unsubscribe">Bármikor leiratkozhatok. Részletek:</Txt> <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2"><Txt k="custom.privacyLink">Adatvédelmi tájékoztató</Txt></a>.
                         </p>
                       </div>
                         ) : null,
@@ -1185,7 +1204,7 @@ export function ProfileCard({
                             onClick={() => setRedeemOpen(true)}
                             className={`inline-flex items-center gap-1.5 text-ui-label font-medium underline underline-offset-2 transition-colors ${c.meta}`}
                           >
-                            <Gift className="h-3 w-3" /> Van ajándékutalványod?
+                            <Gift className="h-3 w-3" /> <Txt k="custom.voucherLink">Van ajándékutalványod?</Txt>
                           </button>
                         ) : (
                           <div className="space-y-1">
@@ -1213,7 +1232,7 @@ export function ProfileCard({
               {/* DEPOSIT */}
               {view === 'deposit' && depositEnabled && (
                 <div>
-                  <h2 className="mb-4 text-ui-title font-light">{tt('public.deposit.title')}</h2>
+                  <h2 className="mb-4 text-ui-title font-light"><Txt k="public.deposit.title">{tt('public.deposit.title')}</Txt></h2>
                   {/* bookingStaffId lehet null ("Bármelyik szakember") — a deposit-intent route
                       old fel egy konkrét, szabad szakembert, ha nincs megadva. */}
                   {editorView ? (
@@ -1241,15 +1260,15 @@ export function ProfileCard({
               {/* CONSENT — digitális beleegyező nyilatkozat */}
               {view === 'consent' && consentEnabled && (
                 <div data-edit-id="consent">
-                  <h2 className="mb-4 text-ui-title font-light">{consentTitle?.trim() || tt('public.consent.title')}</h2>
+                  <EditableText as="div" id="consentTitle" single value={consentTitle?.trim() || tt('public.consent.title')} className="mb-4 text-ui-title font-light" />
                   <div
                     className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-ui-inner p-4 text-ui-meta leading-relaxed opacity-80 ${c.row}`}
                     
                   >
-                    {consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'}
+                    <EditableText as="div" id="consentText" value={consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'} />
                   </div>
                   <div className="flex items-center justify-between gap-3 py-1">
-                    <span className="text-ui-meta opacity-80">Elolvastam és elfogadom a fenti nyilatkozatot</span>
+                    <span className="text-ui-meta opacity-80"><Txt k="custom.consentAccept">Elolvastam és elfogadom a fenti nyilatkozatot</Txt></span>
                     <Switch checked={consentGiven} onChange={setConsentGiven} ariaLabel="Nyilatkozat elfogadása" />
                   </div>
                 </div>
@@ -1258,7 +1277,7 @@ export function ProfileCard({
               {/* SUMMARY */}
               {view === 'summary' && bookingService && bookingSlot && (
                 <div>
-                  <h2 className="mb-4 text-ui-title font-light">{tt('booking.summary.title')}</h2>
+                  <h2 className="mb-4 text-ui-title font-light"><Txt k="booking.summary.title">{tt('booking.summary.title')}</Txt></h2>
                   <div data-edit-id="summary" className={`mb-4 rounded-ui-inner px-4 py-1 ${c.row}`} >
                     {[
                       { label: tt('booking.step.service'), value: bookingService.name },
@@ -1301,9 +1320,9 @@ export function ProfileCard({
               {view === 'voucher' && (
                 <div data-edit-id="sec:voucher" className="pb-2">
                   <button onClick={() => goTo('services', null, null, -1)} className={`mb-4 inline-flex items-center gap-1.5 text-ui-label font-medium transition-colors ${c.meta}`}>
-                    <ArrowLeft className="h-3.5 w-3.5" /> {tt('public.back')}
+                    <ArrowLeft className="h-3.5 w-3.5" /> <Txt k="public.back">{tt('public.back')}</Txt>
                   </button>
-                  <h2 className="mb-1 text-ui-title font-light">{tt('public.voucher')}</h2>
+                  <h2 className="mb-1 text-ui-title font-light"><Txt k="public.voucher">{tt('public.voucher')}</Txt></h2>
                   <p className={`mb-5 text-ui-label ${c.meta}`}>{tt('public.voucher.redeemableAt', { salon: salonName })}</p>
 
                   {!voucherPaymentStep ? (
@@ -1364,7 +1383,7 @@ export function ProfileCard({
                           autoComplete="address-level2"
                           className={cn(inputCls, voucherFieldErrors.city && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.city ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.city}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.cityHint')}</p>}
+                        {voucherFieldErrors.city ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.city}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.cityHint">{tt('public.voucher.cityHint')}</Txt></p>}
                       </div>
                       <div key={`address-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.address && 'animate-shake')}>
                         <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.address')} *</Label>
@@ -1373,12 +1392,12 @@ export function ProfileCard({
                           autoComplete="street-address"
                           className={cn(inputCls, voucherFieldErrors.address && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.address ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.address}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.addressHint')}</p>}
+                        {voucherFieldErrors.address ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.address}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.addressHint">{tt('public.voucher.addressHint')}</Txt></p>}
                       </div>
 
                       {invoicingEnabled && voucherCompanyEnabled && (
                       <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
-                        <span className="text-ui-meta opacity-80">{tt('public.voucher.companyToggle')}</span>
+                        <span className="text-ui-meta opacity-80"><Txt k="public.voucher.companyToggle">{tt('public.voucher.companyToggle')}</Txt></span>
                         <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
                       )}
@@ -1390,29 +1409,29 @@ export function ProfileCard({
                             placeholder="12345678-1-42"
                             className={cn(inputCls, voucherFieldErrors.taxNumber && 'ring-1 ring-red-400')}
                           />
-                          {voucherFieldErrors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumberHint')}</p>}
+                          {voucherFieldErrors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.taxNumberHint">{tt('public.voucher.taxNumberHint')}</Txt></p>}
                         </div>
                       )}
 
                       <div className="!mt-6 h-px bg-white/[0.08]" />
 
                       <div className="space-y-1">
-                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.recipientName')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.recipientName">{tt('public.voucher.recipientName')}</Txt></Label>
                         <Input
                           value={voucherRecipientName} onChange={e => setVoucherRecipientName(e.target.value)}
                           className={inputCls}
                         />
                       </div>
                       <div key={`recipientEmail-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.recipientEmail && 'animate-shake')}>
-                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.recipientEmail')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.recipientEmail">{tt('public.voucher.recipientEmail')}</Txt></Label>
                         <Input
                           type="email" inputMode="email" value={voucherRecipientEmail} onChange={e => { setVoucherRecipientEmail(e.target.value); clearVoucherFieldError('recipientEmail') }}
                           className={cn(inputCls, voucherFieldErrors.recipientEmail && 'ring-1 ring-red-400')}
                         />
-                        {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className={`text-ui-label ${c.meta}`}>{tt('public.voucher.recipientEmailHint')}</p>}
+                        {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.recipientEmailHint">{tt('public.voucher.recipientEmailHint')}</Txt></p>}
                       </div>
                       <div className="space-y-1">
-                        <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.message')}</Label>
+                        <Label className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.message">{tt('public.voucher.message')}</Txt></Label>
                         <Textarea
                           value={voucherMessage} onChange={e => setVoucherMessage(e.target.value)} rows={3}
                           className={`${inputCls} h-auto min-h-[88px] resize-none py-3`}
@@ -1424,7 +1443,7 @@ export function ProfileCard({
                         className="flex h-14 w-full items-center justify-center rounded-full text-[15px] font-semibold transition-all active:scale-[0.98]"
                         style={{ background: 'white', color: 'var(--ink-dark)' }}
                       >
-                        {tt('public.voucher.continueToPay')}
+                        <Txt k="public.voucher.continueToPay">{tt('public.voucher.continueToPay')}</Txt>
                       </button>
                     </div>
                   ) : voucherCreating ? (
@@ -1450,13 +1469,13 @@ export function ProfileCard({
                     <IconCircle size="lg" icon={Check} className={ACCENT} />
                   </motion.div>
                   <motion.div className="w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
-                    <div className="mt-4 text-ui-sub font-light">{tt('public.voucher.successTitle')}</div>
-                    <p className={`mt-1 text-ui-meta ${c.meta}`}>{tt('public.voucher.successSubtitle')}</p>
+                    <div className="mt-4 text-ui-sub font-light"><Txt k="public.voucher.successTitle">{tt('public.voucher.successTitle')}</Txt></div>
+                    <p className={`mt-1 text-ui-meta ${c.meta}`}><Txt k="public.voucher.successSubtitle">{tt('public.voucher.successSubtitle')}</Txt></p>
                     <div className="mt-5 space-y-2 text-left">
                       <VoucherCard amount={formatPrice(voucherResult.amountHuf, 'HUF')} code={voucherResult.code} bg="yellow" biz={{ name: salonName, logo: null }} expires={voucherResult.expiresAt ? format(new Date(voucherResult.expiresAt), 'PPP', { locale: dfLocale(locale) }) : ''} />
                       <VoucherCard side="back" code={voucherResult.code} qr={voucherResult.qrCodeDataUrl} bg="dark" biz={{ name: salonName, logo: null }} />
                     </div>
-                    <Button variant={c.dark ? 'onDark' : 'cell'} className="mt-4 w-full" onClick={handleCloseVoucherSuccess}>{tt('public.success.back')}</Button>
+                    <Button variant={c.dark ? 'onDark' : 'cell'} className="mt-4 w-full" onClick={handleCloseVoucherSuccess}><Txt k="public.success.back">{tt('public.success.back')}</Txt></Button>
                   </motion.div>
                 </div>
               )}
@@ -1520,7 +1539,7 @@ export function ProfileCard({
                   <div data-edit-id="terms" className={`text-center text-ui-label ${c.meta}`}>
                     {tt('rbooking.termsPrefix')}{' '}
                     <TermsModal sections={termsSections} company={company} locale={locale} />
-                    {company?.privacy_url && <>. {tt('rbooking.privacyPrefix')}{' '}<a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{tt('rbooking.privacyLink')}</a></>}
+                    {company?.privacy_url && <>. {tt('rbooking.privacyPrefix')}{' '}<a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2"><Txt k="rbooking.privacyLink">{tt('rbooking.privacyLink')}</Txt></a></>}
                   </div>
                 )}
               </>
@@ -1528,7 +1547,7 @@ export function ProfileCard({
           </div>
         ) : null}
         {/* a kártya alján mindig a rendszer jele (design 21.1) — beágyazva linkként (ingyen marketing a beágyazó oldalról) */}
-        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1"><PoweredBy dark={c.dark} />{!embed && <CookieFooterLink dark={c.dark} onClick={openCookieSettings} />}{company?.privacy_url && <a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className={`text-ui-label ${c.dark ? 'text-white/55' : 'text-ui-muted'} underline-offset-2 outline-none hover:underline`}>{tt('public.footer.privacy')}</a>}</div>
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1"><PoweredBy dark={c.dark} />{!embed && <CookieFooterLink dark={c.dark} onClick={openCookieSettings} />}{company?.privacy_url && <a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className={`text-ui-label ${c.dark ? 'text-white/55' : 'text-ui-muted'} underline-offset-2 outline-none hover:underline`}><Txt k="public.footer.privacy">{tt('public.footer.privacy')}</Txt></a>}</div>
         {embed && (
           <a
             href={APP_URL}
