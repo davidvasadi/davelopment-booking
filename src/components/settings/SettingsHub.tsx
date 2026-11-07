@@ -27,6 +27,7 @@ import { PopupModal } from '@/components/ui/popup-modal'
 import { ANNUAL_BILLING_UI_ENABLED, applyCycle, businessMonthlyFee, monthlyEmailCapForTier } from '@/lib/tier'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, animate, motion } from 'framer-motion'
+import { SHEET_SPRING } from '@/lib/motion'
 import { toast } from 'sonner'
 import { SettingsFormContext, type GuestEmailCtl, type SettingsFormApi } from './settingsFormContext'
 import { Clock, Bell, Users, CreditCard, MoreHorizontal, ArrowLeft, Search, Settings2, Building2, Mail, Check, FileText, X, Trash2, ShieldCheck, Star, Globe as Globe2, Link2, Landmark, ChevronDown, UserRound, Wallet, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react'
@@ -384,6 +385,12 @@ export function SettingsHub({
   // mobil (design 16.20): az első képernyő a téma-lista; egy témára koppintva a lapja alulról felcsúszik (`mobileSheet`).
   // Mély-linkkel (?tab=…) érkezve rögtön a téma lapja nyílik.
   const [mobileSheet, setMobileSheet] = useState(() => !!searchParams.get('tab'))
+  // mobil: a téma lapja ugyanazzal a rugós (bounce) nyitással jön fel, mint minden más mobil lap (SHEET_MOBILE / SHEET_SPRING)
+  useEffect(() => {
+    const el = panelRef.current
+    if (!mobileSheet || !el || window.matchMedia('(min-width: 1024px)').matches) return
+    animate(el, { opacity: [0, 1], y: [70, 0], scale: [0.86, 1] }, SHEET_SPRING)
+  }, [mobileSheet])
   // ugyanazon az oldalon maradó navigáció (pl. a menü Nyitvatartás → Beállítások linkje): a komponens nem töltődik újra,
   // ezért a ?tab változását követjük — tab nélkül a téma-lista jön (mobilon), tabbal az adott téma
   const tabParam = searchParams.get('tab')
@@ -1112,7 +1119,7 @@ export function SettingsHub({
 
         {/* PANEL — az Értesítéseknél a profil-form (Értesítő sablon) a kapcsolók ALÁ kerül (order-last). */}
         {/* a Számlák mobilon teljes oldal (jobbról becsúszva), nem felcsúszó lap — fent a kereső és a szűrők ikonja */}
-        <div ref={panelRef} className={`min-w-0 ${mobileSheet ? (pageTopic ? 'max-lg:[animation:ui-slide-in_.45s_cubic-bezier(.34,1.2,.64,1)_both] max-lg:fixed max-lg:inset-0 max-lg:z-[95] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:bg-white max-lg:px-4 max-lg:pb-28' : 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup') : 'max-lg:hidden'}`} style={mobileSheet && pageTopic ? { ['--dx' as string]: '100%' } : undefined} data-lenis-prevent>
+        <div ref={panelRef} className={`min-w-0 ${mobileSheet ? (pageTopic ? 'max-lg:[animation:ui-slide-in_.45s_cubic-bezier(.34,1.2,.64,1)_both] max-lg:fixed max-lg:inset-0 max-lg:z-[95] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:bg-white max-lg:px-4 max-lg:pb-28' : 'max-lg:origin-bottom max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup') : 'max-lg:hidden'}`} style={mobileSheet && pageTopic ? { ['--dx' as string]: '100%' } : undefined} data-lenis-prevent>
           {mobileSheet && pageTopic && (
             <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center gap-2 bg-white px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
               <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" onClick={() => setMobileSheet(false)} />

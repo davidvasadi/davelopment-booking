@@ -1249,8 +1249,9 @@ export function RestaurantRulesPage({ value, onChange, tablesMax, tablesHref, sa
           : <Input size="sm" defaultValue="8 fő" className="w-[160px]" />}</FieldRow>
       </SettingsGroup>
       <SettingsGroup icon={Clock} title="Foglalási idő">
-        <FieldRow label="Maximum foglalási idő" hint={v ? 'egy foglalás legfeljebb ennyi ideig tartja az asztalt' : undefined}>{v
-          ? <Segmented tone="cell" size="sm" options={turns.map(turnLabel)} active={turns.indexOf(v.turnMinutes)} onSelect={(i) => set({ turnMinutes: turns[i] })} />
+        {/* sok opciós váltó: a felirat alatt, teljes szélességben (nem jobbra tolva) */}
+        <FieldRow stacked label="Maximum foglalási idő" hint={v ? 'egy foglalás legfeljebb ennyi ideig tartja az asztalt' : undefined}>{v
+          ? <Segmented full tone="cell" size="sm" options={turns.map(turnLabel)} active={turns.indexOf(v.turnMinutes)} onSelect={(i) => set({ turnMinutes: turns[i] })} />
           : <Input size="sm" defaultValue="2 óra" className="w-[160px]" />}</FieldRow>
         <FieldRow label="Asztalok összevonása" hint="Nagy társaságnál két asztal egybe — asztalonként állítod">{tablesHref || !v ? <Button variant="cell" size="sm" icon={ArrowUpRight} href={tablesHref}>Asztalok</Button> : null}</FieldRow>
       </SettingsGroup>
