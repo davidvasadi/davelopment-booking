@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { strictResend } from './resendClient'
 import type { Restaurant, Reservation, Media } from '@/payload/payload-types'
 import {
   emailLayout,
@@ -34,7 +35,7 @@ function getResend(): Resend | null {
     }
     return null
   }
-  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
+  if (!_resend) _resend = strictResend(process.env.RESEND_API_KEY)
   return _resend
 }
 
