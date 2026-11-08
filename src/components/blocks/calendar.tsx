@@ -99,9 +99,21 @@ const BAR_DOT = { yellow: 'bg-ui-dark', dark: 'bg-ui-bad-dot', grey: 'bg-ui-dark
 
 /** Esemény-pill a havi naptárban — a típus színével, mint a csík és a jelmagyarázat; csapat-nézetben elöl a munkatárs
  *  avatarja; középen rövid csíkos sáv, végén az időszak. */
-function MonthBarPill({ bar }: { bar: MonthBar }) {
+function MonthBarPill({ bar, mini = false }: { bar: MonthBar; /** mobil: vékony szalag — mindig felirat + időszak; 4+ napon köztük a csíkos sáv, rövidebben egy sorban, elúszva ha kell */ mini?: boolean }) {
   // egynapos esemény: csak a felirat (levágva), a csíkos sáv és az időszak nem fér el
   const one = bar.span === 1
+  if (mini) return (
+    <Pill tone={bar.tone} size="sm" className={`h-5 w-full gap-1 px-1.5 shadow-ui-float ${bar.who ? 'pl-0.5' : ''} ${bar.on ? 'ring-2 ring-ui-dark' : ''}`}>
+      {bar.who ? <Avatar size="xs" src={bar.who.src ?? null} name={bar.who.name} className="h-4 w-4" /> : <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${BAR_DOT[bar.tone]}`} />}
+      {/* egy szabály minden szalagra: felirat + időszak. 4+ napon (van hely) külön, köztük a csíkos sáv, mint desktopon;
+          rövidebben egy sorban („Műszak · 9–17 · Nov. 4–5.”), és ha nem fér ki, az egész elúszik (szalagcím) */}
+      {bar.span >= 4 ? <>
+        <MarqueeText className="flex-initial">{bar.label}</MarqueeText>
+        <span className="mx-1 h-2 min-w-2 flex-1 rounded-full opacity-60 ui-hatch" />
+        <span className="shrink-0 whitespace-nowrap opacity-70">{bar.range}</span>
+      </> : <MarqueeText className="min-w-0 flex-1">{bar.label} · {bar.range}</MarqueeText>}
+    </Pill>
+  )
   return (
     <Pill tone={bar.tone} size="sm" className={`w-full shadow-ui-float ${bar.who ? 'pl-1' : ''}`}>
       {bar.who ? <Avatar size="xs" src={bar.who.src ?? null} name={bar.who.name} className="h-5 w-5" /> : <span className={`h-2 w-2 shrink-0 rounded-full ${BAR_DOT[bar.tone]}`} />}
@@ -121,8 +133,10 @@ function MonthBarPill({ bar }: { bar: MonthBar }) {
  *  `compact` (mobil): egyforma magas cellák, a több napos esemény a napjai helyén egy kártya, a desktop sávjainak színével
  *  (műszak sárga, beteg sötét, szabadság szürke); a kiválasztott kártya és nap kerettel, a mai nap csak a sötét körrel.
  *  Élőben: `head` (ki), `total`, `month` (a hónap-választó), `segments`, `rows`, `onDay`, `onBar`. */
-export function MonthHours({ compact = false, team = false, head, total, month, segments, rows, onDay, onBar, drawKey, className = '' }: {
+export function MonthHours({ compact = false, mobile = false, team = false, head, total, month, segments, rows, onDay, onBar, drawKey, className = '' }: {
   compact?: boolean
+  /** mobil, a desktop kinézetével (design 11.7): fejléc avatarral, a napszám mindig látszik, alatta vékony szalag */
+  mobile?: boolean
   team?: boolean
   head?: React.ReactNode
   total?: React.ReactNode
@@ -144,10 +158,12 @@ export function MonthHours({ compact = false, team = false, head, total, month, 
     : <div key={key ?? i} className={cls} style={style}>{body}</div>
   return (
     <Card className={className}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      {/* mobil: felül végig a ki (avatar + név / Csapat), alatta balra a két szám egymás alatt, jobbra a hónap-választó */}
+      {mobile && <span className="mb-2 flex items-center gap-2 text-ui-meta text-ui-muted">{head ?? (team ? <>Csapat · 4 fő</> : <><Avatar size="xs" src="/landing/funkciok/csapat/avatar/viktoria.webp" className="h-5 w-5" />Viktória</>)}</span>}
+      <div className={`flex items-start justify-between gap-3 ${mobile ? '' : 'flex-wrap'}`}>
         <span>
-          {!compact && <span className="mb-2 flex items-center gap-2 text-ui-meta text-ui-muted">{head ?? (team ? <>Csapat · 4 fő</> : <><Avatar size="xs" src="/landing/funkciok/csapat/avatar/viktoria.webp" className="h-5 w-5" />Viktória</>)}</span>}
-          <span className="block text-ui-num font-light leading-none text-ui-text">{total ?? (compact ? <><span className="block">158 ó</span><span className="mt-1 block">395 000 Ft</span></> : team ? '594 ó / 1 486 000 Ft' : '158 ó / 395 000 Ft')}</span>
+          {!compact && !mobile && <span className="mb-2 flex items-center gap-2 text-ui-meta text-ui-muted">{head ?? (team ? <>Csapat · 4 fő</> : <><Avatar size="xs" src="/landing/funkciok/csapat/avatar/viktoria.webp" className="h-5 w-5" />Viktória</>)}</span>}
+          <span className="block font-light leading-none text-ui-text text-ui-num">{total ?? (compact || mobile ? <><span className="block">{team ? '594 ó' : '158 ó'}</span><span className="mt-1 block whitespace-nowrap">{team ? '1,49 M Ft' : '395 e Ft'}</span></> : team ? '594 ó / 1 486 000 Ft' : '158 ó / 395 000 Ft')}</span>
         </span>
         {month ?? <Button variant="glass">November <ChevronDown className="h-4 w-4 text-ui-muted" /></Button>}
       </div>
@@ -180,22 +196,24 @@ export function MonthHours({ compact = false, team = false, head, total, month, 
                     ? <button key={i} type="button" onClick={() => onBar(cbar.key!)} className={`${cls} text-left outline-none`} style={{ gridColumn: `span ${cbar.span}` }}>{body}</button>
                     : <div key={i} className={cls} style={{ gridColumn: `span ${cbar.span}` }}>{body}</div>
                 }
-                const cls = `relative overflow-hidden rounded-ui-control text-ui-meta ${compact ? 'h-[52px] p-1.5' : 'aspect-square p-2'} ${c.closed ? 'ui-hatch-cell-dense text-ui-bad-dot' : c.out ? 'ui-hatch-lines-dense text-ui-muted' : c.selected ? 'bg-white text-ui-dark' : 'bg-ui-cell text-ui-dark'} ${c.today && !compact ? 'ring-2 ring-ui-dark' : ''} ${compact && c.selected ? 'ring-2 ring-inset ring-ui-dark' : ''}`
+                const cls = `relative overflow-hidden rounded-ui-control ${mobile ? 'h-[54px] p-1.5 text-ui-label' : 'text-ui-meta'} ${mobile ? '' : compact ? 'h-[52px] p-1.5' : 'aspect-square p-2'} ${c.closed ? 'ui-hatch-cell-dense text-ui-bad-dot' : c.out ? 'ui-hatch-lines-dense text-ui-muted' : c.selected ? 'bg-white text-ui-dark' : 'bg-ui-cell text-ui-dark'} ${c.today && !compact ? 'ring-2 ring-ui-dark' : ''} ${(compact || mobile) && c.selected ? 'ring-2 ring-inset ring-ui-dark' : ''}`
                 return cellBtn(c.key, cls, <>
                   {c.today ? <IconCircle size="xs">{c.n}</IconCircle> : c.n}
                   {/* csapat-nézet: munkanapon hány fő dolgozik — sárga, mint mindenhol a munka */}
-                  {c.count != null && !compact && <Pill tone="yellow" size="sm" className="absolute right-1.5 top-1.5">{c.count} fő</Pill>}
+                  {c.count != null && !compact && !mobile && <Pill tone="yellow" size="sm" className="absolute right-1.5 top-1.5">{c.count} fő</Pill>}
+                  {/* mobil: a napi létszám kicsiben a jobb felső sarokban — a dátum mellett, a szalag fölött */}
+                  {c.count != null && mobile && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ui-yellow px-1 text-ui-label leading-none text-ui-dark">{c.count}</span>}
                   {/* mobil (csapat): a napi létszám kicsiben — sárga számláló a jobb alsó sarokban, a dátumot nem takarja */}
                   {c.count != null && compact && <span className="absolute bottom-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ui-yellow px-1 text-ui-label leading-none text-ui-dark">{c.count}</span>}
-                  {c.closed && !compact && <span className="absolute inset-x-2 bottom-1.5 line-clamp-2 text-ui-label leading-tight">{c.closed}</span>}
+                  {c.closed && !compact && !mobile && <span className="absolute inset-x-2 bottom-1.5 line-clamp-2 text-ui-label leading-tight">{c.closed}</span>}
                   {c.weekend && !c.out && !c.closed && <span className="absolute inset-x-0 bottom-0 h-1/2 opacity-60 ui-hatch-cell-dense" />}
                 </>, undefined, i)
               })}
               {!compact && laned(w.bars).map(({ bar, lane }, bi) => (
-                <div key={`${drawKey ?? ''}|${bar.key ?? bi}`} className={`absolute inset-x-0 grid grid-cols-7 gap-1 ${onBar && bar.key ? '' : 'pointer-events-none'} ${lane ? 'bottom-[38px]' : 'bottom-2'}`}>
+                <div key={`${drawKey ?? ''}|${bar.key ?? bi}`} className={`absolute inset-x-0 grid grid-cols-7 gap-1 ${onBar && bar.key ? '' : 'pointer-events-none'} ${mobile ? (lane ? 'bottom-[26px]' : 'bottom-1') : lane ? 'bottom-[38px]' : 'bottom-2'}`}>
                   {/* a sáv balról jobbra kirajzolódik (mint a csík pilljei), hetenként kicsit később */}
                   <div className="ui-draw-x" style={{ gridColumn: `${bar.from + 1} / span ${bar.span}`, ['--i' as string]: wi }}>
-                    {onBar && bar.key ? <button type="button" onClick={() => onBar(bar.key!)} className="block w-full rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><MonthBarPill bar={bar} /></button> : <MonthBarPill bar={bar} />}
+                    {onBar && bar.key ? <button type="button" onClick={() => onBar(bar.key!)} className="block w-full rounded-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><MonthBarPill bar={bar} mini={mobile} /></button> : <MonthBarPill bar={bar} mini={mobile} />}
                   </div>
                 </div>
               ))}
@@ -206,10 +224,16 @@ export function MonthHours({ compact = false, team = false, head, total, month, 
       {!compact && (
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-ui-divider pt-3 text-ui-label text-ui-muted">
           <Legend items={team ? [['bg-ui-yellow', 'Dolgozik (fő)'], ['bg-ui-dark', 'Beteg'], ['bg-white', 'Szabadság']] : [['bg-ui-yellow', 'Műszak'], ['bg-ui-dark', 'Beteg'], ['bg-white', 'Szabadság']]} />
+          {/* mobil: a csíkos jelölés egy tétel (szabadnap, hétvége, zárva), a „Ma” nem kell — két sorban elfér */}
+          {mobile ? <>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control bg-ui-cell" />Munkanap</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell-dense" />Szabadnap / zárva</span>
+          </> : <>
           <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell-dense" />Szabadnap / hétvége</span>
           <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control bg-ui-cell" />Munkanap</span>
           <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell-dense" /><span className="text-ui-bad-dot">1</span>Zárva (ünnepnap)</span>
           <span className="flex items-center gap-1.5"><IconCircle tone="dark" size="xs">{weeks.flatMap((w) => w.cells).find((c) => c.today)?.n ?? 5}</IconCircle>Ma</span>
+          </>}
         </div>
       )}
     </Card>
@@ -360,7 +384,7 @@ export function WeekSchedule({ compact = false, range = 'Nov. 3–9.', onStep, t
               <MarqueeText className="text-ui-body text-ui-text max-sm:hidden">{r.name}</MarqueeText>
             </span>
             {r.d.slice(0, n).map((c, i) => {
-              const cls = `flex h-11 items-center justify-center overflow-hidden rounded-ui-control text-ui-meta ${c === 'B' || c === 'S' ? 'max-sm:text-ui-label' : ''} ${c === 'X' ? 'ui-hatch-cell-dense' : c === 'B' ? 'bg-ui-dark text-white' : c === 'S' ? 'bg-white text-ui-dark ring-1 ring-inset ring-ui-divider' : 'bg-ui-yellow text-ui-dark'} ${i === todayIdx ? 'ring-1 ring-ui-dark/30' : ''}`
+              const cls = `flex h-11 items-center justify-center overflow-hidden rounded-ui-control ${c === 'B' || c === 'S' ? (compact ? 'px-1 text-ui-label' : 'text-ui-meta max-sm:text-ui-label') : 'text-ui-meta'} ${c === 'X' ? 'ui-hatch-cell-dense' : c === 'B' ? 'bg-ui-dark text-white' : c === 'S' ? 'bg-white text-ui-dark ring-1 ring-inset ring-ui-divider' : 'bg-ui-yellow text-ui-dark'} ${i === todayIdx ? 'ring-1 ring-ui-dark/30' : ''}`
               const body = c === 'X' ? '' : c === 'B' ? 'Beteg' : c === 'S' ? 'Szabadság' : c
               return onCell
                 ? <button key={`${range}|${i}`} type="button" onClick={() => onCell(r.id, i)} style={slide.style} className={`${cls} ${slide.cls} outline-none transition-[filter] hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ui-dark/20`}>{body}</button>

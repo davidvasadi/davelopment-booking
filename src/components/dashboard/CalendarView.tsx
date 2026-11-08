@@ -57,6 +57,9 @@ interface Props {
   showPayroll?: boolean
 }
 
+/** mobilon a nagy összeg rövidítve, hogy két sorban elférjen: 395 000 → „395 e Ft”, 1 486 000 → „1,49 M Ft” */
+const shortFt = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2).replace(/\.?0+$/, '').replace('.', ',')} M Ft` : n >= 100_000 ? `${Math.round(n / 1000)} e Ft` : `${thousands(n)} Ft`
+
 export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, dailyTips = {}, closedDates = [], closedWeekdays = [], canManage = true, myStaffId, staffPageHref = null, initialDate, pay = {}, showPayroll = false }: Props) {
   const isRestaurant = variant === 'restaurant'
   const router = useRouter()
@@ -533,7 +536,8 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
     if (canManage) editActionRef.current = detail ? () => editBar(detail) : () => (sel ? openDay(dayKey, sel.id) : setNewShift(dayKey))
     const mobile = (
       <div className="lg:hidden">
-        <MonthHours compact team={team} total={<><span className="block">{thousands(work + sick + leave)} ó</span><span className="mt-1 block">{thousands(money)} Ft</span></>} month={monthMenu} segments={segs}
+        <MonthHours mobile team={team} total={<><span className="block">{thousands(work + sick + leave)} ó</span><span className="mt-1 block whitespace-nowrap">{shortFt(money)}</span></>} month={monthMenu} segments={segs}
+          head={team ? <>Csapat · {visibleStaff.length} fő</> : <><Avatar size="xs" src={sel.avatarUrl ?? null} name={sel.name} className="h-5 w-5" />{sel.name}</>}
           rows={rows.map((r) => ({ ...r, cells: detail ? r.cells.map((c) => ({ ...c, selected: false })) : r.cells, bars: r.bars.map((b) => ({ ...b, on: b.key === detail })) }))}
           // csapat-nézetben a távollét-kártya a napjait takarja: rákoppintva a kártya kezdőnapja is kiválasztódik, és
           // alatta ugyanúgy látszik, ki dolgozik aznap
