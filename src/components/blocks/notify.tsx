@@ -1,4 +1,4 @@
-import { Bell, CalendarClock, CalendarDays, Check, CheckCheck, Gift, Settings, Star, Trash2, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeftRight, Bell, CalendarClock, CalendarDays, Check, Lightbulb, CheckCheck, Gift, Settings, Star, Trash2, X, type LucideIcon } from 'lucide-react'
 import { Button, Card, CardTitle, IconButton, IconCircle, ListRow, Meta, PageHead, Panel, Pill, Segmented, MarqueeText } from '@/components/ui-kit'
 import type { CircleTone } from '@/components/ui-kit'
 
@@ -67,6 +67,8 @@ const SAMPLE_INBOX: InboxGroup[] = [
   { label: 'Tegnap', rows: [
     { id: '4', icon: CalendarClock, tone: 'warn', title: 'Foglalás módosítva', body: 'Balázs Noémi · Nov. 7. 18:00 → 18:30', when: '18:23', unread: false },
     { id: '5', icon: Star, tone: 'cell', title: 'Új Google-értékelés ★★★★★', body: '„Viktória csodát művelt a hajammal…”', when: '09:12', unread: false },
+    { id: '6', icon: ArrowLeftRight, tone: 'warn', title: 'Beosztás módosítva', body: 'Nagy Eszter · Nov. 9. 9:00–17:00 → 10:00–18:00', when: '08:40', unread: false },
+    { id: '7', icon: Lightbulb, tone: 'cell', title: 'Heti tipp', body: 'Kapcsold be az emlékeztetőt — kevesebb lesz a meg nem jelenés.', when: '08:00', unread: false },
   ] },
 ]
 export function NotificationsInbox({ groups = SAMPLE_INBOX, total = 5, unread = 2, approvals = 1, filter = 0, onFilter, onReadAll, onClearAll, settingsHref, empty = false, className = '' }: {

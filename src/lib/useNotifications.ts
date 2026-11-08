@@ -2,7 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sun, Moon, CalendarRange, MailWarning, Mail, Megaphone, type LucideIcon } from 'lucide-react'
+import { CalendarCheck, CalendarX, CalendarClock, CalendarRange, UserPlus, Sparkles, Sun, Moon, MailWarning, Mail, Megaphone, BriefcaseBusiness, ArrowLeftRight, UserRoundX, Users, Gift, Lightbulb, Hourglass, ShieldAlert, TriangleAlert, Bell, type LucideIcon } from 'lucide-react'
 import type { CircleTone } from '@/components/ui-kit'
 
 export type Notification = {
@@ -48,15 +48,18 @@ export type DigestMetadata = {
 export function notificationVisual(type: Notification['type'], metadata?: Record<string, unknown> | null): { Icon: LucideIcon; tone: CircleTone; color: string; bg: string } {
   // a design (/design 17.2) színei: új foglalás sárga, lemondás piros, módosítás narancs, minden más semleges.
   // `tone`: a kit kör-tónusa (Értesítések oldal); `color` / `bg`: osztályként a fiók-menü saját köréhez.
-  const NEW = { tone: 'yellow' as const, color: 'text-ui-dark', bg: 'bg-ui-yellow' }, BAD = { tone: 'bad' as const, color: 'text-ui-bad', bg: 'bg-ui-bad-bg' }, WARN = { tone: 'warn' as const, color: 'text-ui-warn', bg: 'bg-ui-warn-bg' }, NEUTRAL = { tone: 'cell' as const, color: 'text-ui-text', bg: 'bg-white' }
+  const NEW = { tone: 'yellow' as const, color: 'text-ui-dark', bg: 'bg-ui-yellow' }, BAD = { tone: 'bad' as const, color: 'text-ui-bad', bg: 'bg-ui-bad-bg' }, WARN = { tone: 'warn' as const, color: 'text-ui-warn', bg: 'bg-ui-warn-bg' }, NEUTRAL = { tone: 'cell' as const, color: 'text-ui-text', bg: 'bg-ui-cell' }
+  // ikon típusonként, hogy egy pillantásra látszódjon, miről szól (nem minden naptár): beosztás = munkatárs/műszak,
+  // tipp = izzó, utalvány = ajándék, próbaidő = homokóra, vita / csalás = pajzs / figyelmeztetés.
   if (type === 'schedule_change') {
     const event = metadata?.event as string | undefined
-    if (event === 'deleted')  return { Icon: CalendarX, ...BAD }
-    if (event === 'modified') return { Icon: CalendarClock, ...WARN }
-    if (event === 'created')  return { Icon: CalendarPlus, ...NEW }
-    return { Icon: CalendarRange, ...NEUTRAL }
+    if (event === 'deleted')  return { Icon: UserRoundX, ...BAD }
+    if (event === 'modified') return { Icon: ArrowLeftRight, ...WARN }
+    if (event === 'created')  return { Icon: BriefcaseBusiness, ...NEW }
+    return { Icon: Users, ...NEUTRAL }
   }
   switch (type) {
+    case 'new_booking':      return { Icon: CalendarCheck, ...NEW }
     case 'cancellation':     return { Icon: CalendarX, ...BAD }
     case 'modification':     return { Icon: CalendarClock, ...WARN }
     case 'new_signup':       return { Icon: UserPlus, ...NEUTRAL }
@@ -64,9 +67,15 @@ export function notificationVisual(type: Notification['type'], metadata?: Record
     case 'digest_morning':   return { Icon: Sun, ...NEW }
     case 'digest_evening':   return { Icon: Moon, tone: 'dark', color: 'text-white', bg: 'bg-ui-dark' }
     case 'email_not_opened': return { Icon: MailWarning, ...WARN }
+    case 'voucher_purchase': return { Icon: Gift, ...NEUTRAL }
     case 'contact_message':  return { Icon: Mail, ...NEUTRAL }
     case 'admin_broadcast':  return { Icon: Megaphone, ...NEUTRAL }
-    default:                 return { Icon: CalendarPlus, ...NEW }
+    case 'weekly_tip':       return { Icon: Lightbulb, ...NEUTRAL }
+    case 'trial_ending':     return { Icon: Hourglass, ...WARN }
+    case 'dispute_created':  return { Icon: ShieldAlert, ...BAD }
+    case 'fraud_warning':    return { Icon: TriangleAlert, ...BAD }
+    case 'booking_window':   return { Icon: CalendarRange, ...NEUTRAL }
+    default:                 return { Icon: Bell, ...NEUTRAL }
   }
 }
 

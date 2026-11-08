@@ -394,7 +394,7 @@ export function UserMenu({
 function NotificationRow({ n, onOpen, onRemove, onHandled }: { n: Notification; onOpen: () => void; onRemove: () => void; onHandled?: () => void }) {
   const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   return (
-    <div className={cn('group mb-1 flex items-start gap-3 rounded-ui-inner px-3 py-3 transition-colors hover:bg-ui-cell/60', !n.read && 'bg-ui-cell/40')}>
+    <div className={cn('group mb-1 flex items-start gap-3 rounded-ui-inner px-3 py-3 transition-colors hover:bg-ui-cell')}>
       <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', bg)}>
         <Icon className={cn('h-4 w-4', color)} strokeWidth={1.8} />
       </span>
@@ -437,7 +437,7 @@ function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: 
   }
 
   return (
-    <div className={cn('group relative mb-1 cursor-pointer rounded-ui-inner transition-colors', n.read ? 'hover:bg-ui-cell/60' : 'bg-ui-cell/40 hover:bg-ui-cell/60')} onClick={openSheet}>
+    <div className={cn('group relative mb-1 cursor-pointer rounded-ui-inner transition-colors hover:bg-ui-cell')} onClick={openSheet}>
       <div className="flex items-start gap-3 px-3 py-3">
         <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', bg)}>
           <Icon className={cn('h-4 w-4', color)} strokeWidth={1.8} />
