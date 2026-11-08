@@ -23,6 +23,8 @@ import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { filterAllowedEmails, isBookingNotifyLevelOff } from './emailNotifPrefs'
 import { brandImageAbs, type BrandPlace } from './brandImage'
+import { voucherEmailRows } from './emailVoucher'
+import type { VoucherDesign } from './voucherDesign'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -433,28 +435,23 @@ export interface VoucherEmailData {
   recipientName?: string | null
   recipientEmail?: string | null
   message?: string | null
+  /** a típus sablonja (forma, szín, szöveg, kép) — ezzel készül a jegy a levélben */
+  design?: VoucherDesign | null
+  /** a típus saját képe (abszolút URL) */
+  photoUrl?: string | null
+  expiresAt?: string | null
 }
 
 function voucherHtml(data: VoucherEmailData, forRecipient: boolean): string {
-  const subtitle = forRecipient
-    ? `${data.purchaserName} ajándékutalvánnyal lepett meg — ${data.salon.name}-nél váltható be.`
-    : `Köszönjük a vásárlást — az utalvány kódját alább, illetve a mellékelt QR-kóddal is átadhatod.`
-  return wrap(data.salon, `
-    ${heroBlock({
-      icon: 'success',
-      title: forRecipient ? 'Ajándékutalványt kaptál!' : 'Ajándékutalvány megvásárolva',
-      subtitle,
-    })}
-    ${detailsCard([
-      infoRow('sparkle', 'Kód', data.code),
-      infoRow('note', 'Összeg', formatPrice(data.amountHuf, 'HUF')),
-      ...(data.message ? [infoRow('mail', 'Üzenet', escapeHtml(data.message))] : []),
-    ].join(''))}
-    <tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-        <img src="${data.qrCodeDataUrl}" width="180" height="180" alt="QR-kód a beváltáshoz" style="display:inline-block;border-radius:12px" />
-      </td>
-    </tr>
+  const biz = data.salon
+  // a jegy a levélben (lib/emailVoucher) — a QR rendes képlinkként, mert a Gmail a beágyazott képet nem mutatja
+  return wrap(biz, `
+    ${voucherEmailRows({
+      appUrl: APP_URL, forRecipient, restaurant: false, bizName: biz.name, bizSlug: biz.slug,
+      bizImg: brandImageAbs(biz as BrandPlace, 'voucher', APP_URL, data.design?.brand),
+      design: data.design, photo: data.photoUrl, code: data.code, amount: formatPrice(data.amountHuf, 'HUF'), expiresAt: data.expiresAt,
+      purchaserName: data.purchaserName, recipientName: data.recipientName, message: data.message,
+    }, { heroBlock, detailsCard, infoRow, surface: COLORS.surface })}
     ${bottomSpacer()}
   `)
 }

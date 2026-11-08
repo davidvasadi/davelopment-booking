@@ -1,6 +1,7 @@
 import { SHEET_ROW } from './assets'
 import { QrSvg } from './qr'
 import QRCode from 'qrcode'
+import { vtxt } from '@/lib/voucherText'
 import { vatFromTaxNumber } from '@/lib/vatFromTaxNumber'
 import { DarkLineChart } from './charts'
 import { BIZ_LOGO, PoweredBy } from './brand'
@@ -493,16 +494,6 @@ const VQR_INK: Partial<Record<keyof typeof VBG, string>> = {
 }
 
 /** Az utalvány szövegei a vásárló nyelvén (a jegyet külföldi is kaphatja) — a többi szöveg a vezérlőpulton magyar. */
-type VLang = 'hu' | 'en' | 'de' | 'fr' | 'es' | 'it'
-const VTXT: Record<VLang, { gift: string; forTo: (n: string) => string; expires: string; code: string; to: string; salon: string; rest: string; redeem: (w: string) => string; redeemShort: (w: string) => string; show: (w: string) => string; system: string }> = {
-  hu: { gift: 'Ajándékutalvány', forTo: (n) => `${n} részére`, expires: 'Lejár', code: 'Kód', to: 'Kinek', salon: 'a szalonban', rest: 'az étteremben', redeem: (w) => `Beváltható ${w} vagy online foglaláskor.`, redeemShort: (w) => `beváltható ${w}`, show: (w) => `Mutasd fel ${w}, vagy add meg online foglaláskor.`, system: 'Foglalási rendszer:' },
-  en: { gift: 'Gift voucher', forTo: (n) => `for ${n}`, expires: 'Expires', code: 'Code', to: 'For', salon: 'at the salon', rest: 'at the restaurant', redeem: (w) => `Redeemable ${w} or when booking online.`, redeemShort: (w) => `redeemable ${w}`, show: (w) => `Show it ${w}, or enter it when booking online.`, system: 'Booking system:' },
-  de: { gift: 'Geschenkgutschein', forTo: (n) => `für ${n}`, expires: 'Gültig bis', code: 'Code', to: 'Für', salon: 'im Salon', rest: 'im Restaurant', redeem: (w) => `Einlösbar ${w} oder bei der Online-Buchung.`, redeemShort: (w) => `einlösbar ${w}`, show: (w) => `Zeige ihn ${w} vor oder gib ihn bei der Online-Buchung ein.`, system: 'Buchungssystem:' },
-  fr: { gift: 'Bon cadeau', forTo: (n) => `pour ${n}`, expires: 'Expire le', code: 'Code', to: 'Pour', salon: 'au salon', rest: 'au restaurant', redeem: (w) => `Utilisable ${w} ou lors de la réservation en ligne.`, redeemShort: (w) => `utilisable ${w}`, show: (w) => `Présente-le ${w} ou saisis-le lors de la réservation en ligne.`, system: 'Système de réservation :' },
-  es: { gift: 'Tarjeta regalo', forTo: (n) => `para ${n}`, expires: 'Caduca', code: 'Código', to: 'Para', salon: 'en el salón', rest: 'en el restaurante', redeem: (w) => `Canjeable ${w} o al reservar en línea.`, redeemShort: (w) => `canjeable ${w}`, show: (w) => `Muéstrala ${w} o introdúcela al reservar en línea.`, system: 'Sistema de reservas:' },
-  it: { gift: 'Buono regalo', forTo: (n) => `per ${n}`, expires: 'Scade il', code: 'Codice', to: 'Per', salon: 'in salone', rest: 'al ristorante', redeem: (w) => `Utilizzabile ${w} o prenotando online.`, redeemShort: (w) => `utilizzabile ${w}`, show: (w) => `Mostralo ${w} o inseriscilo prenotando online.`, system: 'Sistema di prenotazione:' },
-}
-const vtxt = (lang?: string | null) => VTXT[(lang && lang in VTXT ? lang : 'hu') as VLang]
 
 /** Beolvasható minta-QR (a mintakódhoz, a /design-ban) — átlátszó hátterű SVG data-URL, mint a valódi (lib/voucherQr). */
 const sampleQrCache = new Map<string, string>()

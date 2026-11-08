@@ -8,6 +8,7 @@ import { sendVoucherPurchaseEmail as sendRestaurantVoucherPurchaseEmail, sendVou
 import type { Salon, Restaurant, GiftVoucherType } from '@/payload/payload-types'
 import { isForeignCountry } from './countries'
 import { brandImage, type BrandPlace } from './brandImage'
+import { voucherDesign } from './voucherDesign'
 
 /**
  * A ténylegesen kifizetett (vagy helyszínen készpénzben/kártyával átvett) ajándékutalvány
@@ -19,6 +20,9 @@ import { brandImage, type BrandPlace } from './brandImage'
  * hívó a SAJÁT útján már megbizonyosodott arról, hogy a fizetés valós/rendben van — ez a
  * függvény már nem ellenőriz semmit, csak létrehoz.
  */
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+const absUrl = (u: string) => (u.startsWith('http') ? u : `${APP_URL}${u}`)
+
 export async function createGiftVoucher(params: {
   kind: 'salon' | 'restaurant'
   business: Salon | Restaurant
@@ -103,6 +107,10 @@ export async function createGiftVoucher(params: {
     purchaserName: buyer.name, purchaserEmail: buyer.email,
     recipientName: recipient?.name || null, recipientEmail: recipient?.email || null,
     message: recipient?.message || null,
+    // a levélbe kerülő jegy: a típus sablonja és képe (lib/emailVoucher)
+    design: voucherDesign(voucherType?.card_layout, voucherType?.card_color, voucherType?.card_text, voucherType?.card_brand),
+    photoUrl: voucherType?.image && typeof voucherType.image === 'object' && voucherType.image.url ? absUrl(fixMediaUrl(voucherType.image.url) ?? voucherType.image.url) : null,
+    expiresAt: expiresAt.toISOString(),
   }
   if (kind === 'salon') {
     void sendVoucherPurchaseEmail({ salon: business as Salon, ...emailData })

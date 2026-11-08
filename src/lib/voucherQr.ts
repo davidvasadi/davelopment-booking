@@ -25,6 +25,13 @@ export function voucherBookingRedeemUrl(slug: string, code: string): string {
  * használunk, hogy a középső takarás (~22%) ne rontsa a beolvashatóságot.
  */
 export async function generateVoucherQrDataUrl(slug: string, code: string, logoUrl?: string | null): Promise<string> {
+  const pngBuffer = await generateVoucherQrPng(slug, code, logoUrl)
+  return `data:image/png;base64,${pngBuffer.toString('base64')}`
+}
+
+/** Ugyanez PNG-ként (a levélbe linkkel kerül — a Gmail a data-URL-es képet nem mutatja). `ink`: a modulok színe
+ *  (a levélbe kerülő jegyen a kártya színéhez illik: sötét kártyán világos). */
+export async function generateVoucherQrPng(slug: string, code: string, logoUrl?: string | null, ink = '#181818'): Promise<Buffer> {
   const qr = QRCode.create(voucherDisplayUrl(slug, code), { errorCorrectionLevel: logoUrl ? 'H' : 'M' })
   const { modules } = qr
   const size = modules.size
@@ -40,7 +47,7 @@ export async function generateVoucherQrDataUrl(slug: string, code: string, logoU
       if (modules.get(y, x)) {
         const px = (x + quiet) * cell
         const py = (y + quiet) * cell
-        dots += `<rect x="${px}" y="${py}" width="${cell}" height="${cell}" rx="${dotRadius}" ry="${dotRadius}" fill="#181818"/>`
+        dots += `<rect x="${px}" y="${py}" width="${cell}" height="${cell}" rx="${dotRadius}" ry="${dotRadius}" fill="${ink}"/>`
       }
     }
   }
@@ -74,6 +81,5 @@ export async function generateVoucherQrDataUrl(slug: string, code: string, logoU
     }
   }
 
-  const pngBuffer = await image.png().toBuffer()
-  return `data:image/png;base64,${pngBuffer.toString('base64')}`
+  return image.png().toBuffer()
 }
