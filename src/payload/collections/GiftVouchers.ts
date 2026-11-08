@@ -65,6 +65,7 @@ export const GiftVouchers: CollectionConfig = {
   fields: [
     { name: 'restaurant', type: 'relationship', relationTo: 'restaurants', label: 'Étterem' },
     { name: 'salon', type: 'relationship', relationTo: 'salons', label: 'Szalon' },
+    { name: 'vat_mode', type: 'text', label: 'ÁFA', admin: { readOnly: true, description: "'redemption': eladáskor áfa nélkül, az ÁFA a beváltáskor; üres: régi (eladáskor áfás)." } },
     { name: 'voucher_type', type: 'relationship', relationTo: 'gift-voucher-types', label: 'Utalvány-típus', admin: { readOnly: true } },
     { name: 'type_name', type: 'text', label: 'Típus neve (pillanatkép)', admin: { readOnly: true } },
     { name: 'code', type: 'text', required: true, unique: true, label: 'Kód', admin: { readOnly: true } },

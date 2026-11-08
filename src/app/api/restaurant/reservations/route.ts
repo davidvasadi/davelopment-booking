@@ -13,6 +13,7 @@ import { isWithinBookingWindow } from '@/lib/bookingWindow'
 import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Restaurant, Reservation } from '@/payload/payload-types'
 import { isBusinessLocked, LOCKED_ERROR } from '@/lib/businessLock'
+import { isForeignCountry, normalizeCountry } from '@/lib/countries'
 
 const schema = z.object({
   restaurantId: z.coerce.string(),
@@ -25,6 +26,8 @@ const schema = z.object({
   customer_city: z.string().max(120).optional(),
   customer_address: z.string().max(200).optional(),
   customer_tax_number: z.string().max(30).optional(),
+  /** számlázási ország (ISO) — a `country` a telefonszám országa, ez a számláé */
+  customer_country: z.string().max(2).optional(),
   country: z.string().max(60).optional(),
   notes: z.string().max(1000).optional(),
   occasion: z.string().max(80).optional(),
@@ -68,7 +71,10 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number: taxIn, customer_country: countryIn, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  // számlázási ország; külföldi vevő csak magánszemélyként — az adószámot ilyenkor eldobjuk (lib/countries)
+  const customer_country = normalizeCountry(countryIn) ?? undefined
+  const customer_tax_number = isForeignCountry(customer_country) ? undefined : taxIn
 
   try {
     const payload = await getPayloadClient()
@@ -243,6 +249,7 @@ export async function POST(request: NextRequest) {
           ...(customer_city ? { customer_city } : {}),
           ...(customer_address ? { customer_address } : {}),
           ...(customer_tax_number ? { customer_tax_number } : {}),
+          ...(customer_country ? { customer_country } : {}),
           ...(country ? { country } : {}),
           ...(notes ? { notes } : {}),
           ...(occasion ? { occasion } : {}),
@@ -253,7 +260,7 @@ export async function POST(request: NextRequest) {
           ...(seriesId ? { series_id: seriesId } : {}),
           // Az előleg-kötelezettség FÁZIS 1-ben csak az ELSŐ (kért) alkalomra vonatkozik.
           ...(d === date && depositRequired
-            ? { payment_gateway: 'stripe' as const, payment_status: 'paid' as const, deposit_amount_huf: depositHuf ?? undefined, deposit_paid: true, payment_intent_id }
+            ? { payment_gateway: 'stripe' as const, payment_status: 'paid' as const, deposit_amount_huf: depositHuf ?? undefined, deposit_paid: true, deposit_kind: 'foglalo', payment_intent_id }
             : {}),
           ...(d === date && voucher ? { voucher_code: voucher.code, voucher_discount_huf: voucher.amount_huf } : {}),
           ...(d === date && consentRequired
@@ -302,8 +309,11 @@ export async function POST(request: NextRequest) {
         id: reservation.id,
         invoiceSettings: restaurant.invoice_settings,
         sellerTaxNumber: restaurant.tax_number,
-        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number },
-        label: `Előleg — ${restaurant.name} · ${date} · ${pax} fő`,
+        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number, country: customer_country },
+        // foglaló: áfa nélküli (TAHK) — megjelenéskor beszámít a végösszegbe, az ÁFA az étterem végszámláján (docs/manual)
+        label: isForeignCountry(customer_country) ? `Booking deposit — ${restaurant.name} · ${date} · ${pax} ${pax === 1 ? 'guest' : 'guests'} (outside the scope of VAT)` : `Foglaló — ${restaurant.name} · ${date} · ${pax} fő (ÁFA tv. hatályán kívül)`,
+        vatOverride: 'TAHK',
+        note: isForeignCountry(customer_country) ? 'The deposit is deducted from the final bill; VAT is charged on the final invoice.' : 'A foglaló megjelenéskor beszámít a végösszegbe; az ÁFA a végszámlán kerül felszámításra.',
         grossHuf: depositHuf,
         orderRef: String(payment_intent_id),
       })

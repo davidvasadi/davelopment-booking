@@ -20,6 +20,8 @@
  * számlaszámot; hiba esetén az `szlahu_error_code`/`szlahu_error` fejlécekben.
  */
 
+import { countryName, isForeignCountry, normalizeCountry } from './countries'
+
 const AGENT_URL = 'https://www.szamlazz.hu/szamla/'
 
 export interface InvoiceBuyer {
@@ -29,11 +31,15 @@ export interface InvoiceBuyer {
   city?: string | null
   address?: string | null
   taxNumber?: string | null // adószám (cégeknél); AAM magánszemélynél üres
+  /** ISO országkód (lib/countries) — üres = Magyarország */
+  country?: string | null
 }
 
 export interface InvoiceLine {
   label: string // tétel megnevezése (pl. „davelopment booking előfizetés — havi")
   grossHuf: number // bruttó = nettó AAM-nél (0% ÁFA)
+  /** a tétel saját ÁFA-kulcsa (pl. TAHK: utalvány / foglaló) — alapból a számláé */
+  vat?: InvoiceVat
 }
 
 export interface CreateInvoiceParams {
@@ -54,11 +60,15 @@ export interface CreateInvoiceParams {
   paymentMethod?: InvoicePaymentMethod
   /** ÁFA-kulcs — alapból AAM (a platform saját előfizetés-számlái így mennek) */
   vat?: InvoiceVat
+  /** a megjegyzésbe (pl. „Ebből foglalóval kiegyenlítve: 5 000 Ft”) */
+  note?: string
 }
 
 export type InvoicePaymentMethod = 'card' | 'cash' | 'transfer'
 /** A számla ÁFA-kulcsa — a kiállító adószámából (lib/vatFromTaxNumber): alanyi adómentes vagy 27%. */
-export type InvoiceVat = 'AAM' | '27'
+/** TAHK: „ÁFA tv. tárgyi hatályán kívül” — a többcélú utalvány eladása és a foglaló befizetése (az ÁFA a beváltáskor /
+ *  a végszámlán keletkezik; docs/manual). */
+export type InvoiceVat = 'AAM' | '27' | 'TAHK'
 /** bruttóból nettó + ÁFA (27%-nál a bruttó marad pontosan az, amit a vendég fizetett) */
 export function splitGross(grossHuf: number, vat: InvoiceVat = 'AAM'): { net: number; vatHuf: number; gross: number } {
   const gross = Math.round(grossHuf)
@@ -69,9 +79,9 @@ export function splitGross(grossHuf: number, vat: InvoiceVat = 'AAM'): { net: nu
 const FIZMOD: Record<InvoicePaymentMethod, string> = { card: 'bankkártya', cash: 'készpénz', transfer: 'átutalás' }
 /** A számla megjegyzése: Stripe-azonosító csak valódi Stripe-fizetésnél (a helyszíni
  *  kiállítás belső `manual-…` azonosítója nem Stripe). */
-export function invoiceComment(orderRef?: string): string {
+export function invoiceComment(orderRef?: string, en = false): string {
   if (!orderRef) return ''
-  return orderRef.startsWith('manual-') ? 'Helyszíni kiállítás' : `Stripe: ${orderRef}`
+  return orderRef.startsWith('manual-') ? (en ? 'Issued on site' : 'Helyszíni kiállítás') : `Stripe: ${orderRef}`
 }
 
 export type CreateInvoiceResult =
@@ -117,13 +127,14 @@ function buildXml(params: CreateInvoiceParams, now: Date): string {
 
   const tetelek = params.lines
     .map((l) => {
-      const { net, vatHuf, gross } = splitGross(l.grossHuf, params.vat) // AAM: nettó = bruttó; 27%: a bruttóból visszafelé
+      const v = l.vat ?? params.vat
+      const { net, vatHuf, gross } = splitGross(l.grossHuf, v) // AAM / TAHK: nettó = bruttó; 27%: a bruttóból visszafelé
       return `    <tetel>
       <megnevezes>${xe(l.label)}</megnevezes>
       <mennyiseg>1</mennyiseg>
       <mennyisegiEgyseg>db</mennyisegiEgyseg>
       <nettoEgysegar>${net}</nettoEgysegar>
-      <afakulcs>${params.vat === '27' ? '27' : 'AAM'}</afakulcs>
+      <afakulcs>${v === '27' ? '27' : v === 'TAHK' ? 'TAHK' : 'AAM'}</afakulcs>
       <nettoErtek>${net}</nettoErtek>
       <afaErtek>${vatHuf}</afaErtek>
       <bruttoErtek>${gross}</bruttoErtek>
@@ -145,13 +156,13 @@ function buildXml(params: CreateInvoiceParams, now: Date): string {
     <fizetesiHataridoDatum>${date}</fizetesiHataridoDatum>
     <fizmod>${FIZMOD[params.paymentMethod ?? 'card']}</fizmod>
     <penznem>HUF</penznem>
-    <szamlaNyelve>hu</szamlaNyelve>
-    <megjegyzes>${xe(invoiceComment(params.orderRef))}</megjegyzes>
+    <szamlaNyelve>${isForeignCountry(params.buyer.country) ? 'en' : 'hu'}</szamlaNyelve>
+    <megjegyzes>${xe([invoiceComment(params.orderRef, isForeignCountry(params.buyer.country)), params.note].filter(Boolean).join(' · '))}</megjegyzes>
     <fizetve>${params.paid ? 'true' : 'false'}</fizetve>
   </fejlec>
   <elado></elado>
   <vevo>
-    <nev>${xe(params.buyer.name)}</nev>
+    <nev>${xe(params.buyer.name)}</nev>${isForeignCountry(params.buyer.country) ? `\n    <orszag>${xe(countryName(normalizeCountry(params.buyer.country)!, 'hu'))}</orszag>` : ''}
     <irsz>${xe(params.buyer.zip)}</irsz>
     <telepules>${xe(params.buyer.city)}</telepules>
     <cim>${xe(params.buyer.address)}</cim>

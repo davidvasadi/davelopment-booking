@@ -6,6 +6,7 @@ import { issueDepositInvoiceBestEffort } from './depositInvoice'
 import { sendVoucherPurchaseEmail, sendVoucherGiftEmail } from './email'
 import { sendVoucherPurchaseEmail as sendRestaurantVoucherPurchaseEmail, sendVoucherGiftEmail as sendRestaurantVoucherGiftEmail } from './restaurantEmail'
 import type { Salon, Restaurant, GiftVoucherType } from '@/payload/payload-types'
+import { isForeignCountry } from './countries'
 
 /**
  * A ténylegesen kifizetett (vagy helyszínen készpénzben/kártyával átvett) ajándékutalvány
@@ -27,7 +28,7 @@ export async function createGiftVoucher(params: {
   /** `city` ÉS `address` KÖTELEZŐ (nem opcionális!) — a Számlázz.hu enélkül nem tudja kiküldeni
    *  emailben a számlát (nem csak a kiállítás hasal el rajta, lásd `depositInvoice.ts`). Minden
    *  hívónak zod-szinten is `.min(1)`-gyel kell kikényszerítenie, ne csak UI-oldalon. */
-  buyer: { name: string; email: string; city: string; address: string; taxNumber?: string | null }
+  buyer: { name: string; email: string; city: string; address: string; taxNumber?: string | null; country?: string | null }
   recipient?: { name?: string | null; email?: string | null; message?: string | null }
   locale?: string | null
   /** dashboardon kiállító felhasználó (helyben / fizetési link); üres = vendég online vásárlása */
@@ -70,6 +71,8 @@ export async function createGiftVoucher(params: {
       payment_method: paymentMethod ?? null,
       expires_at: expiresAt.toISOString(),
       locale: locale || 'hu',
+      // az utalvány eladása áfa nélküli; az ÁFA a beváltáskor keletkezik (docs/manual — régi utalványnál üres)
+      vat_mode: 'redemption',
       ...(issuedBy != null && issuedBy !== '' ? { issued_by: Number(issuedBy) || issuedBy } : {}),
       ...(issueInvoice ? {} : { invoice_status: 'skipped' as const }),
     },
@@ -80,8 +83,12 @@ export async function createGiftVoucher(params: {
     id: voucher.id,
     invoiceSettings: business.invoice_settings,
     sellerTaxNumber: business.tax_number,
-    buyer: { name: buyer.name, email: buyer.email, city: buyer.city, address: buyer.address, taxNumber: buyer.taxNumber },
-    label: `Ajándékutalvány – ${business.name}`,
+    buyer: { name: buyer.name, email: buyer.email, city: buyer.city, address: buyer.address, taxNumber: buyer.taxNumber, country: buyer.country },
+    // az utalvány eladása NEM áfás (TAHK — mint a pénz: még nem tudni, mire költik); az ÁFA a beváltáskor, az üzlet
+    // végszámláján / kasszájában keletkezik, ahol az utalvány fizetési mód. Külföldi vevőnél a számla angol.
+    label: isForeignCountry(buyer.country) ? `Gift voucher – ${business.name} (outside the scope of VAT)` : `Ajándékutalvány – ${business.name} (ÁFA tv. hatályán kívül)`,
+    vatOverride: 'TAHK',
+    note: isForeignCountry(buyer.country) ? `Voucher code: ${code}. VAT is charged on redemption.` : `Utalványkód: ${code}. Az ÁFA a beváltáskor kerül felszámításra.`,
     grossHuf: amountHuf,
     orderRef: paymentIntentId,
     // helyszíni kiállításnál a valós fizetési mód kerüljön a számlára (eddig mindig bankkártya volt)

@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button, FIELD, IconButton } from '@/components/ui-kit'
-import { ACCENT, CardDayPicker, CardSlotGrid, cardTone, GLASS_FIELD, type LiveCard } from '@/components/blocks/public'
+import { ACCENT, CardDayPicker, CardSlotGrid, cardTone, GLASS_INPUT, type LiveCard } from '@/components/blocks/public'
 import { EditableText, useFieldPlaceholder, Txt } from '@/components/booking/EditableText'
 import { useDayStrip } from '@/components/booking/useDayStrip'
 import { Minus, Plus, Loader2, Trees, ArrowLeft, ChevronRight, HandCoins } from 'lucide-react'
@@ -25,6 +25,8 @@ import { trackBookingConversion } from '@/lib/marketingTracking'
 import { stepSlide, stepSlideTransition } from '@/lib/motion'
 import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { CountryField } from '@/components/booking/CountryField'
+import { defaultCountryFor, isForeignCountry } from '@/lib/countries'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
 
@@ -186,6 +188,9 @@ export function RestaurantBookingWizard({
   const [city, setCity] = useState('')
   const [address, setAddress] = useState('')
   const [isCompany, setIsCompany] = useState(false)
+  // számlázási ország (előleg-számla) — a `country` a telefonszám országa; ez a számláé (lib/countries)
+  const [billingCountry, setBillingCountry] = useState(() => defaultCountryFor(locale))
+  const [billingCountryErr, setBillingCountryErr] = useState<string | null>(null)
   const [taxNumber, setTaxNumber] = useState('')
   const [notes, setNotes] = useState('')
   // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
@@ -255,7 +260,7 @@ export function RestaurantBookingWizard({
   const notesVisible = !hiddenFields.includes('notes')
   const marketingVisible = newsletterEnabled && showMarketingConsent
   const addressNote = addressRequiredNote?.trim()
-    || (depositEnabled ? 'Az előleg-számlázáshoz kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
+    || (depositEnabled ? 'A foglaló bizonylatához kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
 
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return name.trim().length < 2 ? tt('rbooking.err.name') : null
@@ -304,7 +309,7 @@ export function RestaurantBookingWizard({
   }, [restaurantId, date, pax, slotsReloadKey])
 
   const validateDetails = (): boolean => {
-    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), 'city', 'address', ...(depositEnabled && isCompany ? (['taxNumber'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), 'city', 'address', ...(depositEnabled && isCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -315,7 +320,10 @@ export function RestaurantBookingWizard({
       const msg = validateCustomQuestion(q)
       if (msg && q.id) nextCustomErrors[q.id] = msg
     }
-    if (Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
+    // a számlázási ország az előleg-számlához kötelező
+    const countryMissing = depositEnabled && invoicingEnabled && !billingCountry
+    setBillingCountryErr(countryMissing ? tt('booking.field.countryRequired') : null)
+    if (countryMissing || Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
       setErrors(nextErrors)
       setCustomErrors(nextCustomErrors)
       setDetailsShakeKey(k => k + 1)
@@ -342,7 +350,8 @@ export function RestaurantBookingWizard({
           country,
           customer_city: city.trim() || undefined,
           customer_address: address.trim() || undefined,
-          ...(depositEnabled && isCompany && taxNumber.trim() ? { customer_tax_number: taxNumber.trim() } : {}),
+          ...(depositEnabled && isCompany && !isForeignCountry(billingCountry) && taxNumber.trim() ? { customer_tax_number: taxNumber.trim() } : {}),
+          ...(depositEnabled && invoicingEnabled && billingCountry ? { customer_country: billingCountry } : {}),
           notes: notes.trim() || undefined,
           ...(occasionIdx != null && eventTypes[occasionIdx]
             ? { occasion: eventTypes[occasionIdx].label, occasion_icon: eventTypes[occasionIdx].icon }
@@ -376,7 +385,7 @@ export function RestaurantBookingWizard({
   // design 21.10: a lépések laposak (nincs belső doboz), a mezők a design mezői, a címek a kit címei
   const cardClass = ''
   const cardStyle = undefined
-  const inputClass = dk ? `${GLASS_FIELD} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
+  const inputClass = dk ? `${GLASS_INPUT} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
   const phoneInputClass = inputClass
   const labelCls = c.meta
   const textCls = ''
@@ -595,6 +604,11 @@ export function RestaurantBookingWizard({
                   </div>
                   )}
                   {depositEnabled && invoicingEnabled && (
+                    <CountryField value={billingCountry} locale={locale} tt={tt} inputCls={inputClass} metaCls={labelCls} required error={billingCountryErr}
+                      onChange={(v) => { setBillingCountry(v); setBillingCountryErr(null); if (isForeignCountry(v)) setIsCompany(false) }} />
+                  )}
+                  {/* céges vásárlás csak belföldi címmel — külföldi vevő magánszemélyként (lib/countries) */}
+                  {depositEnabled && invoicingEnabled && !isForeignCountry(billingCountry) && (
                     <>
                       <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-ui-cell')}>
                         <span className={`text-[13px] ${textCls}`}><Txt k="public.voucher.companyToggle">{tt('public.voucher.companyToggle')}</Txt></span>
@@ -786,7 +800,7 @@ export function RestaurantBookingWizard({
             <div data-edit-id="deposit" className={cardClass} style={cardStyle}>
               <p className={`text-ui-title font-light mb-3`}><Txt k="public.deposit.title">{tt('public.deposit.title')}</Txt></p>
               {editorStep ? (
-                <p className={`text-[13px] leading-relaxed ${labelCls}`}>Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.</p>
+                <p className={`text-[13px] leading-relaxed ${labelCls}`}>Itt fizeti a vendég kártyával a foglalót (Stripe). A szerkesztőben nincs valódi fizetés.</p>
               ) : time && (
                 <DepositStep
                   dark={dk}
@@ -842,7 +856,7 @@ export function RestaurantBookingWizard({
                   { label: tt('booking.field.phone'), value: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : null },
                   { label: tt('booking.field.city'), value: city.trim() || null },
                   { label: tt('booking.field.note'), value: notes.trim() || null },
-                  ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: `${depositAmountHuf.toLocaleString('hu-HU')} Ft` }] : []),
+                  ...(paymentIntentId && depositAmountHuf ? [{ label: 'Foglaló (fizetve)', value: `${depositAmountHuf.toLocaleString('hu-HU')} Ft` }] : []),
                   ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: `${redeemValid.amount_huf.toLocaleString('hu-HU')} Ft` }] : []),
                 ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
                   <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && (dk ? 'border-b border-white/[0.08]' : 'border-b'))}>

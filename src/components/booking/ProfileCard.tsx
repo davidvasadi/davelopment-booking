@@ -9,12 +9,13 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Loader2, Users, Gift, HandCoins } from 'lucide-react'
 import { Avatar, Button, FIELD, IconButton, IconCircle, Pill } from '@/components/ui-kit'
 import { useDayStrip } from './useDayStrip'
-import { ACCENT, CardDayPicker, CardPills, CardRow, CardSlotGrid, CardThumb, cardTone, GLASS_FIELD, SocialIcons, type LiveCard } from '@/components/blocks/public'
+import { ACCENT, CardDayPicker, CardPills, CardRow, CardSlotGrid, CardThumb, cardTone, GLASS_INPUT, SocialIcons, type LiveCard } from '@/components/blocks/public'
 import { EditableText, useFieldPlaceholder, Txt } from './EditableText'
 import { PoweredBy } from '@/components/blocks/brand'
 import { CookieFooterLink } from '@/components/blocks/consent'
 import { openCookieSettings } from '@/components/booking/MarketingTrackingScripts'
-import { VoucherCard } from '@/components/blocks/money'
+import { VoucherCard, VoucherFill } from '@/components/blocks/money'
+import { voucherDesign } from '@/lib/voucherDesign'
 import { salonDepositNotice, type DepositInfo } from '@/lib/depositSummary'
 import { depositApplies } from '@/lib/depositCalc'
 import { toast } from 'sonner'
@@ -28,6 +29,8 @@ import type { Service, StaffMember, ServiceCategory, Media, GiftVoucherType } fr
 import { t as tl, makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CountryField } from '@/components/booking/CountryField'
+import { defaultCountryFor, isForeignCountry } from '@/lib/countries'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Textarea } from '@/components/ui/textarea'
 import { PhoneCountryInput } from '@/components/booking/PhoneInputs'
@@ -162,7 +165,7 @@ export function ProfileCard({
   // a kártya stílusa (design 21.2) — sötét üveg / fekete / világos üveg / fehér
   const c = cardTone(cardStyle)
   // a mezők a kártyán: sötét kártyán a design üveg-mezője, fehéren a kit mezője (design 21.7 — CardField)
-  const inputCls = c.dark ? `${GLASS_FIELD} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
+  const inputCls = c.dark ? `${GLASS_INPUT} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
 
   // Browse navigation state
   // design 21.1: a kártya rögtön a foglalás 1. lépésével (szolgáltatások) indul — a régi kezdő nézet tartalma a borítón van
@@ -186,6 +189,9 @@ export function ProfileCard({
   const [customerCity, setCustomerCity] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
   const [customerIsCompany, setCustomerIsCompany] = useState(false)
+  // számlázási ország (előleg-számla) — a `customerCountry` a telefonszám országa; ez a számláé (lib/countries)
+  const [billingCountry, setBillingCountry] = useState(() => defaultCountryFor(locale))
+  const [billingCountryErr, setBillingCountryErr] = useState<string | null>(null)
   const [customerTaxNumber, setCustomerTaxNumber] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
   // Visszatérő vendég: az előző foglalás adatai ebben a böngészőben (lásd lib/guestMemory).
@@ -237,6 +243,7 @@ export function ProfileCard({
   const [voucherPurchaserCity, setVoucherPurchaserCity] = useState('')
   const [voucherPurchaserAddress, setVoucherPurchaserAddress] = useState('')
   const [voucherIsCompany, setVoucherIsCompany] = useState(false)
+  const [voucherCountry, setVoucherCountry] = useState(() => defaultCountryFor(locale))
   const [voucherPurchaserTaxNumber, setVoucherPurchaserTaxNumber] = useState('')
   const [voucherRecipientName, setVoucherRecipientName] = useState('')
   const [voucherRecipientEmail, setVoucherRecipientEmail] = useState('')
@@ -531,7 +538,7 @@ export function ProfileCard({
   // Az egyedi indoklás mindig elsőbbséget élvez (akkor is, ha az előleg is be van kapcsolva),
   // különben a felülírás észrevétlen maradna a cégnek — ld. user-visszajelzés.
   const addressNote = addressRequiredNote?.trim()
-    || (depositEnabled ? 'Az előleg-számlázáshoz kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
+    || (depositEnabled ? 'A foglaló bizonylatához kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
 
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return !customerName || customerName.trim().length < 2 ? tt('booking.err.name') : null
@@ -561,7 +568,7 @@ export function ProfileCard({
 
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
-    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -572,7 +579,10 @@ export function ProfileCard({
       const msg = validateCustomQuestion(q)
       if (msg && q.id) nextCustomErrors[q.id] = msg
     }
-    if (Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
+    // a számlázási ország az előleg-számlához kötelező
+    const countryMissing = depositEnabled && invoicingEnabled && !billingCountry
+    setBillingCountryErr(countryMissing ? tt('booking.field.countryRequired') : null)
+    if (countryMissing || Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
       setErrors(nextErrors)
       setCustomErrors(nextCustomErrors)
       const firstBad = order.find(k => nextErrors[k])
@@ -593,7 +603,8 @@ export function ProfileCard({
             : '',
           customer_city: customerCity.trim() || undefined,
           customer_address: customerAddress.trim() || undefined,
-          ...(depositEnabled && customerIsCompany && customerTaxNumber.trim() ? { customer_tax_number: customerTaxNumber.trim() } : {}),
+          ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) && customerTaxNumber.trim() ? { customer_tax_number: customerTaxNumber.trim() } : {}),
+          ...(depositEnabled && invoicingEnabled && billingCountry ? { customer_country: billingCountry } : {}),
           notes: customerNotes, locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
@@ -659,8 +670,9 @@ export function ProfileCard({
     const e: Record<string, string> = {}
     if (!voucherPurchaserName.trim()) e.name = 'A neved megadása kötelező.'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(voucherPurchaserEmail)) e.email = 'Érvénytelen email-cím.'
+    if (!voucherCountry) e.country = tt('booking.field.countryRequired')
     if (!voucherPurchaserCity.trim()) e.city = 'A település megadása kötelező a számlázáshoz.'
-    if (voucherIsCompany && !voucherPurchaserTaxNumber.trim()) e.taxNumber = 'Céges vásárlásnál az adószám megadása kötelező.'
+    if (voucherIsCompany && !isForeignCountry(voucherCountry) && !voucherPurchaserTaxNumber.trim()) e.taxNumber = 'Céges vásárlásnál az adószám megadása kötelező.'
     if (!voucherPurchaserAddress.trim()) e.address = 'A cím megadása kötelező a számla kiküldéséhez.'
     if (voucherRecipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(voucherRecipientEmail)) e.recipientEmail = 'Érvénytelen email-cím a megajándékozottnál.'
     return e
@@ -693,7 +705,8 @@ export function ProfileCard({
           purchaserName: voucherPurchaserName, purchaserEmail: voucherPurchaserEmail,
           purchaserCity: voucherPurchaserCity.trim() || undefined,
           purchaserAddress: voucherPurchaserAddress.trim() || undefined,
-          purchaserTaxNumber: voucherIsCompany ? voucherPurchaserTaxNumber.trim() : undefined,
+          purchaserTaxNumber: voucherIsCompany && !isForeignCountry(voucherCountry) ? voucherPurchaserTaxNumber.trim() : undefined,
+          purchaserCountry: voucherCountry || undefined,
           recipientName: voucherRecipientName.trim() || undefined,
           recipientEmail: voucherRecipientEmail.trim() || undefined,
           message: voucherMessage.trim() || undefined,
@@ -721,6 +734,7 @@ export function ProfileCard({
     setVoucherPurchaserCity('')
     setVoucherPurchaserAddress('')
     setVoucherIsCompany(false)
+    setVoucherCountry(defaultCountryFor(locale))
     setVoucherPurchaserTaxNumber('')
     setVoucherRecipientName('')
     setVoucherRecipientEmail('')
@@ -1089,6 +1103,11 @@ export function ProfileCard({
                       </div>
                       )}
                       {depositEnabled && invoicingEnabled && (
+                        <CountryField value={billingCountry} locale={locale} tt={tt} inputCls={inputCls} metaCls={c.meta} required error={billingCountryErr}
+                          onChange={(v) => { setBillingCountry(v); setBillingCountryErr(null); if (isForeignCountry(v)) setCustomerIsCompany(false) }} />
+                      )}
+                      {/* céges vásárlás csak belföldi címmel — külföldi vevő magánszemélyként (lib/countries) */}
+                      {depositEnabled && invoicingEnabled && !isForeignCountry(billingCountry) && (
                         <>
                           <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
                             <span className="text-ui-meta opacity-80"><Txt k="public.voucher.companyToggle">{tt('public.voucher.companyToggle')}</Txt></span>
@@ -1237,7 +1256,7 @@ export function ProfileCard({
                       old fel egy konkrét, szabad szakembert, ha nincs megadva. */}
                   {editorView ? (
                     <div data-edit-id="deposit" className={`rounded-ui-inner p-4 text-ui-meta leading-relaxed opacity-80 ${c.row}`}>
-                      Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.
+                      Itt fizeti a vendég kártyával a foglalót (Stripe). A szerkesztőben nincs valódi fizetés.
                     </div>
                   ) : selectedServiceId && bookingSlot && (
                     <DepositStep
@@ -1289,7 +1308,7 @@ export function ProfileCard({
                       { label: tt('booking.field.city'), value: customerCity || null },
                       { label: tt('booking.field.note'), value: customerNotes || null },
                       { label: tt('booking.price'), value: priceLabel(bookingService.price, bookingService.currency) },
-                      ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
+                      ...(paymentIntentId && depositAmountHuf ? [{ label: 'Foglaló (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
                       ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
                     ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
                       <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && 'border-b border-white/[0.08]')}>
@@ -1343,10 +1362,11 @@ export function ProfileCard({
                                   selected ? 'border-ui-yellow bg-ui-yellow/[0.08]' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]',
                                 )}
                               >
-                                <div className="h-20 w-full bg-white/[0.06]">
+                                <div className="h-20 w-full bg-white/[0.06] relative">
+                                  {!url && <VoucherFill color={voucherDesign(vt.card_layout, vt.card_color).color} />}
                                   {url && (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={url} alt="" className="h-full w-full object-cover" />
+                                    <img src={url} alt="" className="relative h-full w-full object-cover" />
                                   )}
                                 </div>
                                 <div className="px-2.5 py-2">
@@ -1395,13 +1415,16 @@ export function ProfileCard({
                         {voucherFieldErrors.address ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.address}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.addressHint">{tt('public.voucher.addressHint')}</Txt></p>}
                       </div>
 
-                      {invoicingEnabled && voucherCompanyEnabled && (
+                      <CountryField value={voucherCountry} locale={locale} tt={tt} inputCls={inputCls} metaCls={c.meta} required error={voucherFieldErrors.country}
+                        onChange={(v) => { setVoucherCountry(v); clearVoucherFieldError('country'); if (isForeignCountry(v)) setVoucherIsCompany(false) }} />
+                      {/* céges vásárlás csak belföldi címmel — külföldi vevő magánszemélyként (lib/countries) */}
+                      {invoicingEnabled && voucherCompanyEnabled && !isForeignCountry(voucherCountry) && (
                       <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
                         <span className="text-ui-meta opacity-80"><Txt k="public.voucher.companyToggle">{tt('public.voucher.companyToggle')}</Txt></span>
                         <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
                       )}
-                      {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && (
+                      {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && !isForeignCountry(voucherCountry) && (
                         <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
                           <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.taxNumber')} *</Label>
                           <Input
@@ -1471,9 +1494,9 @@ export function ProfileCard({
                   <motion.div className="w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
                     <div className="mt-4 text-ui-sub font-light"><Txt k="public.voucher.successTitle">{tt('public.voucher.successTitle')}</Txt></div>
                     <p className={`mt-1 text-ui-meta ${c.meta}`}><Txt k="public.voucher.successSubtitle">{tt('public.voucher.successSubtitle')}</Txt></p>
-                    <div className="mt-5 space-y-2 text-left">
-                      <VoucherCard amount={formatPrice(voucherResult.amountHuf, 'HUF')} code={voucherResult.code} bg="yellow" biz={{ name: salonName, logo: null }} expires={voucherResult.expiresAt ? format(new Date(voucherResult.expiresAt), 'PPP', { locale: dfLocale(locale) }) : ''} />
-                      <VoucherCard side="back" code={voucherResult.code} qr={voucherResult.qrCodeDataUrl} bg="dark" biz={{ name: salonName, logo: null }} />
+                    <div className="mt-5 text-left">
+                      {/* egyoldalas jegy a típus sablonjával (forma, szín vagy a típus képe) és a QR-ral */}
+                      <VoucherCard lang={locale} message={voucherMessage.trim() || null} side="single" design={voucherDesign(selectedVoucherType?.card_layout, selectedVoucherType?.card_color, selectedVoucherType?.card_text)} photo={typeof selectedVoucherType?.image === 'object' && selectedVoucherType?.image ? (selectedVoucherType.image as Media).url ?? null : null} amount={formatPrice(voucherResult.amountHuf, 'HUF')} code={voucherResult.code} qr={voucherResult.qrCodeDataUrl} biz={{ name: salonName, logo: null }} expires={voucherResult.expiresAt ? format(new Date(voucherResult.expiresAt), 'PPP', { locale: dfLocale(locale) }) : ''} />
                     </div>
                     <Button variant={c.dark ? 'onDark' : 'cell'} className="mt-4 w-full" onClick={handleCloseVoucherSuccess}><Txt k="public.success.back">{tt('public.success.back')}</Txt></Button>
                   </motion.div>
@@ -1498,7 +1521,7 @@ export function ProfileCard({
                     if (view === 'summary') {
                       submit()
                     } else if (view === 'details') {
-                      const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
+                      const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
                       const nextErrors: Partial<Record<FieldKey, string>> = {}
                       for (const key of order) {
                         const msg = validateField(key)
@@ -1509,7 +1532,9 @@ export function ProfileCard({
                         const msg = validateCustomQuestion(q)
                         if (msg && q.id) nextCustomErrors[q.id] = msg
                       }
-                      if (Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
+                      const countryMissing = depositEnabled && invoicingEnabled && !billingCountry
+                      setBillingCountryErr(countryMissing ? tt('booking.field.countryRequired') : null)
+                      if (countryMissing || Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
                         setErrors(nextErrors)
                         setCustomErrors(nextCustomErrors)
                         setDetailsShakeKey(k => k + 1)

@@ -4,12 +4,15 @@ import { getPayloadClient } from '@/lib/payload'
 import { getStripe } from '@/lib/stripe'
 import { createGiftVoucher } from '@/lib/createGiftVoucher'
 import type { Salon, Restaurant } from '@/payload/payload-types'
+import { isForeignCountry, normalizeCountry } from '@/lib/countries'
 
 const voucherFields = {
   paymentIntentId: z.string().min(1),
   purchaserName: z.string().min(1), purchaserEmail: z.string().email(),
   purchaserCity: z.string().min(1), purchaserAddress: z.string().min(1),
   purchaserTaxNumber: z.string().optional(),
+  /** számlázási ország (ISO) — külföldi csak magánszemélyként: az adószám ilyenkor eldobva */
+  purchaserCountry: z.string().max(2).optional(),
   recipientName: z.string().optional(), recipientEmail: z.string().email().optional().or(z.literal('')),
   message: z.string().optional(), locale: z.string().optional(),
 }
@@ -80,7 +83,7 @@ export async function POST(request: NextRequest) {
       amountHuf,
       voucherTypeId,
       paymentIntentId: data.paymentIntentId,
-      buyer: { name: data.purchaserName, email: data.purchaserEmail, city: data.purchaserCity, address: data.purchaserAddress, taxNumber: data.purchaserTaxNumber },
+      buyer: { name: data.purchaserName, email: data.purchaserEmail, city: data.purchaserCity, address: data.purchaserAddress, taxNumber: isForeignCountry(data.purchaserCountry) ? undefined : data.purchaserTaxNumber, country: normalizeCountry(data.purchaserCountry) },
       recipient: { name: data.recipientName, email: data.recipientEmail, message: data.message },
       locale: data.locale,
     })

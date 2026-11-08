@@ -122,7 +122,7 @@ export function InfoList({ items, hours = SAMPLE_HOURS, title = 'Jó tudni', onC
 const SERVICE_IMG = ['/design/szolgaltatas-hajvagas.webp', '/design/szolgaltatas-balayage.webp', '/design/szolgaltatas-ferfi.webp', '/design/szolgaltatas-gellakk.webp']
 const SERVICES: [string, string, string, string][] = [
   ['Női hajvágás + szárítás', '60 perc', '11 900 Ft', SERVICE_IMG[0]],
-  ['Balayage + vágás', '150 perc · előleg', '48 000 Ft', SERVICE_IMG[1]],
+  ['Balayage + vágás', '150 perc · foglaló', '48 000 Ft', SERVICE_IMG[1]],
   ['Férfi hajvágás', '30 perc', '6 500 Ft', SERVICE_IMG[2]],
   ['Géllakk', '60 perc', '8 500 Ft', SERVICE_IMG[3]],
 ]
@@ -298,7 +298,12 @@ const LIVE_CARD = {
 } as const
 
 /** Üveg-mező a sötét felületeken (a foglaló kártya, a belépés mobilon): áttetsző, vékony fehér kerettel. */
-export const GLASS_FIELD = 'flex h-11 w-full items-center rounded-ui-control border border-white/10 bg-white/[0.06] px-4 text-ui-body text-white backdrop-blur-[10px]' // ui-allow: üveg-mező sötét felületen
+// NINCS backdrop-blur: iPhone Safarin a beviteli mezőn a háttér-elmosás gépelés közben a beírt szöveget is elmossa
+// (bejelentkezés, foglalóoldal űrlapjai) — helyette kicsit erősebb üveg-háttér
+export const GLASS_FIELD = 'flex h-11 w-full items-center rounded-ui-control border border-white/10 bg-white/[0.08] px-4 text-ui-body text-white' // ui-allow: üveg-mező sötét felületen
+/** Ugyanez beviteli mezőre (input / select): `flex` NÉLKÜL — iPhone Safarin a flexes inputban a beírt szöveg feljebb
+ *  csúszik és levágódik. */
+export const GLASS_INPUT = 'block h-11 w-full rounded-ui-control border border-white/10 bg-white/[0.08] px-4 text-ui-body text-white' // ui-allow: üveg-mező sötét felületen
 
 export type CardTone = (typeof LIVE_CARD)[LiveCard]
 /** A foglaló kártya stílusa (Beállítások › Foglalóoldal › Arculat): felület, sorok, pillek, mellékszöveg — az élő kártya is ezt használja. */
@@ -578,14 +583,14 @@ function CardStep({ c, step, restaurant, sel, quick }: { c: CardTone; step: numb
         <div className={`mt-4 text-ui-label ${c.meta}`}>A szalon kérdése: jártál már nálunk festésen?</div>
         <div className="mt-1.5 flex flex-wrap gap-1.5">{cardPills(c, ['Igen', 'Nem', 'Nem tudom'], 1)}</div>
         <div className="mt-3 flex items-center justify-between"><span className="text-ui-meta">Kérek hírlevelet (akciók, újdonságok)</span><MockSwitch defaultOn={false} /></div>
-        <TermsLine c={c} extra=" Előleg: 10 000 Ft, a következő lépésben." />
-        {next('Tovább az előleghez · 10 000 Ft')}
+        <TermsLine c={c} extra=" Foglaló: 10 000 Ft, a következő lépésben — a helyszínen beszámít a végösszegbe." />
+        {next('Tovább a foglalóhoz · 10 000 Ft')}
       </>
     )
     if (step === 4) return (
       <>
         <div className="mt-5"><Picked c={c} t="kedd, nov. 11. · 13:30" m="Balayage + vágás · Viktória · 48 000 Ft" /></div>
-        <div className="mt-5 text-ui-title font-light">Előleg</div>
+        <div className="mt-5 text-ui-title font-light">Foglaló</div>
         <div className={`mt-1 text-ui-meta ${c.meta}`}>10 000 Ft most, a többit a szalonban fizeted — a végösszegbe beszámítjuk. 24 órán belüli lemondásnál nem jár vissza.</div>
         <StripePay c={c} />
         {next('Fizetés · 10 000 Ft')}
@@ -601,7 +606,7 @@ function CardStep({ c, step, restaurant, sel, quick }: { c: CardTone; step: numb
       <div className={`mt-5 w-full px-4 py-4 text-left ${c.row}`}>
         <div className={`text-ui-meta ${c.meta}`}>{restaurant ? 'péntek, nov. 7. · 2 fő · terasz' : 'kedd, nov. 11. · Viktória'}</div>
         <div className="text-ui-num font-light leading-none">{restaurant ? '19:30' : '13:30'}</div>
-        <div className={`mt-1 text-ui-meta ${c.meta}`}>{restaurant ? 'Bistro Andrássy · Születésnap' : 'Balayage + vágás · előleg fizetve'}</div>
+        <div className={`mt-1 text-ui-meta ${c.meta}`}>{restaurant ? 'Bistro Andrássy · Születésnap' : 'Balayage + vágás · foglaló fizetve'}</div>
       </div>
       <div className="mt-2 grid w-full grid-cols-2 gap-1.5"><Button variant={c.dark ? 'onDark' : 'cell'} icon={CalendarPlus}>Naptárba</Button><Button variant={c.dark ? 'onDark' : 'cell'} icon={MapPin}>Útvonal</Button></div>
       <div className={`mt-3 text-ui-label ${c.meta}`}>Közbejött valami? <span className="underline underline-offset-4">Lemondás vagy módosítás</span></div>

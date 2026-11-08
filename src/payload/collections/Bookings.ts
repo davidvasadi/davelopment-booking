@@ -99,6 +99,8 @@ export const Bookings: CollectionConfig = {
       label: 'Ügyfél címe (utca, házszám)',
       admin: { description: 'Csak előleg-fizetéskor kötelező a vendégnek (a Számlázz.hu/Billingo bizonylathoz kell).' },
     },
+    { name: 'deposit_kind', type: 'text', label: 'Előleg jellege', admin: { readOnly: true, description: "'foglalo': áfa nélküli foglaló (a végszámla tartalmazza az áfát); üres: régi áfás előleg-számla." } },
+    { name: 'customer_country', type: 'text', label: 'Számlázási ország', admin: { description: 'ISO kód (pl. AT) — üres = Magyarország. Külföldi vendég csak magánszemélyként vásárolhat.' } },
     {
       name: 'customer_tax_number',
       type: 'text',

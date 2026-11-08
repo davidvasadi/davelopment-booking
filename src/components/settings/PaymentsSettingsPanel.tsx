@@ -104,6 +104,9 @@ interface Props {
 
 const ALL_SECTIONS: NonNullable<Props['sections']> = ['stripe', 'deposit', 'voucher', 'consent', 'invoicing']
 
+/** A hosszú szöveg mezője a tartalomhoz nő (mobilon se kelljen a kis dobozban görgetni) — minden rendereléskor újramér. */
+const growToFit = (el: HTMLTextAreaElement | null) => { if (!el) return; el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px` }
+
 export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, tier, sections = ALL_SECTIONS, onDirtyChange, registerApi, supportedLocales, manualApproval = false }: Props) {
   const show = (s: NonNullable<Props['sections']>[number]) => sections.includes(s)
   const [connecting, setConnecting] = useState(false)
@@ -372,6 +375,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
         const paymentsHref = variant === 'salon' ? '/dashboard/settings?tab=payments' : '/restaurant/settings?tab=payments'
         const value: DepositValue = { enabled: d.enabled, type: d.type, amount: d.type === 'percent' ? d.percentValue : d.type === 'per_pax' ? d.perPaxAmountHuf : d.fixedAmountHuf, refundHours: d.refundHoursBefore, when: d.applyWhen, minPriceHuf: d.minPriceHuf, minPax: d.minPax, weekdays: d.specialWeekdays, dates: d.specialDates }
         return (
+          <>
           <DepositSettingsCard save={false} restaurant={variant === 'restaurant'} value={value} manualApproval={manualApproval} rulesHref={variant === 'salon' ? '/dashboard/settings?tab=site' : '/restaurant/settings?tab=site'}
             datePicker={<DatePickerPopover value={todayYmd()} onChange={(day) => setD((s) => ({ ...s, specialDates: s.specialDates.includes(day) ? s.specialDates : [...s.specialDates, day] }))} triggerClassName="inline-flex h-9 items-center gap-1.5 rounded-full bg-ui-cell px-3.5 text-ui-meta text-ui-text ui-press"><Plus className="h-3.5 w-3.5" /> Dátum</DatePickerPopover>}
             onChange={(x) => setD((s) => ({ ...s, enabled: x.enabled, type: x.type, refundHoursBefore: x.refundHours, applyWhen: x.when, minPriceHuf: x.minPriceHuf, minPax: x.minPax, specialWeekdays: x.weekdays, specialDates: x.dates, fixedAmountHuf: x.type === 'fixed' ? x.amount : null, percentValue: x.type === 'percent' ? x.amount : null, perPaxAmountHuf: x.type === 'per_pax' ? x.amount : null }))}
@@ -380,6 +384,9 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               stripe: stripeConnectOnboarded ? { state: 'ok', okLabel: 'Bekötve' } : { state: 'missing', action: 'Bekötöm', href: paymentsHref },
               invoicing: !invLive ? { state: 'loading' } : invLive.ok ? { state: 'ok', okLabel: invLive.detail ?? 'Bekötve' } : { state: 'optional', action: 'Beállítom', href: paymentsHref },
             }} />
+          {/* a számlázás szabálya (docs/manual): foglaló — áfa a végszámlán */}
+          {d.enabled && <Note className="mx-6 mt-3"><strong>Jogilag foglaló.</strong> Befizetéskor áfa nélküli bizonylat megy a vendégnek. A helyszínen beszámít a végösszegbe: a végszámla (vagy a pénztárgép) a teljes összegről szól, áfával — a foglaló ott csak fizetési mód. Ha a vendég nem jön el, vagy későn mond le, a foglaló a tiéd.</Note>}
+          </>
         )
       })()}
 
@@ -390,6 +397,8 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
           value={{ enabled: v.enabled, validityMonths: v.validityMonths, minAmountHuf: v.minAmountHuf, maxAmountHuf: v.maxAmountHuf, allowCompany: v.allowCompany !== false }}
           onChange={(x) => setV((s) => ({ ...s, ...x }))} />
       )}
+      {/* a számlázás szabálya (docs/manual): az utalvány eladása áfa nélküli, az ÁFA a beváltáskor */}
+      {show('voucher') && v.enabled && <Note className="mx-6 mt-3"><strong>Az utalvány eladásakor nincs ÁFA</strong> — áfa nélküli számla megy (ÁFA tv. hatályán kívül), mert ekkor még nem tudni, mire költik. Az ÁFA a beváltáskor keletkezik: a lezárásnál / a pénztárgépen a teljes összeget számlázd, az utalvány ott fizetési mód. A korábban, áfásan eladott utalványok a régi módon mennek tovább.</Note>}
 
       {/* Beleegyező nyilatkozat — mindig nyitott kártya (nincs nyit/zár gomb), EGY mezőkészlet
           van, amit a nyelvváltó sáv vezérel (nem külön HU + külön fordítás-blokk). */}
@@ -412,7 +421,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
                   {translateLoading ? <Meta className="py-6 text-center">Betöltés…</Meta> : (
                     <>
                       <Field label="Nyilatkozat címe" className="mt-2"><Input value={activeTitle} onChange={(e) => setActiveTitle(e.target.value)} placeholder={isTranslating ? (c.title || 'Beleegyező nyilatkozat') : 'Beleegyező nyilatkozat'} autoComplete="off" /></Field>
-                      <Field label="Nyilatkozat szövege" className="mt-3"><Textarea rows={4} value={activeText} onChange={(e) => setActiveText(e.target.value)} placeholder={isTranslating ? (c.templateText || 'Fordítás…') : 'Ezt a szöveget látja majd a vendég elfogadásra…'} className="min-h-[72px]" /></Field>
+                      <Field label="Nyilatkozat szövege" className="mt-3"><Textarea rows={4} ref={growToFit} value={activeText} onChange={(e) => setActiveText(e.target.value)} placeholder={isTranslating ? (c.templateText || 'Fordítás…') : 'Ezt a szöveget látja majd a vendég elfogadásra…'} className="min-h-[72px]" /></Field>
                       {!activeText.trim() && <Button variant="cell" size="sm" className="mt-2" onClick={() => { const tpl = consentTemplate(translateLocale ?? 'hu', variant === 'restaurant' ? 'restaurant' : 'salon'); setActiveTitle(tpl.title); setActiveText(tpl.text) }}>Kiindulási szöveg</Button>}
                     </>
                   )}
@@ -455,7 +464,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               )}
               {show('invoicing') && (
                 <ConnectionCard kind={invoiceProvider === 'billingo' ? 'billingo' : 'szamlazz'} name={savedLabel ?? 'Számlázó'} status={invStatus}
-                  desc="Minden online fizetésről magától számla készül a saját Számlázz.hu / Billingo fiókodból, és a vendég e-mailben kapja."
+                  desc="Minden online fizetésről magától számla készül a saját Számlázz.hu / Billingo fiókodból, és a vendég e-mailben kapja. A számlák tartalmáért (áfakulcs, utalványok kezelése) a vállalkozás felel."
                   note={savedInv.provider !== 'none' && savedHasKey && invLive && !liveOk && invLive.reason ? <Note warn className="mt-3">{invLive.reason}</Note> : undefined}
                   btn={{ label: on ? 'Beállítás lent' : 'Bekapcsolás', primary: !on, onClick: () => { if (!on) setInvoiceProvider(savedInv.provider !== 'none' ? savedInv.provider : 'szamlazz'); document.getElementById('invoice-key')?.focus() } }} />
               )}

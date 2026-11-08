@@ -19,6 +19,8 @@
 
 import { invoiceComment, type InvoiceBuyer, type InvoiceLine, type CreateInvoiceResult, type InvoicePaymentMethod, type InvoiceVat } from './szamlazz'
 
+import { isForeignCountry, normalizeCountry } from './countries'
+
 const API_BASE = 'https://api.billingo.hu/v3'
 
 export interface BillingoCreateInvoiceParams {
@@ -30,6 +32,8 @@ export interface BillingoCreateInvoiceParams {
   paymentMethod?: InvoicePaymentMethod
   /** ÁFA-kulcs (a kiállító adószámából) — alapból AAM */
   vat?: InvoiceVat
+  /** a megjegyzésbe */
+  note?: string
 }
 
 const BILLINGO_PAYMENT: Record<InvoicePaymentMethod, string> = { card: 'bankcard', cash: 'cash', transfer: 'wire_transfer' }
@@ -48,7 +52,7 @@ export async function createInvoice(params: BillingoCreateInvoiceParams, now: Da
     partner: {
       name: params.buyer.name,
       address: {
-        country_code: 'HU',
+        country_code: normalizeCountry(params.buyer.country) ?? 'HU',
         post_code: params.buyer.zip ?? '',
         city: params.buyer.city ?? '',
         address: params.buyer.address ?? '',
@@ -61,20 +65,21 @@ export async function createInvoice(params: BillingoCreateInvoiceParams, now: Da
     fulfillment_date: date,
     due_date: date,
     payment_method: BILLINGO_PAYMENT[params.paymentMethod ?? 'card'],
-    language: 'hu',
+    language: isForeignCountry(params.buyer.country) ? 'en' : 'hu',
     currency: 'HUF',
     conversion_rate: { value: 1 },
     electronic: true,
     paid: !!params.paid,
-    comment: invoiceComment(params.orderRef) || undefined,
+    comment: [invoiceComment(params.orderRef, isForeignCountry(params.buyer.country)), params.note].filter(Boolean).join(' · ') || undefined,
     items: params.lines.map((l) => ({
       name: l.label,
       quantity: 1,
       unit: 'db',
       // AAM: nettó = bruttó (változatlan); 27%: a bruttó egységárat adjuk meg, a nettót a Billingo számolja
-      ...(params.vat === '27'
+      // AAM / TAHK: nettó = bruttó; 27%: a bruttó egységárat adjuk meg
+      ...((l.vat ?? params.vat) === '27'
         ? { unit_price: Math.round(l.grossHuf), unit_price_type: 'gross', vat: '27%' }
-        : { net_unit_price: Math.round(l.grossHuf), vat: 'AAM' }),
+        : { net_unit_price: Math.round(l.grossHuf), vat: (l.vat ?? params.vat) === 'TAHK' ? 'TAHK' : 'AAM' }),
     })),
   }
 

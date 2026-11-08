@@ -7,8 +7,9 @@ import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { Check, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { Button, FIELD, IconCircle } from '@/components/ui-kit'
-import { VoucherCard } from '@/components/blocks/money'
-import { ACCENT, cardTone, GLASS_FIELD, type LiveCard } from '@/components/blocks/public'
+import { VoucherCard, VoucherFill } from '@/components/blocks/money'
+import { voucherDesign } from '@/lib/voucherDesign'
+import { ACCENT, cardTone, GLASS_INPUT, type LiveCard } from '@/components/blocks/public'
 import { PoweredBy } from '@/components/blocks/brand'
 import { CookieFooterLink } from '@/components/blocks/consent'
 import { openCookieSettings } from '@/components/booking/MarketingTrackingScripts'
@@ -23,6 +24,8 @@ import type { EditorView } from '@/components/booking/ProfileCard'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CountryField } from '@/components/booking/CountryField'
+import { defaultCountryFor, isForeignCountry } from '@/lib/countries'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Textarea } from '@/components/ui/textarea'
 import { RestaurantBookingWizard, type EventTypeOption } from './RestaurantBookingWizard'
@@ -167,7 +170,7 @@ export function RestaurantCard({
   const [sheetOpen, setSheetOpen] = useState(false)
   // a kártya stílusa (design 21.2) és a mezők a kártyán (sötéten a design üveg-mezője, fehéren a kit mezője)
   const c = cardTone(cardStyle)
-  const inputCls = c.dark ? `${GLASS_FIELD} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
+  const inputCls = c.dark ? `${GLASS_INPUT} placeholder:text-white/30 focus-visible:ring-2 focus-visible:ring-white/20` : `${FIELD} h-11`
   const sheetDragControls = useDragControls()
   const [isMobile, setIsMobile] = useState(true)
   // design 21.10: a kártya rögtön a foglalással (hányan, mikor) indul — a régi kezdő nézet tartalma a borítón van
@@ -268,6 +271,7 @@ export function RestaurantCard({
   const [voucherPurchaserCity, setVoucherPurchaserCity] = useState('')
   const [voucherPurchaserAddress, setVoucherPurchaserAddress] = useState('')
   const [voucherIsCompany, setVoucherIsCompany] = useState(false)
+  const [voucherCountry, setVoucherCountry] = useState(() => defaultCountryFor(locale))
   const [voucherPurchaserTaxNumber, setVoucherPurchaserTaxNumber] = useState('')
   const [voucherRecipientName, setVoucherRecipientName] = useState('')
   const [voucherRecipientEmail, setVoucherRecipientEmail] = useState('')
@@ -285,8 +289,9 @@ export function RestaurantCard({
     const e: Record<string, string> = {}
     if (!voucherPurchaserName.trim()) e.name = 'A neved megadása kötelező.'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(voucherPurchaserEmail)) e.email = 'Érvénytelen email-cím.'
+    if (!voucherCountry) e.country = t(locale, 'booking.field.countryRequired')
     if (!voucherPurchaserCity.trim()) e.city = 'A település megadása kötelező a számlázáshoz.'
-    if (voucherIsCompany && !voucherPurchaserTaxNumber.trim()) e.taxNumber = 'Céges vásárlásnál az adószám megadása kötelező.'
+    if (voucherIsCompany && !isForeignCountry(voucherCountry) && !voucherPurchaserTaxNumber.trim()) e.taxNumber = 'Céges vásárlásnál az adószám megadása kötelező.'
     if (!voucherPurchaserAddress.trim()) e.address = 'A cím megadása kötelező a számla kiküldéséhez.'
     if (voucherRecipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(voucherRecipientEmail)) e.recipientEmail = 'Érvénytelen email-cím a megajándékozottnál.'
     return e
@@ -319,7 +324,8 @@ export function RestaurantCard({
           purchaserName: voucherPurchaserName, purchaserEmail: voucherPurchaserEmail,
           purchaserCity: voucherPurchaserCity.trim() || undefined,
           purchaserAddress: voucherPurchaserAddress.trim() || undefined,
-          purchaserTaxNumber: voucherIsCompany ? voucherPurchaserTaxNumber.trim() : undefined,
+          purchaserTaxNumber: voucherIsCompany && !isForeignCountry(voucherCountry) ? voucherPurchaserTaxNumber.trim() : undefined,
+          purchaserCountry: voucherCountry || undefined,
           recipientName: voucherRecipientName.trim() || undefined,
           recipientEmail: voucherRecipientEmail.trim() || undefined,
           message: voucherMessage.trim() || undefined,
@@ -344,6 +350,7 @@ export function RestaurantCard({
     setVoucherPurchaserCity('')
     setVoucherPurchaserAddress('')
     setVoucherIsCompany(false)
+    setVoucherCountry(defaultCountryFor(locale))
     setVoucherPurchaserTaxNumber('')
     setVoucherRecipientName('')
     setVoucherRecipientEmail('')
@@ -432,9 +439,9 @@ export function RestaurantCard({
           <motion.div className="w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
             <div className="mt-4 text-ui-sub font-light">{t(locale, 'public.voucher.successTitle')}</div>
             <p className={`mt-1 text-ui-meta ${c.meta}`}>{t(locale, 'public.voucher.successSubtitle')}</p>
-            <div className="mt-5 space-y-2 text-left">
-              <VoucherCard restaurant amount={formatPrice(voucherResult.amountHuf, 'HUF')} code={voucherResult.code} bg="yellow" biz={{ name: restaurantName, logo: null }} expires={voucherResult.expiresAt ? format(new Date(voucherResult.expiresAt), 'PPP', { locale: dfLocale(locale) }) : ''} />
-              <VoucherCard restaurant side="back" code={voucherResult.code} qr={voucherResult.qrCodeDataUrl} bg="dark" biz={{ name: restaurantName, logo: null }} />
+            <div className="mt-5 text-left">
+              {/* egyoldalas jegy a típus sablonjával (forma, szín vagy a típus képe) és a QR-ral */}
+                      <VoucherCard lang={locale} message={voucherMessage.trim() || null} restaurant side="single" design={voucherDesign(selectedVoucherType?.card_layout, selectedVoucherType?.card_color, selectedVoucherType?.card_text)} photo={typeof selectedVoucherType?.image === 'object' && selectedVoucherType?.image ? (selectedVoucherType.image as Media).url ?? null : null} amount={formatPrice(voucherResult.amountHuf, 'HUF')} code={voucherResult.code} qr={voucherResult.qrCodeDataUrl} biz={{ name: restaurantName, logo: null }} expires={voucherResult.expiresAt ? format(new Date(voucherResult.expiresAt), 'PPP', { locale: dfLocale(locale) }) : ''} />
             </div>
             <Button variant={c.dark ? 'onDark' : 'cell'} className="mt-4 w-full" onClick={handleCloseVoucherSuccess}>{t(locale, 'public.success.back')}</Button>
           </motion.div>
@@ -465,10 +472,11 @@ export function RestaurantCard({
                           selected ? 'border-ui-yellow bg-ui-yellow/[0.08]' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]',
                         )}
                       >
-                        <div className="h-20 w-full bg-white/[0.06]">
+                        <div className="h-20 w-full bg-white/[0.06] relative">
+                          {!url && <VoucherFill color={voucherDesign(vt.card_layout, vt.card_color).color} />}
                           {url && (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={url} alt="" className="h-full w-full object-cover" />
+                            <img src={url} alt="" className="relative h-full w-full object-cover" />
                           )}
                         </div>
                         <div className="px-2.5 py-2">
@@ -517,13 +525,16 @@ export function RestaurantCard({
                 {voucherFieldErrors.address ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.address}</p> : <p className={`text-ui-label ${c.meta}`}>{t(locale, 'public.voucher.addressHint')}</p>}
               </div>
 
-              {invoicingEnabled && voucherCompanyEnabled && (
+              <CountryField value={voucherCountry} locale={locale} tt={(k) => t(locale, k)} inputCls={inputCls} metaCls={c.meta} required error={voucherFieldErrors.country}
+                onChange={(v) => { setVoucherCountry(v); clearVoucherFieldError('country'); if (isForeignCountry(v)) setVoucherIsCompany(false) }} />
+              {/* céges vásárlás csak belföldi címmel — külföldi vevő magánszemélyként (lib/countries) */}
+              {invoicingEnabled && voucherCompanyEnabled && !isForeignCountry(voucherCountry) && (
               <div className={`flex items-center justify-between gap-3 px-3.5 py-3 ${c.row}`}>
                 <span className="text-ui-meta opacity-80">{t(locale, 'public.voucher.companyToggle')}</span>
                 <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={t(locale, 'public.voucher.companyToggle')} />
               </div>
               )}
-              {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && (
+              {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && !isForeignCountry(voucherCountry) && (
                 <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
                   <Label className={`text-ui-label ${c.meta}`}>{t(locale, 'public.voucher.taxNumber')} *</Label>
                   <Input

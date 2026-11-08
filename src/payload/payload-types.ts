@@ -386,6 +386,8 @@ export interface Reservation {
   customer_phone?: string | null
   customer_city?: string | null
   customer_address?: string | null
+  deposit_kind?: string | null
+  customer_country?: string | null
   customer_tax_number?: string | null
   country?: string | null
   notes?: string | null
@@ -449,6 +451,9 @@ export interface GiftVoucherType {
   name: string
   amount_huf: number
   image?: string | Media | null
+  card_layout?: string | null
+  card_color?: string | null
+  card_text?: string | null
   description?: string | null
   active?: boolean | null
   createdAt: string
@@ -459,6 +464,7 @@ export interface GiftVoucher {
   id: string
   restaurant?: string | Restaurant | null
   salon?: string | Salon | null
+  vat_mode?: string | null
   voucher_type?: string | GiftVoucherType | null
   type_name?: string | null
   code: string
@@ -1193,6 +1199,8 @@ export interface Booking {
   customer_phone?: string | null
   customer_city?: string | null
   customer_address?: string | null
+  deposit_kind?: string | null
+  customer_country?: string | null
   customer_tax_number?: string | null
   date: string
   start_time: string

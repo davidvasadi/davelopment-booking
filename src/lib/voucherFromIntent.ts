@@ -35,7 +35,8 @@ export async function ensureVoucherFromPaymentIntent(payload: Payload, intent: S
       amountHuf: Math.round(intent.amount / 100),
       voucherTypeId: md.voucherTypeId,
       paymentIntentId: intent.id,
-      buyer: { name: md.purchaserName, email: md.purchaserEmail, city: md.purchaserCity, address: md.purchaserAddress, taxNumber: md.purchaserTaxNumber || undefined },
+      buyer: { name: md.purchaserName, email: md.purchaserEmail, city: md.purchaserCity, address: md.purchaserAddress, taxNumber: md.purchaserTaxNumber || undefined, country: md.purchaserCountry || null },
+      locale: md.locale || 'hu',
       recipient: { name: md.recipientName || undefined, email: md.recipientEmail || undefined, message: md.message || undefined },
       issuedBy: md.issuedBy || null,
       // régi (e mező előtti) linkeknél nincs érték → számla készül, mint eddig

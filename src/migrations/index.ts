@@ -90,6 +90,10 @@ import * as migration_20261107_240000_city_placeholder from './20261107_240000_c
 import * as migration_20261107_250000_page_texts from './20261107_250000_page_texts';
 import * as migration_20261107_260000_cover_color from './20261107_260000_cover_color';
 import * as migration_20261107_270000_name_style from './20261107_270000_name_style';
+import * as migration_20261107_280000_voucher_type_design from './20261107_280000_voucher_type_design';
+import * as migration_20261107_290000_voucher_type_text from './20261107_290000_voucher_type_text';
+import * as migration_20261108_100000_customer_country from './20261108_100000_customer_country';
+import * as migration_20261108_110000_vat_at_redemption from './20261108_110000_vat_at_redemption';
 
 export const migrations = [
   {
@@ -551,5 +555,25 @@ export const migrations = [
     up: migration_20261107_270000_name_style.up,
     down: migration_20261107_270000_name_style.down,
     name: '20261107_270000_name_style',
+  },
+  {
+    up: migration_20261107_280000_voucher_type_design.up,
+    down: migration_20261107_280000_voucher_type_design.down,
+    name: '20261107_280000_voucher_type_design',
+  },
+  {
+    up: migration_20261107_290000_voucher_type_text.up,
+    down: migration_20261107_290000_voucher_type_text.down,
+    name: '20261107_290000_voucher_type_text',
+  },
+  {
+    up: migration_20261108_100000_customer_country.up,
+    down: migration_20261108_100000_customer_country.down,
+    name: '20261108_100000_customer_country',
+  },
+  {
+    up: migration_20261108_110000_vat_at_redemption.up,
+    down: migration_20261108_110000_vat_at_redemption.down,
+    name: '20261108_110000_vat_at_redemption',
   },
 ];

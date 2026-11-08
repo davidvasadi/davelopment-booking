@@ -7,12 +7,18 @@ import { assertCapability } from '@/lib/apiCapability'
 import { createGiftVoucher } from '@/lib/createGiftVoucher'
 import type { Salon, Restaurant, GiftVoucherType } from '@/payload/payload-types'
 
+import { isForeignCountry, normalizeCountry } from '@/lib/countries'
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 const buyerFields = {
   purchaserName: z.string().min(1), purchaserEmail: z.string().email(),
   purchaserCity: z.string().min(1), purchaserAddress: z.string().min(1),
   purchaserTaxNumber: z.string().optional(),
+  /** számlázási ország (ISO) — külföldinél nincs adószám (lib/countries) */
+  purchaserCountry: z.string().max(2).optional(),
+  /** az utalvány és a levelek nyelve (a vásárlóé) */
+  locale: z.string().max(5).optional(),
   recipientName: z.string().optional(), recipientEmail: z.string().email().optional().or(z.literal('')),
   message: z.string().optional(),
   voucherTypeId: z.string().min(1),
@@ -74,8 +80,9 @@ export async function POST(request: NextRequest) {
         voucherTypeId: voucherType.id,
         paymentIntentId: code,
         paymentMethod: data.paidMethod ?? 'other',
-        buyer: { name: data.purchaserName, email: data.purchaserEmail, city: data.purchaserCity, address: data.purchaserAddress, taxNumber: data.purchaserTaxNumber },
+        buyer: { name: data.purchaserName, email: data.purchaserEmail, city: data.purchaserCity, address: data.purchaserAddress, taxNumber: isForeignCountry(data.purchaserCountry) ? undefined : data.purchaserTaxNumber, country: normalizeCountry(data.purchaserCountry) },
         recipient: { name: data.recipientName, email: data.recipientEmail, message: data.message },
+        locale: data.locale || 'hu',
         issuedBy: user.id,
         issueInvoice: data.issueInvoice,
       })
@@ -120,7 +127,9 @@ export async function POST(request: NextRequest) {
             purchaserEmail: data.purchaserEmail,
             purchaserCity: data.purchaserCity,
             purchaserAddress: data.purchaserAddress ?? '',
-            purchaserTaxNumber: data.purchaserTaxNumber ?? '',
+            purchaserTaxNumber: isForeignCountry(data.purchaserCountry) ? '' : data.purchaserTaxNumber ?? '',
+            purchaserCountry: normalizeCountry(data.purchaserCountry) ?? '',
+            locale: data.locale || 'hu',
             recipientName: data.recipientName ?? '',
             recipientEmail: data.recipientEmail ?? '',
             message: (data.message ?? '').slice(0, 480),
