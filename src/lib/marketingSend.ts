@@ -138,7 +138,7 @@ export async function dispatchCampaign(payload: Payload, input: DispatchInput): 
         header: v.header,
         content: [richContentBlock(personalize(absolutize(v.html), c.customer_name, c.customer_country, t(v.loc, 'marketing.guestFallback'))), `<tr><td style="background:${COLORS.surface};padding:18px 28px;text-align:center"><a href="${unsubscribeUrl}" style="color:#9A9A9A;font-size:11px;text-decoration:underline">${escapeHtml(t(v.loc, 'marketing.unsubscribe'))}</a></td></tr>`, bottomSpacer()].join(''),
       })
-      return { to: c.customer_email as string, subject: v.subject, html }
+      return { to: c.customer_email as string, subject: v.subject, html, unsubscribeUrl }
     }))
 
     let sent = 0
@@ -146,7 +146,12 @@ export async function dispatchCampaign(payload: Payload, input: DispatchInput): 
       const chunk = items.slice(i, i + RESEND_BATCH_SIZE)
       const owner = kind === 'salon' ? { salonId: businessId } : { restaurantId: businessId }
       try {
-        const { data, error } = await resend.batch.send(chunk.map((it) => ({ from, ...(business.email ? { reply_to: business.email } : {}), to: it.to, subject: it.subject, html: it.html })))
+        const { data, error } = await resend.batch.send(chunk.map((it) => ({
+          from, ...(business.email ? { reply_to: business.email } : {}), to: it.to, subject: it.subject, html: it.html,
+          // a levelezők saját „Leiratkozás” gombja (Gmail / Yahoo elvárja a hírlevelektől) — egy kattintás (RFC 8058):
+          // a levelező POST-ot küld erre a címre, a route azonnal leiratkoztat (api/marketing/unsubscribe/[token])
+          headers: { 'List-Unsubscribe': `<${it.unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+        })))
         if (error) throw new Error(error.message)
         chunk.forEach((it, idx) => { sent += 1; void logEmail('marketing_broadcast', it.to, it.subject, true, undefined, { resendId: data?.data?.[idx]?.id, campaignId: campaign.id, ...owner }) })
       } catch (e) {
