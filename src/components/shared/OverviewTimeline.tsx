@@ -255,7 +255,7 @@ export function OverviewTimeline({
   })
 
   return (
-    <Card className={`flex min-h-0 flex-1 flex-col ${className}`}>
+    <Card className={`flex min-h-0 min-w-0 flex-1 flex-col ${className}`}>
       {/* MOBIL (4.4): cím + idősáv, ↗ a Foglalásokra; alatta a függőleges nap-idővonal */}
       <div className="sm:hidden">
         <div className="flex items-start justify-between">

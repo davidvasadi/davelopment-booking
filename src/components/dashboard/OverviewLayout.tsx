@@ -28,14 +28,14 @@ export function OverviewLayout({ start, sub, bar, kpis, photo, week, today, task
         bar={<SegmentBar segments={bar} />}
         kpis={kpis}
       />
-      <div className="grid gap-[5px] lg:grid-cols-4">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-[5px] lg:grid-cols-4">
         <div className="hidden lg:block [&>*]:h-full">{photo}</div>
         <div className="order-2 lg:order-none [&>*]:h-full">{week}</div>
         <div className="order-3 lg:order-none [&>*]:h-full">{today}</div>
         <div className="order-4 lg:order-none lg:row-span-2 [&>*]:h-full">{tasks}</div>
         {/* az akkordeon nem növeli a sort: desktopon kitölti a cellát (a sor magasságát a Közelgő foglalások adja), a tartalma görget */}
         <div className="order-5 lg:relative lg:order-none lg:min-h-[260px] [&>*]:h-full lg:[&>*]:absolute lg:[&>*]:inset-0">{accordion}</div>
-        <div className="order-1 flex lg:order-none lg:col-span-2">{timeline}</div>
+        <div className="order-1 flex min-w-0 lg:order-none lg:col-span-2">{timeline}</div>
       </div>
     </div>
   )
