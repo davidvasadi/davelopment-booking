@@ -1,13 +1,15 @@
 import { SHEET_ROW } from './assets'
 import { QrSvg } from './qr'
+import QRCode from 'qrcode'
 import { vatFromTaxNumber } from '@/lib/vatFromTaxNumber'
 import { DarkLineChart } from './charts'
 import { BIZ_LOGO, PoweredBy } from './brand'
+import type { VoucherDesign } from '@/lib/voucherDesign'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { BulkDock, GuestSees, StaffBulkBar } from './team'
 import { SaveBar, SettingsGroup, SettingsPage } from './settings'
 import { Switch } from '@/components/ui/toggle-switch'
-import { ArrowUpRight, Banknote, CalendarDays, Check, CreditCard, Download, ExternalLink, FileText, Gift, HandCoins, Landmark, Link2, Mail, Plus, Receipt, Send, Wallet, Copy, X } from 'lucide-react'
+import { ArrowUpRight, QrCode, Banknote, CalendarDays, Check, CreditCard, Download, ExternalLink, FileText, Gift, HandCoins, Landmark, Link2, Mail, Plus, Receipt, Send, Wallet, Copy, X } from 'lucide-react'
 import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Modal, OptionCard, Pill, Note, SearchField, RowCheck, Segmented, Select, StatusPill, Table, Td, Th, Tr, MarqueeText } from '@/components/ui-kit'
 
 /* Az élő rendszer három része a design kit nyelvén (a /design 16.7.1, 16.7.2, 16.11 és 7.5 ezeket mutatja,
@@ -300,8 +302,8 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
 
 const CONN = {
   stripe: { n: 'Stripe', d: 'Online kártyás fizetés: előleg és utalvány. A pénz közvetlenül a te fiókodba érkezik.', st: 'Összekötve', ok: true, btn: 'Kezelés' },
-  szamlazz: { n: 'Számlázz.hu', d: 'Minden online fizetésről magától számla készül és a vendég e-mailben kapja.', st: 'Nincs összekötve', ok: false, btn: 'Összekötés' },
-  billingo: { n: 'Billingo', d: 'Minden online fizetésről magától számla készül és a vendég e-mailben kapja.', st: 'Nincs összekötve', ok: false, btn: 'Összekötés' },
+  szamlazz: { n: 'Számlázz.hu', d: 'Minden online fizetésről magától számla készül és a vendég e-mailben kapja. A számlák tartalmáért (áfakulcs, utalványok kezelése) a vállalkozás felel.', st: 'Nincs összekötve', ok: false, btn: 'Összekötés' },
+  billingo: { n: 'Billingo', d: 'Minden online fizetésről magától számla készül és a vendég e-mailben kapja. A számlák tartalmáért (áfakulcs, utalványok kezelése) a vállalkozás felel.', st: 'Nincs összekötve', ok: false, btn: 'Összekötés' },
 } as const
 /** A szolgáltatók saját ikonja (public/brands — a hivatalos favicon / jel, helyben) */
 const CONN_LOGO: Record<keyof typeof CONN, { src: string; pad?: boolean }> = {
@@ -462,19 +464,103 @@ export function VoucherSettings({ value, onChange, summary = SAMPLE_VOUCHERS, ty
 }
 
 export const VCODE = '7K2Q-M9XP'
-const VBG = { dark: 'bg-ui-dark text-white', yellow: 'bg-ui-yellow text-ui-dark', photo: 'bg-ui-dark text-white' } as const
+const VBG = {
+  dark: 'bg-ui-dark text-white', yellow: 'bg-ui-yellow text-ui-dark', photo: 'bg-ui-dark text-white',
+  // prémium hátterek (a végleges még nincs eldöntve — design 18.x „Utalvány”): lágy meleg színátmenet · mélysötét arany
+  // csillogással · krém finom vonalmintával · hideg színátmenet; mindegyiken finom szemcse (papír-hatás)
+  mesh: 'text-ui-dark', ink: 'text-white', linen: 'text-ui-dark', aurora: 'text-white',
+  sage: 'text-white', terracotta: 'text-white', midnight: 'text-white', blush: 'text-ui-dark',
+} as const
+/** a világos hátterek (rajtuk sötét a szöveg) */
+const VLIGHT = new Set(['yellow', 'mesh', 'linen', 'blush'])
+/** a prémium hátterek képe (CSS) — e-mailben ugyanez PNG-ként kerül a levélbe */
+const GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`
+const VBG_STYLE: Partial<Record<keyof typeof VBG, string>> = {
+  mesh: `${GRAIN}, radial-gradient(at 12% 18%, #FFE7A8 0, transparent 55%), radial-gradient(at 88% 12%, #F8C9B5 0, transparent 50%), radial-gradient(at 70% 92%, #FFD85F 0, transparent 55%), radial-gradient(at 18% 88%, #F3E3D3 0, transparent 50%), #FBEFD9`, // ui-allow: a kártya háttere maga a minta
+  ink: `${GRAIN}, radial-gradient(120% 80% at 100% 0%, rgba(255,216,95,.28) 0, transparent 55%), radial-gradient(90% 70% at 0% 100%, rgba(255,255,255,.08) 0, transparent 60%), linear-gradient(160deg, #2B2A28 0%, #121212 100%)`, // ui-allow
+  linen: `${GRAIN}, repeating-linear-gradient(135deg, rgba(56,56,56,.045) 0 1px, transparent 1px 7px), linear-gradient(160deg, #F7F1E6 0%, #EFE6D6 100%)`, // ui-allow
+  aurora: `${GRAIN}, radial-gradient(at 15% 20%, #6C8BFF 0, transparent 50%), radial-gradient(at 85% 25%, #B07BFF 0, transparent 45%), radial-gradient(at 60% 95%, #3FC1B0 0, transparent 50%), #1E2140`, // ui-allow
+  sage: `${GRAIN}, radial-gradient(110% 80% at 100% 0%, rgba(232,226,200,.22) 0, transparent 55%), linear-gradient(160deg, #6E8A72 0%, #3F5646 100%)`, // ui-allow
+  terracotta: `${GRAIN}, radial-gradient(110% 80% at 0% 0%, rgba(255,214,170,.35) 0, transparent 55%), linear-gradient(160deg, #C46A4A 0%, #8E3F2C 100%)`, // ui-allow
+  midnight: `${GRAIN}, radial-gradient(120% 80% at 100% 0%, rgba(240,232,214,.18) 0, transparent 50%), linear-gradient(160deg, #2A2A2C 0%, #0B0B0D 100%)`, // ui-allow
+  blush: `${GRAIN}, radial-gradient(at 85% 15%, #FFD9C9 0, transparent 50%), radial-gradient(at 10% 90%, #F6C7D3 0, transparent 55%), #FBEDEA`, // ui-allow
+}
+
+/** A mozijegy sárga szelvényén a QR színe: a kártya színének legsötétebb, tömör árnyalata (átmenet nélkül, hogy
+ *  jól olvasható legyen); világos kártyánál a szöveg sötétje. */
+const VQR_INK: Partial<Record<keyof typeof VBG, string>> = {
+  midnight: '#0B0B0D', sage: '#3F5646', terracotta: '#8E3F2C', ink: '#121212', aurora: '#1E2140', // ui-allow: a színek tömör sötét vége
+}
+
+/** Az utalvány szövegei a vásárló nyelvén (a jegyet külföldi is kaphatja) — a többi szöveg a vezérlőpulton magyar. */
+type VLang = 'hu' | 'en' | 'de' | 'fr' | 'es' | 'it'
+const VTXT: Record<VLang, { gift: string; forTo: (n: string) => string; expires: string; code: string; to: string; salon: string; rest: string; redeem: (w: string) => string; redeemShort: (w: string) => string; show: (w: string) => string; system: string }> = {
+  hu: { gift: 'Ajándékutalvány', forTo: (n) => `${n} részére`, expires: 'Lejár', code: 'Kód', to: 'Kinek', salon: 'a szalonban', rest: 'az étteremben', redeem: (w) => `Beváltható ${w} vagy online foglaláskor.`, redeemShort: (w) => `beváltható ${w}`, show: (w) => `Mutasd fel ${w}, vagy add meg online foglaláskor.`, system: 'Foglalási rendszer:' },
+  en: { gift: 'Gift voucher', forTo: (n) => `for ${n}`, expires: 'Expires', code: 'Code', to: 'For', salon: 'at the salon', rest: 'at the restaurant', redeem: (w) => `Redeemable ${w} or when booking online.`, redeemShort: (w) => `redeemable ${w}`, show: (w) => `Show it ${w}, or enter it when booking online.`, system: 'Booking system:' },
+  de: { gift: 'Geschenkgutschein', forTo: (n) => `für ${n}`, expires: 'Gültig bis', code: 'Code', to: 'Für', salon: 'im Salon', rest: 'im Restaurant', redeem: (w) => `Einlösbar ${w} oder bei der Online-Buchung.`, redeemShort: (w) => `einlösbar ${w}`, show: (w) => `Zeige ihn ${w} vor oder gib ihn bei der Online-Buchung ein.`, system: 'Buchungssystem:' },
+  fr: { gift: 'Bon cadeau', forTo: (n) => `pour ${n}`, expires: 'Expire le', code: 'Code', to: 'Pour', salon: 'au salon', rest: 'au restaurant', redeem: (w) => `Utilisable ${w} ou lors de la réservation en ligne.`, redeemShort: (w) => `utilisable ${w}`, show: (w) => `Présente-le ${w} ou saisis-le lors de la réservation en ligne.`, system: 'Système de réservation :' },
+  es: { gift: 'Tarjeta regalo', forTo: (n) => `para ${n}`, expires: 'Caduca', code: 'Código', to: 'Para', salon: 'en el salón', rest: 'en el restaurante', redeem: (w) => `Canjeable ${w} o al reservar en línea.`, redeemShort: (w) => `canjeable ${w}`, show: (w) => `Muéstrala ${w} o introdúcela al reservar en línea.`, system: 'Sistema de reservas:' },
+  it: { gift: 'Buono regalo', forTo: (n) => `per ${n}`, expires: 'Scade il', code: 'Codice', to: 'Per', salon: 'in salone', rest: 'al ristorante', redeem: (w) => `Utilizzabile ${w} o prenotando online.`, redeemShort: (w) => `utilizzabile ${w}`, show: (w) => `Mostralo ${w} o inseriscilo prenotando online.`, system: 'Sistema di prenotazione:' },
+}
+const vtxt = (lang?: string | null) => VTXT[(lang && lang in VTXT ? lang : 'hu') as VLang]
+
+/** Beolvasható minta-QR (a mintakódhoz, a /design-ban) — átlátszó hátterű SVG data-URL, mint a valódi (lib/voucherQr). */
+const sampleQrCache = new Map<string, string>()
+function sampleQr(code: string) {
+  const hit = sampleQrCache.get(code)
+  if (hit) return hit
+  const q = QRCode.create(`https://booking.davelopment.hu/fodraszat-budapest/voucher/${code}`, { errorCorrectionLevel: 'M' })
+  const n = q.modules.size
+  let r = ''
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (q.modules.get(y, x)) r += `<rect x='${x}' y='${y}' width='1' height='1'/>`
+  const url = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='-2 -2 ${n + 4} ${n + 4}' shape-rendering='crispEdges'>${r}</svg>`)}`
+  sampleQrCache.set(code, url)
+  return url
+}
+
+/** Egy utalvány-szín kitöltése (a foglalóoldal típus-választóján, ha a típusnak nincs képe) — a szülő `relative`. */
+export function VoucherFill({ color }: { color: keyof typeof VBG }) {
+  return <span className={`absolute inset-0 ${VBG[color]}`}>{VBG_STYLE[color] && <span className="absolute inset-0" style={{ background: VBG_STYLE[color] }} />}</span> // ui-allow: a kitöltés maga a minta
+}
+
+/** Egy utalvány-szín kis köre (a sablon-választóhoz) — ugyanaz a háttér, mint a kártyán. */
+export function VoucherSwatch({ color, on = false }: { color: keyof typeof VBG; on?: boolean }) {
+  return <span className={`relative block h-9 w-9 overflow-hidden rounded-full ${VBG[color]} ${on ? 'ring-2 ring-ui-dark ring-offset-2 ring-offset-ui-cell' : ''}`}>{VBG_STYLE[color] && <span className="absolute inset-0" style={{ background: VBG_STYLE[color] }} />}</span> // ui-allow: a kör maga a minta
+}
 
 /** Az utalvány maga — kétoldalú. Előlap: az üzlet logója (a mintában a davelopment booking ikonja), érték, kód, lejárat; a háttér a típusból jön (sötét / sárga / a
  *  szalon fotója). Hátoldal: a beolvasható QR-kód (a valódi generateVoucherQrDataUrl kimenete), a kód és hogy hol
  *  váltható be. Egy helyen — a lista, a popupok és a típus-választó is ezt mutatja. */
 export type VoucherBiz = { name: string; logo?: string | null; addr?: string | null }
 /** Élőben: `biz` (az üzlet neve, logója, címe), `expires` (felirat), `photo` (a típus képe — `bg="photo"`-nál a háttér). */
-export function VoucherCard({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark', side = 'front', qr, small = false, selected = false, restaurant = false, biz: bizIn, expires = '2027. Márc. 31.', photo }: { amount?: string; code?: string; to?: string; bg?: keyof typeof VBG; side?: 'front' | 'back'; qr?: string; small?: boolean; selected?: boolean; restaurant?: boolean; biz?: VoucherBiz; expires?: string; photo?: string | null }) {
+export function VoucherCard({ design, ...p }: VoucherCardProps & {
+  /** a típus sablonja (lib/voucherDesign): egyoldalas jegy a választott formában és színben; kép esetén a kép a háttér.
+   *  Kicsiben (lista, választó) a forma helyett csak a szín / kép látszik — az apró jegy olvashatatlan lenne. */
+  design?: VoucherDesign | null
+}) {
+  if (!design) return <VoucherCardBase {...p} />
+  const bg = p.photo ? 'photo' : design.color
+  const ink = design.text && design.text !== 'auto' ? design.text : undefined
+  return p.small ? <VoucherCardBase {...p} bg={bg} ink={ink} /> : <VoucherCardBase {...p} bg={bg} ink={ink} side="single" layout={design.layout} />
+}
+
+type VoucherCardProps = Parameters<typeof VoucherCardBase>[0]
+function VoucherCardBase({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark', side = 'front', layout = 'corner', qr, small = false, selected = false, restaurant = false, biz: bizIn, expires = '2027. Márc. 31.', photo, ink, lang, message }: { amount?: string; code?: string; to?: string; bg?: keyof typeof VBG; side?: 'front' | 'back' | 'single'; /** egyoldalas elrendezés: QR jobb felül · szelvényes · QR-sáv alul · ajándékkártya-arány */ layout?: 'corner' | 'stub' | 'band' | 'card' | 'vertical' | 'postcard' | 'cinema' | 'tag' | 'wristband'; qr?: string; small?: boolean; selected?: boolean; restaurant?: boolean; biz?: VoucherBiz; expires?: string; photo?: string | null
+  /** a szöveg színe (a sablon választása) — üresen a háttérhez igazodik */
+  ink?: 'light' | 'dark'
+  /** a jegy szövegeinek nyelve (a vásárlóé) — alapból magyar */
+  lang?: string | null
+  /** a vásárló üzenete (a képeslapon) — nélküle nincs üzenet-sor */
+  message?: string | null }) {
+  const L = vtxt(lang)
   const sample = restaurant ? { name: 'Bistro Andrássy', addr: '1061 Budapest, Andrássy út 34. · +36 1 765 4321' } : { name: 'Fodrászat Budapest', addr: '1061 Budapest, Andrássy út 12. · +36 1 234 5678' }
-  const biz = { ...sample, logo: BIZ_LOGO, ...(bizIn ?? {}), where: restaurant ? 'az étteremben' : 'a szalonban' }
-  const soft = bg === 'yellow' ? 'text-ui-dark/55' : 'text-white/55'
+  const biz = { ...sample, logo: BIZ_LOGO, ...(bizIn ?? {}), where: restaurant ? L.rest : L.salon }
+  const light = ink ? ink === 'dark' : VLIGHT.has(bg)
+  // a háttér osztálya a saját szövegszíne nélkül, ha a sablon felülírja
+  const bgClass = ink ? `${VBG[bg].split(' ').filter((c) => !c.startsWith('text-')).join(' ')} ${ink === 'dark' ? 'text-ui-dark' : 'text-white'}` : VBG[bg]
+  const soft = light ? 'text-ui-dark/55' : 'text-white/55'
   return (
-    <div className={`relative flex flex-col overflow-hidden rounded-ui-card ${small ? 'p-4' : 'min-h-[236px] p-5'} ${VBG[bg]} ${selected ? 'ring-2 ring-ui-dark ring-offset-2 ring-offset-white' : ''}`}>
+    <div className={`relative flex flex-col overflow-hidden ${side === 'single' && layout === 'stub' ? '' : 'rounded-ui-card'} ${side === 'single' && layout === 'vertical' ? 'mx-auto w-full max-w-[340px]' : ''} ${side === 'single' && layout === 'tag' ? 'mx-auto w-full max-w-[280px] [clip-path:polygon(18%_0,82%_0,100%_12%,100%_100%,0_100%,0_12%)]' : ''} ${side === 'single' && layout === 'wristband' ? '!min-h-0 !rounded-ui-control' : ''} ${small ? 'p-4' : 'min-h-[236px] p-5'} ${bgClass} ${selected ? 'ring-2 ring-ui-dark ring-offset-2 ring-offset-white' : ''}`}>
       {bg === 'photo' && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -482,21 +568,49 @@ export function VoucherCard({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark
           <div className="absolute inset-0 bg-ui-dark/45" />
         </>
       )}
-      {bg !== 'photo' && <span className={`pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full border-[18px] ${bg === 'yellow' ? 'border-white/30' : 'border-ui-yellow/25'}`} />}
+      {VBG_STYLE[bg] && <span className="pointer-events-none absolute inset-0" style={{ background: VBG_STYLE[bg] }} />} {/* ui-allow: a prémium háttér maga a minta */}
+      {(bg === 'dark' || bg === 'yellow') && <span className={`pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full border-[18px] ${bg === 'yellow' ? 'border-white/30' : 'border-ui-yellow/25'}`} />}
       <div className={`relative flex flex-1 flex-col ${side === 'back' ? 'justify-center' : ''}`}>
-        {side === 'front' ? (
+        {side === 'single' && layout !== 'corner' ? (
+          <SingleLayout L={L} message={message} layout={layout} bg={bg} photo={bg === 'photo' ? photo : null} biz={biz} to={to} amount={amount} code={code} expires={expires} qr={qr} soft={soft} light={light} />
+        ) : side === 'single' ? (
+          // egyoldalas (e-mailben, nyomtatáshoz): balra az üzlet, a címzett, az összeg, a kód, a lejárat és hogy hol váltható
+          // be; a jobb felső sarokban a beváltó QR-kód — egy kártyán minden
+          <>
+            <div className="flex items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2.5">
+                  {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className="h-8 w-auto shrink-0 rounded-ui-inner" /></>}
+                  <span className="text-ui-meta leading-tight">{biz.name}</span>
+                </div>
+                <div className={`mt-4 text-ui-label ${soft}`}>{to ? `${L.gift} · ${L.forTo(to)}` : L.gift}</div>
+                <div className={`font-light leading-none text-ui-num ${light ? '' : 'text-ui-yellow'}`}>{amount}</div>
+              </div>
+              <span className="flex h-[104px] w-[104px] shrink-0 items-center justify-center rounded-ui-inner bg-white p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {qr ? <img src={qr} alt={`QR-kód: ${code}`} className="h-full w-full" /> : code === VCODE ? <QrSvg url={`https://booking.davelopment.hu/voucher/${code}`} className="h-full w-full" /> : <QrCode className="h-1/2 w-1/2 text-ui-muted" strokeWidth={1.5} aria-hidden />}
+              </span>
+            </div>
+            <div className="mt-5 flex items-end justify-between gap-4">
+              <div><div className={`text-ui-label ${soft}`}>{L.code}</div><div className="font-mono text-ui-row">{code}</div></div>
+              <div className="text-right"><div className={`text-ui-label ${soft}`}>{L.expires}</div><div className="text-ui-body">{expires}</div></div>
+            </div>
+            <div className={`mt-3 text-ui-label leading-relaxed ${soft}`}>{L.show(biz.where)}</div>
+            <PoweredBy label={L.system} dark={!light} className="mt-4" />
+          </>
+        ) : side === 'front' ? (
           <>
             <div className="flex items-center gap-2.5">
               {/* az üzlet beállított logója — a példa kedvéért a davelopment booking ikonja */}
               {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className={`w-auto shrink-0 rounded-ui-inner ${small ? 'h-8' : 'h-10'}`} /></>}
               <span className={`leading-tight ${small ? 'text-ui-meta' : 'text-ui-body'}`}>{biz.name}</span>
             </div>
-            <div className={`${small ? 'mt-4 text-ui-label' : 'mt-6 text-ui-body'} ${soft}`}>{to ? `Ajándékutalvány · ${to} részére` : 'Ajándékutalvány'}</div>
-            <div className={`font-light leading-none ${small ? 'text-ui-sub' : 'text-ui-page'} ${bg === 'yellow' ? '' : 'text-ui-yellow'}`}>{amount}</div>
+            <div className={`${small ? 'mt-4 text-ui-label' : 'mt-6 text-ui-body'} ${soft}`}>{to ? `${L.gift} · ${L.forTo(to)}` : L.gift}</div>
+            <div className={`font-light leading-none ${small ? 'text-ui-sub' : 'text-ui-page'} ${light ? '' : 'text-ui-yellow'}`}>{amount}</div>
             {!small && (
               <div className="mt-auto flex items-end justify-between pt-6">
-                <div><div className={`text-ui-label ${soft}`}>Kód</div><div className="font-mono text-ui-row">{code}</div></div>
-                <div className="text-right"><div className={`text-ui-label ${soft}`}>Lejár</div><div className="text-ui-body">{expires}</div></div>
+                <div><div className={`text-ui-label ${soft}`}>{L.code}</div><div className="font-mono text-ui-row">{code}</div></div>
+                <div className="text-right"><div className={`text-ui-label ${soft}`}>{L.expires}</div><div className="text-ui-body">{expires}</div></div>
               </div>
             )}
           </>
@@ -504,17 +618,165 @@ export function VoucherCard({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark
           <div className="flex items-center gap-4">
             <span className="flex h-[124px] w-[124px] shrink-0 items-center justify-center rounded-ui-inner bg-white p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              {qr ? <img src={qr} alt={`QR-kód: ${code}`} className="h-full w-full" /> : null}
+              {qr ? <img src={qr} alt={`QR-kód: ${code}`} className="h-full w-full" /> : <QrSvg url={`https://booking.davelopment.hu/voucher/${code}`} className="h-full w-full" />}
             </span>
             <div className="min-w-0">
-              <div className={`text-ui-label ${soft}`}>Kód</div>
+              <div className={`text-ui-label ${soft}`}>{L.code}</div>
               <div className="font-mono text-ui-row">{code}</div>
-              <div className={`mt-3 text-ui-meta leading-relaxed ${soft}`}>Mutasd fel {biz.where}, vagy add meg a kódot online foglaláskor.</div>
+              <div className={`mt-3 text-ui-meta leading-relaxed ${soft}`}>{L.show(biz.where)}</div>
               {biz.addr && <div className={`mt-2 text-ui-label ${soft}`}>{biz.addr}</div>}
-              <PoweredBy dark={bg !== 'yellow'} className="mt-3" />
+              <PoweredBy label={L.system} dark={!light} className="mt-3" />
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Az egyoldalas utalvány további elrendezései (a VoucherCard `layout`-ja): szelvényes (jobbra letéphető sáv a QR-ral),
+ *  QR-sáv alul (fehér sáv a kártya alján), ajándékkártya-arány (1,6:1, a QR kicsiben jobb alul). */
+function SingleLayout({ L, message, layout, bg, photo, biz, to, amount, code, expires, qr, soft, light }: { L: ReturnType<typeof vtxt>; message?: string | null; layout: 'stub' | 'band' | 'card' | 'vertical' | 'postcard' | 'cinema' | 'tag' | 'wristband'; bg: keyof typeof VBG; photo?: string | null; biz: VoucherBiz & { where: string }; to?: string; amount: string; code: string; expires: string; qr?: string; soft: string; light: boolean }) {
+  const head = (
+    <div className="flex items-center gap-2.5">
+      {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className="h-8 w-auto shrink-0 rounded-ui-inner" /></>}
+      <span className="text-ui-meta leading-tight">{biz.name}</span>
+    </div>
+  )
+  const title = <div className={`text-ui-label ${soft}`}>{to ? `${L.gift} · ${L.forTo(to)}` : L.gift}</div>
+  const big = <div className={`font-light leading-none text-ui-num ${light ? '' : 'text-ui-yellow'}`}>{amount}</div>
+  // eslint-disable-next-line @next/next/no-img-element
+  // a QR közvetlenül a háttéren, fehér doboz nélkül: a QR-kép (átlátszó hátterű PNG — lib/voucherQr) maszk, és alatta a
+  // szín látszik át: világos háttéren sötét, sötéten / képen fehér; a mozijegy sárga szelvényén a kártya saját színe.
+  // A mintakódnál (design) ugyanez egy beolvasható minta-QR-ral.
+  const src = qr ?? (code === VCODE ? sampleQr(code) : null)
+  const qrImg = (size: string, tint: 'auto' | 'card' = 'auto') => {
+    if (!src) return <span className={`flex shrink-0 items-center justify-center ${size}`}><QrCode className="h-1/2 w-1/2 opacity-50" strokeWidth={1.5} aria-hidden /></span>
+    const fill = tint === 'card' ? (VQR_INK[bg] ?? 'var(--ui-dark)') : light ? 'var(--ui-dark)' : '#fff' // ui-allow: a QR színe (maszkon át)
+    return <span role="img" aria-label={`QR-kód: ${code}`} className={`block shrink-0 ${size}`} style={{ background: fill, WebkitMaskImage: `url("${src}")`, maskImage: `url("${src}")`, WebkitMaskSize: '100% 100%', maskSize: '100% 100%' }} /> // ui-allow: a QR maga a maszk
+  }
+  if (layout === 'stub') {
+    // belépőjegy: a jobb szélen letéphető szelvény — a vágásvonal a kártya teljes magasságában, a két végén félkör bevágás
+    const line = light ? 'border-ui-dark/25' : 'border-white/30'
+    return (
+      <div className="-my-5 flex flex-1 items-stretch">
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-5 py-5 pr-5">
+          {head}
+          <div>{title}{big}</div>
+          <div className={`text-ui-label leading-relaxed ${soft}`}>
+            <div>{L.expires}: {expires}</div>
+            <div>{L.redeem(biz.where)}</div>
+            <PoweredBy label={L.system} dark={!light} className="mt-2" />
+          </div>
+        </div>
+        <div className={`relative flex w-[150px] shrink-0 flex-col items-center justify-center gap-2.5 border-l-2 border-dashed py-5 pl-5 ${line}`}>
+          <span className="absolute -left-[10px] -top-[9px] h-[18px] w-[18px] rounded-full bg-white" />
+          <span className="absolute -bottom-[9px] -left-[10px] h-[18px] w-[18px] rounded-full bg-white" />
+          {qrImg('h-[100px] w-[100px]')}
+          <span className="font-mono text-ui-meta">{code}</span>
+        </div>
+      </div>
+    )
+  }
+  if (layout === 'vertical') {
+    // álló koncertjegy: fent a jegy, alul vízszintes tépővonal két oldalsó bevágással, alatta a szelvény a QR-ral
+    const line = light ? 'border-ui-dark/25' : 'border-white/30'
+    return (
+      <div className="-mx-5 -my-5 flex flex-1 flex-col">
+        <div className="flex flex-col gap-6 p-6">
+          {head}
+          <div>{title}<div className={`mt-1 font-light leading-none text-ui-page ${light ? '' : 'text-ui-yellow'}`}>{amount}</div></div>
+          <div className={`text-ui-label ${soft}`}>{L.expires}: {expires}</div>
+        </div>
+        <div className={`relative mx-0 border-t-2 border-dashed ${line}`}>
+          <span className="absolute -left-[9px] -top-[10px] h-[18px] w-[18px] rounded-full bg-white" />
+          <span className="absolute -right-[9px] -top-[10px] h-[18px] w-[18px] rounded-full bg-white" />
+        </div>
+        <div className="flex items-center gap-4 p-6">
+          {qrImg('h-[96px] w-[96px]')}
+          <div className="min-w-0"><div className={`text-ui-label ${soft}`}>{L.code}</div><div className="font-mono text-ui-row">{code}</div><div className={`mt-1 text-ui-label leading-relaxed ${soft}`}>{L.redeem(biz.where)}</div></div>
+        </div>
+      </div>
+    )
+  }
+  if (layout === 'postcard') return (
+    // képeslap: bal fele fotó, jobb fele a „hátoldal” — vonalakra írt címzett és üzenet, a bélyeg helyén a QR
+    <div className="-m-5 grid flex-1 grid-cols-2">
+      {/* a „képoldal”: a típus képe; kép nélkül a kártya színén nagyban az üzlet logója */}
+      {photo
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={photo} alt="" className="h-full min-h-[240px] w-full object-cover" />
+        : <div className="flex min-h-[240px] items-center justify-center">{biz.logo
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={biz.logo} alt={biz.name} className="h-24 w-auto rounded-ui-card" />
+          : <span className="text-ui-display font-light">{biz.name.slice(0, 1)}</span>}</div>}
+      <div className={`relative flex flex-col gap-3 border-l p-5 ${light ? 'border-ui-dark/15' : 'border-white/20'}`}>
+        <div className="flex items-start justify-between gap-3">
+          {head}
+          {qrImg('h-[78px] w-[78px]')}
+        </div>
+        <div className={`font-light leading-none text-ui-num ${light ? '' : 'text-ui-yellow'}`}>{amount}</div>
+        {[`${L.to}: ${to ?? '—'}`, ...(message ? [`„${message}”`] : []), `${L.code}: ${code} · ${L.expires.toLowerCase()}: ${expires}`].map((t) => (
+          <div key={t} className={`border-b pb-1 text-ui-meta italic ${light ? 'border-ui-dark/20' : 'border-white/25'}`}>{t}</div>
+        ))}
+      </div>
+    </div>
+  )
+  if (layout === 'cinema') return (
+    // kétszínű mozijegy: bal tömb a kártya színe, jobb tömb arany; köztük perforált határ, jobbra elforgatott sorszám és QR
+    <div className="-m-5 flex flex-1 items-stretch">
+      <div className="flex min-w-0 flex-1 flex-col justify-between gap-4 p-5">{head}<div>{title}{big}</div><div className={`text-ui-label ${soft}`}>{L.expires}: {expires} · {L.redeemShort(biz.where)}</div></div>
+      <div className="relative flex w-[170px] shrink-0 items-center gap-3 border-l-[3px] border-dotted border-white bg-ui-yellow p-4 text-ui-dark">
+        <span className="font-mono text-ui-meta tracking-widest [writing-mode:vertical-rl] rotate-180">{code}</span>
+        {qrImg('h-[96px] w-[96px]', 'card')}
+      </div>
+    </div>
+  )
+  if (layout === 'tag') return (
+    // függő címke: levágott felső sarkok, lyuk zsinórral, keskeny és hosszúkás, a QR alul
+    <div className="flex flex-1 flex-col items-center gap-4 pt-2 text-center">
+      <span className="relative h-5 w-5 rounded-full bg-white ring-4 ring-black/10">
+        <svg viewBox="0 0 40 40" className="pointer-events-none absolute -left-[10px] -top-[30px] h-10 w-10 text-ui-dark/50" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20 30 C 6 20, 6 6, 20 2 C 34 6, 34 20, 20 30" /></svg>
+      </span>
+      {head}
+      <div>{title}{big}</div>
+      {qrImg('h-[110px] w-[110px]')}
+      <div className={`font-mono text-ui-meta ${soft}`}>{code}</div>
+      <div className={`text-ui-label ${soft}`}>{L.expires}: {expires}</div>
+    </div>
+  )
+  if (layout === 'wristband') return (
+    // karszalag: széles, alacsony csík — a háttérben ismétlődő minta az üzlet nevével, középen az összeg, a végén a QR
+    <div className="-m-5 relative flex h-[132px] items-center gap-5 overflow-hidden px-6">
+      <span className={`pointer-events-none absolute inset-0 select-none overflow-hidden whitespace-nowrap text-ui-meta uppercase leading-6 tracking-widest ${light ? 'text-ui-dark/[0.07]' : 'text-white/[0.08]'}`}>{Array.from({ length: 6 }, (_, i) => <span key={i} className="block">{Array.from({ length: 8 }, () => `${biz.name} · `).join('')}</span>)}</span>
+      <div className="relative shrink-0">{head}</div>
+      <div className="relative min-w-0 flex-1 text-center">{title}<div className={`font-light leading-none text-ui-num ${light ? '' : 'text-ui-yellow'}`}>{amount}</div><div className={`mt-1 font-mono text-ui-label ${soft}`}>{code} · lejár: {expires}</div></div>
+      <div className="relative">{qrImg('h-[96px] w-[96px]')}</div>
+    </div>
+  )
+  if (layout === 'band') return (
+    // felül a szín / a fotó és az összeg, alul fehér sáv a QR-ral, a kóddal és a beváltással (a QR nem takarja a képet)
+    <div className="flex flex-col">
+      {head}
+      <div className="mt-8">{title}</div>
+      {big}
+      <div className="-mx-5 -mb-5 mt-6 flex items-center gap-4 bg-white p-4 text-ui-text">
+        {qrImg('h-[88px] w-[88px]')}
+        <div className="min-w-0">
+          <div className="text-ui-label text-ui-muted">{L.code}</div>
+          <div className="font-mono text-ui-row">{code}</div>
+          <div className="mt-1 text-ui-label text-ui-muted">{L.expires}: {expires} · {L.show(biz.where)}</div>
+        </div>
+      </div>
+    </div>
+  )
+  return (
+    // ajándékkártya: bankkártya-arány, fent az üzlet, lent balra az összeg, jobbra kicsiben a QR
+    <div className="flex aspect-[1.6/1] flex-col">
+      {head}
+      <div className="mt-auto flex items-end justify-between gap-3">
+        <div className="min-w-0">{title}{big}<div className={`mt-1.5 font-mono text-ui-label ${soft}`}>{code}</div></div>
+        {qrImg('h-[64px] w-[64px]')}
       </div>
     </div>
   )
@@ -648,7 +910,7 @@ export function CheckoutModal({ title = 'Fizetés és lezárás', subtitle = 'Ju
             {mode === 'register' && isLink ? (
               <Note icon={Receipt} className="mt-2">Online fizetés: a bizonylatot a bekötött számlázó állítja ki — ha nincs, egyeztesd a könyvelőddel, mit adj róla.</Note>
             ) : mode === 'register' ? (
-              <Note icon={Receipt} className="mt-2">A nyugtát a pénztárgépen adod — itt csak rögzítjük, mennyit és hogyan fizettek (napi zárás, statisztika).</Note>
+              <Note icon={Receipt} className="mt-2">A nyugtát a pénztárgépen adod — itt csak rögzítjük, mennyit és hogyan fizettek (napi zárás, statisztika).{deducts.length > 0 && <> <strong>A pénztárgépen a teljes összeget üsd be</strong> — a foglaló és az ajándékutalvány csak fizetési mód (befizetéskor áfa nélkül ment, az ÁFA most keletkezik).</>}</Note>
             ) : <>
               {invoice && <>
                 <Segmented full size="sm" tone="glass" options={['Magánszemély', 'Cég']} active={buyer === 'company' ? 1 : 0} onSelect={onBuyer ? (i) => onBuyer(i ? 'company' : 'person') : undefined} className="mt-2" />
@@ -660,7 +922,7 @@ export function CheckoutModal({ title = 'Fizetés és lezárás', subtitle = 'Ju
                     <Input size="sm" defaultValue="hanna.juhasz@gmail.com" aria-label="E-mail" />
                   </> : buyerFields}
                 </div>
-                {deducts.some((l) => l.kind === 'deposit') && <Meta className="mt-2 text-ui-label">Végszámla: az előlegszámlára hivatkozik, csak a különbözetet számlázza.</Meta>}
+                {deducts.length > 0 && <Meta className="mt-2 text-ui-label">A számla a teljes összegről szól, áfával — a foglaló és az ajándékutalvány rajta fizetési módként szerepel (befizetéskor áfa nélkül ment).</Meta>}
               </>}
             </>}
           </Card>

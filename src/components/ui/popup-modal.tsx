@@ -40,6 +40,7 @@ export function PopupModal({
   headerAction,
   headerExtra,
   aside,
+  asideWidth = 'w-[300px]',
   footer,
   panel,
   side = 'center',
@@ -59,6 +60,8 @@ export function PopupModal({
   /** jobb oldali sáv (pl. az új foglalás összegzése, design 6.9): desktopon külön oszlop szürke háttérrel, mobilon a
    *  tartalom végén */
   aside?: React.ReactNode
+  /** az oldalsáv szélessége desktopon (Tailwind w- osztály) — széles szerkesztőhöz nagyobb */
+  asideWidth?: string
   /** a gombok sora alul (jobbra igazítva) */
   footer?: React.ReactNode
   /** kész ablak (a kit Modal-ja, pl. a vendég-szerkesztő blokk) — ugyanazzal a háttérrel, animációval és mobil-lappal,
@@ -138,8 +141,9 @@ export function PopupModal({
             </motion.div>
             {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 px-6 pb-6">{footer}</div>}
             </div>
+            {/* a szürke oldalsávon a cella-színű elemek (mezők, sorok, gombok) fehérek — különben beleolvadnának */}
             {aside && (
-              <motion.div variants={PANEL_ITEM} className="hidden w-[300px] shrink-0 flex-col overflow-y-auto bg-ui-cell lg:flex" data-lenis-prevent>
+              <motion.div variants={PANEL_ITEM} className={`hidden ${asideWidth} shrink-0 flex-col overflow-y-auto bg-ui-cell lg:flex [&_.bg-ui-cell]:bg-white`} data-lenis-prevent>
                 <div className="flex justify-end px-6 pt-6"><IconButton icon={X} label="Bezárás" variant="glass" size="sm" onClick={onClose} /></div>
                 {aside}
               </motion.div>

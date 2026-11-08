@@ -111,6 +111,10 @@ export const GiftVoucherTypes: CollectionConfig = {
     { name: 'name', type: 'text', required: true, localized: true, label: 'Név' },
     { name: 'amount_huf', type: 'number', required: true, min: 0, label: 'Összeg (Ft)' },
     { name: 'image', type: 'upload', relationTo: 'media', label: 'Kép' },
+    // a sablon (design 12.x): a jegy formája és színe — lib/voucherDesign; ha van kép, az a háttér
+    { name: 'card_layout', type: 'text', label: 'Sablon (forma)' },
+    { name: 'card_color', type: 'text', label: 'Sablon (szín)' },
+    { name: 'card_text', type: 'text', label: 'Sablon (szövegszín)' },
     { name: 'description', type: 'textarea', localized: true, label: 'Leírás' },
     { name: 'active', type: 'checkbox', defaultValue: true, label: 'Aktív' },
   ],

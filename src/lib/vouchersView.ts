@@ -2,6 +2,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { fixMediaUrl } from '@/lib/utils'
 import type { VoucherRow, VoucherTypeVM } from '@/components/dashboard/VouchersView'
 import type { GiftVoucher, GiftVoucherType, Media } from '@/payload/payload-types'
+import { voucherDesign } from './voucherDesign'
 
 /** Az Utalványok oldal (design 12.x) adatai — szalon és étterem közös: az utalványok (kiállítóval, a típus képével) és a
  *  típusok (eladott darabszámmal). */
@@ -35,7 +36,7 @@ export async function getVouchersVM(kind: 'salon' | 'restaurant', businessId: st
     })),
     types: typeDocs.map((t) => ({
       id: String(t.id), name: t.name, amount_huf: t.amount_huf, description: t.description ?? null, active: t.active !== false,
-      image: t.image && typeof t.image === 'object' ? { id: String((t.image as Media).id), url: imgOf(t) } : null, sold: sold.get(String(t.id)) ?? 0,
+      image: t.image && typeof t.image === 'object' ? { id: String((t.image as Media).id), url: imgOf(t) } : null, design: voucherDesign(t.card_layout, t.card_color, t.card_text), sold: sold.get(String(t.id)) ?? 0,
     })),
   }
 }

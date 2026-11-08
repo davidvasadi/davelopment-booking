@@ -12,11 +12,11 @@ export const BIZ_LOGO = '/icons/favico_light.svg?v=2'
 /** „Foglalási rendszer: davelopment booking” — kis sor a levél / utalvány / foglalóoldal / minden vendég-oldal alján;
  *  kattintható: a davelopment booking oldalára visz (új lapon — a vendég a foglalásnál marad; beágyazva is működik).
  *  `dark`: sötét alapon. */
-export function PoweredBy({ dark = false, className = '' }: { dark?: boolean; className?: string }) {
+export function PoweredBy({ dark = false, className = '', label = 'Foglalási rendszer:' }: { dark?: boolean; className?: string; /** a felirat (az utalványon a vásárló nyelvén) */ label?: string }) {
   return (
     <a href={`${APP_URL}/`} target="_blank" rel="noopener" title="davelopment booking — online foglalási rendszer"
       className={`inline-flex items-center gap-2 text-ui-label outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ui-yellow/60 ${dark ? 'text-white/55' : 'text-ui-muted'} ${className}`}>
-      Foglalási rendszer:
+      {label}
       <BrandLogo variant={dark ? 'dark' : 'light'} className="h-4" alt="davelopment booking" />
     </a>
   )

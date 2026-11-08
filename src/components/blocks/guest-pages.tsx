@@ -1,7 +1,9 @@
 import { Check, CalendarX2, Gift, Star, X, type LucideIcon } from 'lucide-react'
-import { Button, Card, IconCircle, Meta, Textarea } from '@/components/ui-kit'
+import { Button, Card, IconCircle, Meta, StatusPill, Textarea } from '@/components/ui-kit'
 import { PoweredBy } from './brand'
-import { VoucherCard } from './money'
+import { VCODE, VoucherCard, type VoucherBiz } from './money'
+import { VoucherFit } from './voucher-template-picker'
+import { DEFAULT_VOUCHER_DESIGN, type VoucherDesign } from '@/lib/voucherDesign'
 
 /*
  * A vendég kis oldalai (design 21.20) — amire egy e-mail linkje visz: lemondás (megerősítés + kész), foglalás sikeres,
@@ -76,14 +78,20 @@ export function ReviewForm({ rating = 4, onRating, comment = '', onComment, onSu
 }
 
 /** Az ajándékutalvány oldala: a kártya, az állapot és a lejárat, és ha még érvényes, a beváltás a foglalóoldalon. */
-export function VoucherView({ amount = '20 000 Ft', code = 'AB12-CD34', to, status = 'Érvényes', active = true, expires = '2027. Márc. 31.', bookHref, restaurant = false, photo }: {
+export function VoucherView({ amount = '20 000 Ft', code = VCODE, to, status = 'Érvényes', active = true, expires = '2027. Márc. 31.', bookHref, restaurant = false, photo, design = DEFAULT_VOUCHER_DESIGN, qr, biz, tone, lang }: {
   amount?: string; code?: string; to?: string; status?: string; active?: boolean; expires?: string; bookHref?: string; restaurant?: boolean; photo?: string | null
+  /** a típus sablonja (lib/voucherDesign) és a QR (lib/voucherQr) — ugyanaz a jegy, amit a vendég kapott */
+  design?: VoucherDesign; qr?: string; biz?: VoucherBiz
+  /** az állapot színe (pill, mint a vezérlőpulton): érvényes zöld, beváltva sötét, lejárt / visszatérítve piros */
+  tone?: 'ok' | 'confirmed' | 'bad'
+  /** a jegy nyelve (a vásárlóé) */
+  lang?: string | null
 }) {
   return (
     <div>
-      <VoucherCard amount={amount} code={code} to={to} expires={expires} restaurant={restaurant} bg={photo ? 'photo' : 'dark'} photo={photo} />
+      <VoucherFit><VoucherCard amount={amount} code={code} to={to} expires={expires} restaurant={restaurant} photo={photo} design={design} qr={qr} biz={biz} lang={lang} /></VoucherFit>
       <div className="mt-4 space-y-1.5 rounded-ui-inner bg-ui-cell p-4 text-ui-body">
-        <div className="flex justify-between gap-3"><span className="text-ui-muted">Állapot</span><span className={active ? 'text-ui-ok' : 'text-ui-muted'}>{status}</span></div>
+        <div className="flex justify-between gap-3"><span className="text-ui-muted">Állapot</span><StatusPill status={tone ?? (active ? 'ok' : 'confirmed')}>{status}</StatusPill></div>
         <div className="flex justify-between gap-3"><span className="text-ui-muted">Érvényes</span><span className="text-ui-text">{expires}-ig</span></div>
         <div className="flex justify-between gap-3"><span className="text-ui-muted">Kód</span><span className="font-mono text-ui-text">{code}</span></div>
       </div>

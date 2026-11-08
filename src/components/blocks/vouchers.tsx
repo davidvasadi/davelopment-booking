@@ -1,9 +1,12 @@
 import { Banknote, Check, CreditCard, Download, Gift, Landmark, Link2, Mail, MoreHorizontal, Plus, TicketCheck, Wallet, X, ArrowUpRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Button, Card, CardTitle, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Note, OptionCard, Pagination, Panel, Pill, RowCheck, StatusPill, Table, Td, Textarea, Th, Tr, type Status, MarqueeText } from '@/components/ui-kit'
+import { Button, Card, CardTitle, Field, FieldRow, Select, IconButton, IconCircle, Input, ListRow, Meta, Note, OptionCard, Pagination, Panel, Pill, RowCheck, StatusPill, Table, Td, Textarea, Th, Tr, type Status, MarqueeText } from '@/components/ui-kit'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { Switch } from '@/components/ui/toggle-switch'
-import { VCODE, VoucherCard, type VoucherBiz } from './money'
+import { VCODE, VoucherCard, VoucherFill, VoucherSwatch, type VoucherBiz } from './money'
+import { DEFAULT_VOUCHER_DESIGN, VOUCHER_COLORS, VOUCHER_LAYOUTS, type VoucherDesign } from '@/lib/voucherDesign'
+import { VoucherFit, VoucherTemplatePicker } from './voucher-template-picker'
+import { countryOptions, isForeignCountry } from '@/lib/countries'
 
 /* Utalványok (design 12.1–12.9) — az élő oldal (VouchersView) és a /design ugyanezeket rendereli: props nélkül
    mintaadattal, élőben a valós adattal és kezelőkkel. Hook nincs benne, így a szerveres design oldal is használhatja. */
@@ -19,7 +22,7 @@ export const PAY: Record<string, { short: string; icon: LucideIcon }> = {
 }
 export type VoucherStatus = 'pending' | 'active' | 'redeemed' | 'expired' | 'refunded'
 export const V_STATUS: Record<VoucherStatus, { label: string; pill: Status }> = {
-  pending: { label: 'Függőben', pill: 'pending' }, active: { label: 'Aktív', pill: 'ok' }, redeemed: { label: 'Beváltva', pill: 'neutral' },
+  pending: { label: 'Függőben', pill: 'pending' }, active: { label: 'Aktív', pill: 'ok' }, redeemed: { label: 'Beváltva', pill: 'confirmed' },
   expired: { label: 'Lejárt', pill: 'bad' }, refunded: { label: 'Visszatérítve', pill: 'bad' },
 }
 
@@ -79,7 +82,7 @@ export function VoucherTable({ more, rows = SAMPLE_ROWS, openKey = 'a', selected
                   <Td><span className="flex items-center gap-2"><span title={(PAY[r.pay] ?? PAY.other).short}><IconCircle tone={on ? 'white' : 'cell'} size="sm" icon={(PAY[r.pay] ?? PAY.other).icon} /></span>{r.amount} Ft</span></Td>
                   <Td>{r.expires}</Td>
                   <Td>{r.status === 'pending'
-                    ? <span className="flex items-center gap-1"><StatusPill status={V_STATUS[r.status].pill}>{V_STATUS[r.status].label}</StatusPill><span onClick={(e) => e.stopPropagation()}><IconButton icon={Link2} label="Link másolása" variant="ghost" size="sm" onClick={onCopyLink ? () => onCopyLink(r.key) : undefined} /></span></span>
+                    ? <span className="flex items-center gap-1"><StatusPill status={V_STATUS[r.status].pill}>{V_STATUS[r.status].label}</StatusPill>{onCopyLink ? <span onClick={(e) => e.stopPropagation()}><IconButton icon={Link2} label="Link másolása" variant="ghost" size="sm" onClick={() => onCopyLink(r.key)} /></span> : <IconButton icon={Link2} label="Link másolása" variant="ghost" size="sm" />}</span>
                     : <StatusPill status={V_STATUS[r.status].pill}>{V_STATUS[r.status].label}</StatusPill>}</Td>
                 </Tr>
               )
@@ -97,11 +100,11 @@ export function VoucherTable({ more, rows = SAMPLE_ROWS, openKey = 'a', selected
 /* ── 12.1 jobb oszlop / 12.8 lap: a kijelölt utalvány ── */
 
 export type VoucherDetailVM = {
-  amount: string; code: string; to: string | null; expires: string; status: VoucherStatus; bg: 'dark' | 'yellow' | 'photo'; photo: string | null
+  amount: string; code: string; to: string | null; expires: string; status: VoucherStatus; bg: 'dark' | 'yellow' | 'photo'; photo: string | null; design?: VoucherDesign | null
   rows: [string, React.ReactNode][]
 }
 const SAMPLE_DETAIL: VoucherDetailVM = {
-  amount: '20 000 Ft', code: VCODE, to: 'Lili', expires: '2027. Márc. 31.', status: 'active', bg: 'dark', photo: null,
+  amount: '20 000 Ft', code: VCODE, to: 'Lili', expires: '2027. Márc. 31.', status: 'active', bg: 'dark', photo: null, design: DEFAULT_VOUCHER_DESIGN,
   rows: [['Típus', 'Ajándék 20'], ['Vásárló', 'Kovács Anna'], ['Megajándékozott', 'Kovács Lili'], ['Fizetés', <PayCell key="p" pay="online" />], ['Kiállította', 'Szabina · Szept. 2.'], ['Lejár', '2027. Márc. 31.']],
 }
 
@@ -122,9 +125,14 @@ export function VoucherDetail({ v = SAMPLE_DETAIL, restaurant = false, biz, onRe
   const live = !!onMenu
   return (
     <div className={className}>
-      <VoucherCard to={v.to ?? undefined} amount={v.amount} code={v.code} expires={v.expires} bg={v.bg} photo={v.photo} restaurant={restaurant} biz={biz} />
-      <Card className="mt-[5px]">
+      {/* a jegy a részletek kártyáján belül, a cím alatt — mint a típus-szerkesztőben */}
+      <Card>
         <div className="flex items-center justify-between"><CardTitle>Részletek</CardTitle><StatusPill status={V_STATUS[v.status].pill}>{V_STATUS[v.status].label}</StatusPill></div>
+        <div className="mt-4">
+          {v.design
+            ? <VoucherFit><VoucherCard to={v.to ?? undefined} amount={v.amount} code={v.code} expires={v.expires} photo={v.photo} design={v.design} restaurant={restaurant} biz={biz} /></VoucherFit>
+            : <VoucherCard to={v.to ?? undefined} amount={v.amount} code={v.code} expires={v.expires} bg={v.bg} photo={v.photo} restaurant={restaurant} biz={biz} />}
+        </div>
         <div className="mt-2">
           {v.rows.map(([k, val]) => <FieldRow key={k} label={k}><MarqueeText className="text-right text-ui-body text-ui-text">{val}</MarqueeText></FieldRow>)}
         </div>
@@ -166,7 +174,7 @@ export function VoucherScan({ camera, code = '', onCode, onSearch, busy = false 
         </div>
       )}
       <div className="mt-4 flex items-end gap-1.5">
-        <Field label="Vagy kézzel" className="min-w-0 flex-1"><Input placeholder="XXXX-XXXX" className="font-mono uppercase" value={code} readOnly={!onCode} onChange={(e) => onCode?.(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter') onSearch?.() }} /></Field>
+        <Field label="Vagy kézzel" className="min-w-0 flex-1"><Input placeholder="XXXX-XXXX" className="font-mono uppercase" value={code} readOnly={!onCode} onChange={onCode ? (e) => onCode(e.target.value.toUpperCase()) : undefined} onKeyDown={onSearch ? (e) => { if (e.key === 'Enter') onSearch() } : undefined} /></Field>
         <Button variant="cell" onClick={onSearch} loading={busy}>Keresés</Button>
       </div>
     </>
@@ -174,8 +182,8 @@ export function VoucherScan({ camera, code = '', onCode, onSearch, busy = false 
 }
 
 /** A megtalált utalvány: állapot, kód, kártya, adatok és Beváltom — lejárt / beváltott kódnál piros jelzés, gomb nélkül. */
-export function VoucherFound({ status = 'active', code = VCODE, amount = '20 000 Ft', bg = 'yellow', photo = null, rows = [['Típus', 'Ajándék 20'], ['Megajándékozott', 'Kovács Lili'], ['Lejár', '2027. Márc. 31.']], note, onRedeem, busy = false, restaurant = false, biz, bare = false }: {
-  status?: VoucherStatus; code?: string; amount?: string; bg?: 'dark' | 'yellow' | 'photo'; photo?: string | null; rows?: [string, string][]; note?: string
+export function VoucherFound({ status = 'active', code = VCODE, amount = '20 000 Ft', bg = 'yellow', photo = null, design = DEFAULT_VOUCHER_DESIGN, rows = [['Típus', 'Ajándék 20'], ['Megajándékozott', 'Kovács Lili'], ['Lejár', '2027. Márc. 31.']], note, onRedeem, busy = false, restaurant = false, biz, bare = false }: {
+  status?: VoucherStatus; code?: string; amount?: string; bg?: 'dark' | 'yellow' | 'photo'; photo?: string | null; design?: VoucherDesign | null; rows?: [string, string][]; note?: string
   onRedeem?: () => void; busy?: boolean; restaurant?: boolean; biz?: VoucherBiz
   /** egy ablakon belül: saját keret nélkül (különben kártya a kártyában) */
   bare?: boolean
@@ -186,9 +194,11 @@ export function VoucherFound({ status = 'active', code = VCODE, amount = '20 000
     <Wrap>
       <div className="flex items-center justify-between"><StatusPill status={ok ? 'ok' : 'bad'}>{ok ? 'Érvényes' : status === 'redeemed' ? 'Már beváltva' : V_STATUS[status].label}</StatusPill><Meta className="font-mono">{code}</Meta></div>
       {ok ? <>
-        <div className="mt-3"><VoucherCard small amount={amount} bg={bg} photo={photo} restaurant={restaurant} biz={biz} /></div>
+        <div className="mt-3">{design ? <VoucherFit><VoucherCard amount={amount} code={code} photo={photo} design={design} restaurant={restaurant} biz={biz} /></VoucherFit> : <VoucherCard small amount={amount} bg={bg} photo={photo} restaurant={restaurant} biz={biz} />}</div>
         <div className="mt-3">{rows.map(([k, v]) => <FieldRow key={k} label={k}><span className="text-ui-body text-ui-text">{v}</span></FieldRow>)}</div>
         <Button className="mt-3 w-full" icon={Check} onClick={onRedeem} loading={busy}>Beváltom</Button>
+        {/* az ÁFA a beváltáskor keletkezik (docs/manual) */}
+        <Meta className="mt-2 text-center text-ui-label">A kasszában / a lezárásnál a teljes összeget számlázd — az utalvány fizetési mód.</Meta>
       </> : note && <Meta className="mt-2">{note}</Meta>}
     </Wrap>
   )
@@ -219,16 +229,20 @@ export function VoucherTypeList({ types = SAMPLE_TYPES, openId = '1', onOpen, on
   )
 }
 
-export type VoucherTypeValue = { name: string; amount: string; description: string; active: boolean; image: string | null }
-const SAMPLE_TYPE: VoucherTypeValue = { name: 'Ajándék 20', amount: '20 000', description: 'Bármely szolgáltatásra beváltható, 6 hónapig érvényes.', active: true, image: null }
+export type VoucherTypeValue = { name: string; amount: string; description: string; active: boolean; image: string | null; design: VoucherDesign }
+const SAMPLE_TYPE: VoucherTypeValue = { name: 'Ajándék 20', amount: '20 000', description: 'Bármely szolgáltatásra beváltható, 6 hónapig érvényes.', active: true, image: null, design: DEFAULT_VOUCHER_DESIGN }
 
 /** A kijelölt típus: fent az utalvány előnézete és a háttere, alatta név, összeg, leírás és hogy megvásárolható-e. */
-export function VoucherTypeEditor({ value = SAMPLE_TYPE, onChange, top, background, onSave, onCancel, onDelete, busy = false, restaurant = false, biz, textOnly = false, bare = false, className = '' }: {
+export function VoucherTypeEditor({ value = SAMPLE_TYPE, onChange, top, background, onSave, onCancel, onDelete, busy = false, restaurant = false, biz, textOnly = false, bare = false, wide = false, lang, className = '' }: {
+  /** a szerkesztett nyelv — az előnézet jegye ezen a nyelven */
+  lang?: string
+  /** desktopon két oszlop (balra a jegy, a sablon és a háttér, jobbra a mezők) — széles ablakban alacsonyabb */
+  wide?: boolean
   value?: VoucherTypeValue
   onChange?: (v: VoucherTypeValue) => void
   /** a mezők fölött (élőben a nyelvváltó) */
   top?: React.ReactNode
-  /** a háttér-választó (élőben a kép feltöltése) */
+  /** a háttér-sor vége: a saját kép (élőben a feltöltött kép és a feltöltés gombja) */
   background?: React.ReactNode
   onSave?: () => void
   onCancel?: () => void
@@ -247,29 +261,37 @@ export function VoucherTypeEditor({ value = SAMPLE_TYPE, onChange, top, backgrou
   const body = (
     <>
       {top}
-      <div className={`${top ? 'mt-3' : ''} space-y-4`}>
-        {!textOnly && <VoucherCard amount={amountLabel} bg={value.image ? 'photo' : 'dark'} photo={value.image} restaurant={restaurant} biz={biz} />}
-        {!textOnly && (background ?? (
-          <div className="flex items-center justify-between gap-2 rounded-ui-control bg-ui-cell px-4 py-3" /* ui-allow: háttér-választó sor */>
-            <span className="text-ui-body text-ui-muted">Háttér</span>
+      {/* széles ablakban két oszlop: balra a jegy és a kinézete, jobbra az adatok — így nem nyúlik meg */}
+      <div className={`${top ? 'mt-3' : ''} ${wide ? 'grid items-start gap-5 lg:grid-cols-2' : 'space-y-4'}`}>
+        {/* a jegy idegen nyelven is látszik (azon a nyelven); a kinézet (sablon, háttér) nyelvtől független — csak magyarul állítható */}
+        <div className="min-w-0 space-y-4">
+          <VoucherFit><VoucherCard lang={lang} amount={amountLabel} design={value.design} photo={value.image} restaurant={restaurant} biz={biz} /></VoucherFit>
+          {!textOnly && <div>
+          {/* sablon: a jegy formája — a választás nagy ablakban (a keskeny panelben a jegy összenyomódna) */}
+          <VoucherTemplatePicker value={value.design} photo={value.image} amount={amountLabel} restaurant={restaurant} biz={biz} onChange={live ? (d, clear) => set({ design: d, ...(clear ? { image: null } : {}) }) : undefined} />
+          {/* háttér: a 4 szín, vagy saját kép (élőben a feltöltés a `background`-ban) — kép esetén a kép a háttér */}
+          <FieldRow label="Háttér">
             <span className="flex items-center gap-1.5">
-              <span title="Sötét" className="h-9 w-9 rounded-full bg-ui-dark ring-2 ring-ui-dark ring-offset-2 ring-offset-ui-cell" />
-              <span title="Sárga" className="h-9 w-9 rounded-full bg-ui-yellow" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img title="A szalon fotója" src="/videos/szalon-foglalas-hatter-poster.jpg" alt="" className="h-9 w-9 rounded-full object-cover" />
-              <span title="Saját kép" /* ui-allow: szaggatott „új” hely */ className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-ui-dark/30 text-ui-muted"><Plus className="h-4 w-4" /></span>
+              {VOUCHER_COLORS.map(([k, l]) => live
+                ? <button key={k} type="button" title={l} aria-label={l} aria-pressed={!value.image && value.design.color === k} className="rounded-full ui-press" onClick={() => set({ image: null, design: { ...value.design, color: k } })}><VoucherSwatch color={k} on={!value.image && value.design.color === k} /></button>
+                : <span key={k} title={l}><VoucherSwatch color={k} on={!value.image && value.design.color === k} /></span>)}
+              {background ?? <span title="Saját kép" /* ui-allow: szaggatott „új” hely */ className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-ui-dark/30 text-ui-muted"><Plus className="h-4 w-4" /></span>}
             </span>
-          </div>
-        ))}
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Név" className={textOnly ? 'col-span-2' : ''}><Input value={value.name} readOnly={!live} onChange={(e) => set({ name: e.target.value })} placeholder="Ajándék 20" /></Field>
-          {!textOnly && <Field label="Összeg (Ft)"><Input inputMode="numeric" value={live ? (Number(value.amount.replace(/\D/g, '')) || '').toLocaleString('hu-HU') : value.amount} readOnly={!live} onChange={(e) => set({ amount: e.target.value.replace(/\D/g, '') })} placeholder="20 000" /></Field>}
+          </FieldRow>
+          </div>}
+          {textOnly && <Meta className="px-1">A sablon és a háttér minden nyelven ugyanaz — a magyar nézetben állítható.</Meta>}
         </div>
-        <Field label="Leírás"><Textarea value={value.description} readOnly={!live} onChange={(e) => set({ description: e.target.value })} className="min-h-[72px]" placeholder="Mire váltható be, meddig érvényes" /></Field>
-        {!textOnly && <FieldRow boxed label="Megvásárolható" hint="Kikapcsolva nem jelenik meg a foglalóoldalon.">{live ? <Switch checked={value.active} onChange={(on) => set({ active: on })} ariaLabel="Megvásárolható" /> : <DesignSwitch defaultOn={value.active} />}</FieldRow>}
+        <div className="min-w-0 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Név" className={textOnly ? 'col-span-2' : ''}><Input value={value.name} readOnly={!live} onChange={live ? (e) => set({ name: e.target.value }) : undefined} placeholder="Ajándék 20" /></Field>
+          {!textOnly && <Field label="Összeg (Ft)"><Input inputMode="numeric" value={live ? (Number(value.amount.replace(/\D/g, '')) || '').toLocaleString('hu-HU') : value.amount} readOnly={!live} onChange={live ? (e) => set({ amount: e.target.value.replace(/\D/g, '') }) : undefined} placeholder="20 000" /></Field>}
+        </div>
+        <Field label="Leírás"><Textarea value={value.description} readOnly={!live} onChange={live ? (e) => set({ description: e.target.value }) : undefined} className="min-h-[72px]" placeholder="Mire váltható be, meddig érvényes" /></Field>
+        {!textOnly && <FieldRow className="!border-t" label="Megvásárolható" hint="Kikapcsolva nem jelenik meg a foglalóoldalon.">{live ? <Switch checked={value.active} onChange={(on) => set({ active: on })} ariaLabel="Megvásárolható" /> : <DesignSwitch defaultOn={value.active} />}</FieldRow>}
+        </div>
       </div>
-      <div className="mt-5 flex justify-end gap-1.5">
-        {onDelete && <Button variant="bad" className="mr-auto" onClick={onDelete} disabled={busy}>Törlés</Button>}
+      <div className="mt-5 flex justify-end gap-1.5 border-t border-dashed border-ui-divider pt-5">
+        {onDelete && <Button variant="danger" className="mr-auto" onClick={onDelete} disabled={busy}>Törlés</Button>}
         <Button variant="cell" onClick={onCancel}>Mégse</Button>
         <Button onClick={onSave} loading={busy}>Mentés</Button>
       </div>
@@ -286,33 +308,49 @@ export function VoucherTypeEditor({ value = SAMPLE_TYPE, onChange, top, backgrou
 
 /* ── 12.5 / 12.6: új utalvány lépései ── */
 
-export type WizType = { id: string; name: string; amount: string; image: string | null }
-const SAMPLE_WIZ_TYPES: WizType[] = [['10 000 Ft', 'Ajándék 10'], ['20 000 Ft', 'Ajándék 20'], ['30 000 Ft', 'Ajándék 30'], ['48 000 Ft', 'Balayage-utalvány']].map(([a, n], i) => ({ id: String(i), name: n, amount: a, image: null }))
+export type WizType = { id: string; name: string; amount: string; image: string | null; design?: VoucherDesign | null }
+const SAMPLE_WIZ_TYPES: WizType[] = [['10 000 Ft', 'Ajándék 10'], ['20 000 Ft', 'Ajándék 20'], ['30 000 Ft', 'Ajándék 30'], ['48 000 Ft', 'Balayage-utalvány']].map(([a, n], i) => ({ id: String(i), name: n, amount: a, image: i === 3 ? '/videos/szalon-foglalas-hatter-poster.jpg' : null, design: { layout: 'stub', color: (['midnight', 'sage', 'terracotta', 'midnight'] as const)[i] } }))
 
-/** 1. Típus: az aktív típusok a saját kártya-stílusukkal, a kiválasztott körvonalas. */
-export function WizTypeStep({ types = SAMPLE_WIZ_TYPES, selected = '1', onSelect, restaurant = false, biz }: { types?: WizType[]; selected?: string | null; onSelect?: (id: string) => void; restaurant?: boolean; biz?: VoucherBiz }) {
+/** 1. Típus: az aktív típusok listája (mint a Típusok kezelése listája) — kis kép / szín, név, összeg; a kiválasztott sárga.
+ *  A jegyet magát az előnézet mutatja (jobbra), ezért itt nincsenek kis kártyák. */
+export function WizTypeStep({ types = SAMPLE_WIZ_TYPES, selected = '1', onSelect, restaurant: _restaurant = false, biz: _biz }: { types?: WizType[]; selected?: string | null; onSelect?: (id: string) => void; restaurant?: boolean; biz?: VoucherBiz }) {
   if (!types.length) return <Note warn>Még nincs megvásárolható típus — előbb hozz létre egyet (Típusok kezelése).</Note>
   return (
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+    <div className="space-y-1.5">
       {types.map((t) => {
-        const card = <><VoucherCard small amount={t.amount} bg={t.image ? 'photo' : 'dark'} photo={t.image} selected={t.id === selected} restaurant={restaurant} biz={biz} /><Meta className="mt-1.5 px-1">{t.name}</Meta></>
-        return onSelect ? <button key={t.id} type="button" onClick={() => onSelect(t.id)} className="block rounded-ui-card text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">{card}</button> : <div key={t.id}>{card}</div>
+        const d = t.design ?? DEFAULT_VOUCHER_DESIGN
+        const thumb = (
+          <span className="relative block h-10 w-14 shrink-0 overflow-hidden rounded-ui-inner">
+            {t.image
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={t.image} alt="" className="h-full w-full object-cover" />
+              : <VoucherFill color={d.color} />}
+          </span>
+        )
+        const layout = VOUCHER_LAYOUTS.find(([k]) => k === d.layout)?.[1]
+        const row = <ListRow filled open={t.id === selected} leading={thumb} title={t.name} meta={layout} trailing={<Pill tone="white">{t.amount}</Pill>} />
+        return onSelect ? <button key={t.id} type="button" onClick={() => onSelect(t.id)} className="block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">{row}</button> : <div key={t.id}>{row}</div>
       })}
     </div>
   )
 }
 
-export type WizBuyer = { name: string; email: string; city: string; address: string; company: boolean; tax: string; toName: string; toEmail: string; message: string }
-const SAMPLE_BUYER: WizBuyer = { name: 'Kovács Anna', email: 'anna.kovacs@gmail.com', city: '1061 Budapest', address: 'Andrássy út 20.', company: false, tax: '', toName: 'Kovács Lili', toEmail: '', message: 'Boldog születésnapot!' }
+export type WizBuyer = { name: string; email: string; city: string; address: string; company: boolean; tax: string; toName: string; toEmail: string; message: string
+  /** számlázási ország (ISO, lib/countries) és az utalvány + a levelek nyelve (a vásárlóé) */
+  country: string; lang: string }
+/** nyelv neve magyarul (Magyar, Angol, …) */
+const langName = (l: string) => { try { const n = new Intl.DisplayNames(['hu'], { type: 'language' }).of(l); return n ? n[0].toUpperCase() + n.slice(1) : l } catch { return l } }
+
+const SAMPLE_BUYER: WizBuyer = { name: 'Kovács Anna', email: 'anna.kovacs@gmail.com', city: '1061 Budapest', address: 'Andrássy út 20.', company: false, tax: '', country: 'HU', lang: 'hu', toName: 'Kovács Lili', toEmail: '', message: 'Boldog születésnapot!' }
 
 /** 2. Vásárló: név, e-mail, település + cím (számla), céges vásárlásnál adószám; a megajándékozott és az üzenet.
  *  `errors`: mezőnkénti hiba; `suggest`: a vendég-javaslatok (élőben) a mező alatt. */
-export function WizBuyerStep({ value = SAMPLE_BUYER, onChange, errors = {}, suggest }: { value?: WizBuyer; onChange?: (v: WizBuyer, field: keyof WizBuyer) => void; errors?: Partial<Record<keyof WizBuyer, string>>; suggest?: (field: keyof WizBuyer) => React.ReactNode }) {
+export function WizBuyerStep({ value = SAMPLE_BUYER, onChange, errors = {}, suggest, langs = ['hu', 'en'] }: { /** az üzlet nyelvei (a foglalóoldal nyelvei) — ezek közül választható az utalvány nyelve */ langs?: readonly string[]; value?: WizBuyer; onChange?: (v: WizBuyer, field: keyof WizBuyer) => void; errors?: Partial<Record<keyof WizBuyer, string>>; suggest?: (field: keyof WizBuyer) => React.ReactNode }) {
   const live = !!onChange
   const f = (k: keyof WizBuyer, label: string, opts: { type?: string; placeholder?: string; hint?: string } = {}) => (
     <Field label={label} hint={opts.hint} error={errors[k]}>
       <span className="relative block">
-        <Input type={opts.type} value={String(value[k])} readOnly={!live} placeholder={opts.placeholder} autoComplete="off" onChange={(e) => onChange?.({ ...value, [k]: e.target.value }, k)} />
+        <Input type={opts.type} value={String(value[k])} readOnly={!live} placeholder={opts.placeholder} autoComplete="off" onChange={onChange ? (e) => onChange({ ...value, [k]: e.target.value }, k) : undefined} />
         {suggest?.(k)}
       </span>
     </Field>
@@ -325,15 +363,28 @@ export function WizBuyerStep({ value = SAMPLE_BUYER, onChange, errors = {}, sugg
         {f('city', 'Település', { placeholder: 'Irányítószám, város' })}
         {f('address', 'Cím', { placeholder: 'Utca, házszám' })}
       </div>
-      <FieldRow boxed label="Céges vásárlás" hint="Adószámos számla — a Név mezőbe a cég neve kerül.">{live ? <Switch checked={value.company} onChange={(on) => onChange!({ ...value, company: on }, 'company')} ariaLabel="Céges vásárlás" /> : <DesignSwitch defaultOn={value.company} />}</FieldRow>
-      {value.company && f('tax', 'Adószám', { placeholder: '12345678-1-42' })}
+      {/* ország (a számlához) és nyelv (az utalvány és a levelek nyelve) — külföldinek nincs céges vásárlás */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Ország" error={errors.country}>
+          <Select value={value.country} disabled={!live} onChange={onChange ? (e) => onChange({ ...value, country: e.target.value, company: isForeignCountry(e.target.value) ? false : value.company }, 'country') : undefined}>
+            {countryOptions('hu').map((o) => <option key={o.code} value={o.code}>{o.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Az utalvány nyelve" hint="Ezen a nyelven kapja az utalványt és a leveleket.">
+          <Select value={value.lang} disabled={!live} onChange={onChange ? (e) => onChange({ ...value, lang: e.target.value }, 'lang') : undefined}>
+            {langs.map((l) => <option key={l} value={l}>{langName(l)}</option>)}
+          </Select>
+        </Field>
+      </div>
+      {!isForeignCountry(value.country) && <FieldRow boxed label="Céges vásárlás" hint="Adószámos számla — a Név mezőbe a cég neve kerül.">{live ? <Switch checked={value.company} onChange={(on) => onChange!({ ...value, company: on }, 'company')} ariaLabel="Céges vásárlás" /> : <DesignSwitch defaultOn={value.company} />}</FieldRow>}
+      {value.company && !isForeignCountry(value.country) && f('tax', 'Adószám', { placeholder: '12345678-1-42' })}
       <div className="border-t border-dashed border-ui-divider pt-4">
         <Meta className="mb-3">Megajándékozott — ha megadod, neki is elküldjük</Meta>
         <div className="grid gap-3 sm:grid-cols-2">
           {f('toName', 'Név')}
           {f('toEmail', 'E-mail', { type: 'email', placeholder: 'opcionális' })}
         </div>
-        <Field label="Üzenet" className="mt-3"><Input value={value.message} readOnly={!live} onChange={(e) => onChange?.({ ...value, message: e.target.value }, 'message')} placeholder="Pl. Boldog születésnapot!" /></Field>
+        <Field label="Üzenet" className="mt-3"><Input value={value.message} readOnly={!live} onChange={onChange ? (e) => onChange({ ...value, message: e.target.value }, 'message') : undefined} placeholder="Pl. Boldog születésnapot!" /></Field>
       </div>
     </div>
   )
@@ -378,7 +429,7 @@ export function WizDone({ card, invoice = 'Számlázz.hu · SZ-2026-0412', sentT
   return (
     <>
       <StatusPill status="ok">Utalvány kiállítva</StatusPill>
-      <div className="mt-4">{card ?? <VoucherCard to="Lili" />}</div>
+      <div className="mt-4">{card ?? <VoucherFit><VoucherCard to="Lili" design={DEFAULT_VOUCHER_DESIGN} /></VoucherFit>}</div>
       {invoice && <FieldRow label="Számla" hint={invoice}><StatusPill status="ok">Kiállítva</StatusPill></FieldRow>}
       {sentTo && <Meta className="mt-2 flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />E-mailben elküldve: {sentTo}</Meta>}
       <Button className="mt-4 w-full" onClick={onDone}>Kész</Button>
