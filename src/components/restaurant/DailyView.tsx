@@ -425,6 +425,7 @@ function ListTableView({ date, reservations, rooms, tables, onEdit, openId }: { 
           deposit: r.payment_status === 'paid' ? 'paid' : r.payment_status === 'failed' ? 'failed' : null,
           draft,
           occ: r.occasion ? <OccasionBadge occasion={r.occasion} icon={r.occasion_icon} /> : undefined,
+          occWide: r.occasion ? <OccasionBadge label occasion={r.occasion} icon={r.occasion_icon} /> : undefined,
           status: statusOf(r.status, late),
           cancelled: r.status === 'cancelled' || r.status === 'no_show',
         }
@@ -934,8 +935,10 @@ function RestaurantBookingDrawer({ r, date, canManage, consentEnabled = false, o
             ['Forrás', RES_SOURCE_LABEL[r.source ?? ''] ?? r.source],
             ['Előleg', r.payment_status === 'paid' ? 'fizetve' : r.payment_status === 'failed' ? 'sikertelen fizetés' : null],
             ['Megjegyzés', r.notes],
+            // a beleegyező nyilatkozat (ha be van kapcsolva): elfogadva — hol és mikor, különben „még nincs”
+            ['Nyilatkozat', consentEnabled ? (r.consent_accepted ? ['Elfogadva', r.consent_accepted_via === 'onsite' ? 'helyszínen' : 'foglaláskor', r.consent_accepted_at ? new Date(r.consent_accepted_at).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }) : null].filter(Boolean).join(' · ') : 'Még nincs elfogadva') : null],
           ] as [string, string | null | undefined][]).filter((x): x is [string, string] => !!x[1])}
-          ok={r.payment_status === 'paid' ? ['Előleg'] : []}
+          ok={[...(r.payment_status === 'paid' ? ['Előleg'] : []), ...(r.consent_accepted ? ['Nyilatkozat'] : [])]}
         />
       </BookingDrawer>
       <ConfirmDialog

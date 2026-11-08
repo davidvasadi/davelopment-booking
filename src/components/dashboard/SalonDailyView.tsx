@@ -718,8 +718,10 @@ export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false,
             ['Helyben fizetve', b.paid_at ? `${Math.round(Number(b.paid_amount_huf ?? 0)).toLocaleString('hu-HU')} Ft · ${({ cash: 'készpénz', card: 'bankkártya', transfer: 'átutalás', link: 'fizetési link' } as Record<string, string>)[b.pay_method ?? ''] ?? '—'}${b.pay_receipt === 'manual' ? ' · végszámla kézzel' : b.pay_receipt === 'register' ? ' · pénztárgép' : ''}` : null],
             ['Fizetés', b.voucher_code ? `Utalvánnyal · ${b.voucher_code}` : null],
             ['Megjegyzés', b.notes],
+            // a beleegyező nyilatkozat (ha a szalonnál be van kapcsolva): elfogadva — hol és mikor, különben „még nincs”
+            ['Nyilatkozat', consentEnabled ? (b.consent_accepted ? ['Elfogadva', b.consent_accepted_via === 'onsite' ? 'helyszínen' : 'foglaláskor', b.consent_accepted_at ? new Date(b.consent_accepted_at).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }) : null].filter(Boolean).join(' · ') : 'Még nincs elfogadva') : null],
           ] as [string, string | null | undefined][]).filter((r): r is [string, string] => !!r[1])}
-          ok={b.payment_status === 'paid' ? ['Előleg'] : []}
+          ok={[...(b.payment_status === 'paid' ? ['Előleg'] : []), ...(b.consent_accepted ? ['Nyilatkozat'] : [])]}
         />
       </BookingDrawer>
       {canCheckout && onsite && (

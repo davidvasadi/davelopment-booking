@@ -38,11 +38,11 @@ export function BookingDrawerBody({ desktop, onClose, onEdit, edit = !!onEdit, w
           {desktop && <IconButton icon={X} label="Bezárás" variant="cell" size="sm" onClick={onClose} />}
         </span>
       </div>
-      {/* a vendég neve és mellette nagyban az időpont */}
-      {/* egy sorban elférjenek: telefonon kisebb (19px), szélesebb képernyőn a nagy (26px); a hosszú név elúszik */}
-      <div className="mt-3 flex items-baseline gap-3 text-ui-title font-light leading-tight text-ui-text sm:text-ui-sub">
-        <MarqueeText className="flex-1">{title}</MarqueeText>
-        {when && <span className="shrink-0 whitespace-nowrap">{when}</span>}
+      {/* a vendég neve és az időpont: telefonon egy sorban (19px), szélesebb képernyőn egymás alatt — a név nagyban, alatta az
+          időpont kisebben (egy sorban a hosszú név elúszott, és az időpont levágta) */}
+      <div className="mt-3 flex items-baseline gap-3 text-ui-title font-light leading-tight text-ui-text sm:flex-col sm:gap-1">
+        <MarqueeText className="flex-1 sm:w-full sm:text-ui-sub">{title}</MarqueeText>
+        {when && <span className="shrink-0 whitespace-nowrap sm:text-ui-muted">{when}</span>}
       </div>
       <div className="mt-1 flex flex-wrap gap-1.5">
         {/* design 6.7: hányadik alkalommal jön, honnan */}
