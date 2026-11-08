@@ -12,6 +12,7 @@
  */
 
 import { t, type Locale } from './i18n'
+import { DARK_CSS, darkSafeButtons, keepBg, keepButton, keepContent } from './emailDark'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 /** a levél alján a davelopment booking logója ide visz — a foglalási rendszer oldalára */
@@ -124,11 +125,12 @@ export function formatBookingDate(isoDate: string, locale: Locale): string {
 // ── Egy ikonos részlet-sor ──────────────────────────────────────────────────────
 
 export function infoRow(icon: DetailIcon, label: string, value: string): string {
-  const svg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${COLORS.textFaint}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle">${DETAIL_ICONS[icon]}</svg>`
+  // az ikon-oszlop kikerült: SVG volt, amit a Gmail nem mutat (üres behúzás maradt), és a design táblázatában sincs.
+  // Az `icon` paraméter marad, hogy a hívókat ne kelljen átírni.
+  void icon
   const borderCell = `border-bottom:1px solid ${COLORS.border}`
   return `<tr>
-    <td style="${borderCell};padding:13px 0 13px 20px;vertical-align:middle;width:28px">${svg}</td>
-    <td style="${borderCell};padding:13px 10px;color:${COLORS.textSoft};font-size:13px;vertical-align:middle">${label}</td>
+    <td style="${borderCell};padding:13px 10px 13px 20px;color:${COLORS.textSoft};font-size:13px;vertical-align:middle">${label}</td>
     <td style="${borderCell};padding:13px 20px 13px 0;color:${COLORS.text};font-size:13px;font-weight:600;text-align:right;vertical-align:middle;word-break:break-word;overflow-wrap:anywhere">${value}</td>
   </tr>`
 }
@@ -250,13 +252,11 @@ function brandHeader(opts: {
 }
 
 export function heroBlock(opts: { icon: Exclude<HeroIcon, 'logo'>; title: string; subtitle: string }): string {
-  const def = HERO_ICONS[opts.icon]
-  const svg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
+  // a cím fölötti ikon-négyzet kikerült: SVG volt, amit a Gmail nem mutat (üres négyzet maradt), és a design
+  // (E-mailek) sem tartalmazza. Az `icon` paraméter marad, hogy a hívókat ne kelljen átírni.
+  void opts.icon
   return `<tr>
     <td style="background:${COLORS.surface};padding:28px 32px 0;text-align:center">
-      <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px">
-        <tr><td style="width:56px;height:56px;border-radius:18px;background:${def.bg};text-align:center;vertical-align:middle">${svg}</td></tr>
-      </table>
       <h1 style="margin:0 0 7px;font-size:27px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.1">${opts.title}</h1>
       <p style="margin:0 auto;max-width:340px;color:${COLORS.textFaint};font-size:14px;line-height:1.55">${opts.subtitle}</p>
     </td>
@@ -339,13 +339,13 @@ export function calendarBlock(opts: {
       ? dirClean
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dirClean)}`
     const pinSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${COLORS.footerText}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:6px"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`
-    dirBtn = `<!--[if mso]></td><td style="width:10px;font-size:0">&nbsp;</td><td style="vertical-align:middle"><![endif]--><a href="${mapsUrl}" style="display:inline-block;margin-left:8px;background:${COLORS.ink};color:${COLORS.footerText};font-size:12px;font-weight:600;text-decoration:none;padding:12px 18px;border-radius:999px;letter-spacing:-0.1px;vertical-align:middle">${pinSvg}${escapeHtml(t(locale, 'email.footer.directions'))}</a>`
+    dirBtn = `<!--[if mso]></td><td style="width:10px;font-size:0">&nbsp;</td><td style="vertical-align:middle"><![endif]-->${keepButton({ href: mapsUrl, bg: COLORS.ink, label: `${pinSvg}${escapeHtml(t(locale, 'email.footer.directions'))}`, font: `color:${COLORS.footerText};font-size:12px;font-weight:600;letter-spacing:-0.1px`, pad: '12px 18px', style: 'margin-left:8px;vertical-align:middle' })}`
   }
 
   return `<tr>
     <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
       <!--[if mso]><table style="display:inline-table;border-collapse:collapse"><tr><td style="vertical-align:middle"><![endif]-->
-      <a href="${calUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:999px;letter-spacing:-0.1px;vertical-align:middle">${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}</a>${dirBtn}
+      ${keepButton({ href: calUrl, bg: COLORS.accent, label: `${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}`, font: 'color:#3B3B3B;font-size:13px;font-weight:600;letter-spacing:-0.1px', pad: '12px 24px', style: 'vertical-align:middle' })}${dirBtn}
       <!--[if mso]></td></tr></table><![endif]-->
       <p style="margin:10px 0 0;color:${COLORS.textFaint};font-size:11px">${hintText}</p>
     </td>
@@ -457,15 +457,17 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
   const m = headerHtml.match(/^\s*<!--cover-->([\s\S]*?)<!--\/cover-->/)
   const cover = m ? m[1] : ''
   const rest = m ? headerHtml.slice(m[0].length) : headerHtml
-  return `<!DOCTYPE html>
+  // a színes gombok sötét módban is megtartják a színüket (lib/emailDark) — a levelekben kézzel írtak is
+  return darkSafeButtons(`<!DOCTYPE html>
 <html lang="hu">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
+  <style>${DARK_CSS}</style>
 </head>
-<body style="margin:0;padding:0;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<body class="body" style="margin:0;padding:0;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" style="background:#FFFFFF">
     ${cover ? `<tr><td style="padding:0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed">${cover}</table></td></tr>` : ''}
     <tr><td align="center" style="padding:0 0 36px">
@@ -480,16 +482,16 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
 
     <!-- davelopment booking footer — széltől szélig -->
     <tr>
-      <td style="background:${COLORS.ink};padding:28px 32px;text-align:center">
+      <td style="${keepBg(COLORS.ink)};padding:28px 32px;text-align:center">
         <a href="${BOOKING_SITE_URL}" target="_blank" title="davelopment booking — online foglalási rendszer" style="text-decoration:none;display:inline-block">
           <img src="${BOOKING_LOCKUP}" alt="davelopment Booking" width="120" height="44" style="width:120px;height:44px;display:block;border:0" />
         </a>
-        <p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>
+        ${keepContent(COLORS.ink, `<p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>`, { block: true })}
       </td>
     </tr>
   </table>
 </body>
-</html>`
+</html>`)
 }
 
 export { COLORS }

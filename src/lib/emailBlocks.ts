@@ -1,4 +1,5 @@
 import { COLORS, escapeHtml, renderTemplateHtml } from '@/lib/emailLayout'
+import { isSurface, keepBg, keepButton, keepContent } from '@/lib/emailDark'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
 /**
@@ -93,6 +94,18 @@ function textBlockStyle(b: { align?: TextAlign; bg?: string | null; color?: stri
   return `${extra}${align}${bg}${color}${fontSize}${lineHeight}${font}`
 }
 
+type TextOpts = { align?: TextAlign; bg?: string | null; color?: string | null; fontSize?: number; lineHeight?: number; font?: BlockFont }
+/** Szöveges blokk. Színes háttérnél (a tulaj választotta) a háttér és a szöveg színe sötét módban is marad
+ *  (lib/emailDark): a doboz kapja a hátteret, a belső réteg a paddinget. */
+function textEl(tag: string, base: string, b: TextOpts, html: string): string {
+  if (b.bg && b.bg !== 'transparent' && isSurface(b.bg)) {
+    const margin = base.match(/margin:([^;]*);/)?.[1] ?? '0'
+    const inner = `<${tag} style="${base.replace(/margin:[^;]*;/, 'margin:0;')}${textBlockStyle({ ...b, bg: null, color: b.color ?? autoTextColor(b.bg) }, '')}">${html}</${tag}>`
+    return `<div style="margin:${margin};${keepBg(b.bg)};border-radius:8px">${keepContent(b.bg, inner, { pad: '10px 14px', radius: '8px', block: true })}</div>`
+  }
+  return `<${tag} style="${base}${textBlockStyle(b, '')}">${html}</${tag}>`
+}
+
 /** A szerkesztő `contentEditable` mezője Enterre `<div>`-et szúr be, ami `<p>`/`<h1>`-en belül
  *  érvénytelen — `<br>`-re cseréljük, mielőtt bármilyen blokk-elembe kerülne. */
 function sanitizeInlineHtml(html: string): string {
@@ -108,28 +121,28 @@ export function blocksToHtml(blocks: ComposerBlock[], opts: { voucherLabel?: str
   return blocks.map((b) => {
     switch (b.type) {
       case 'title':
-        return `<h1 style="margin:0 0 12px;font-size:24px;font-weight:300;color:${COLORS.text};line-height:1.25;word-break:break-word;overflow-wrap:anywhere;${textBlockStyle(b, '')}">${sanitizeInlineHtml(b.html)}</h1>`
+        return textEl('h1', `margin:0 0 12px;font-size:24px;font-weight:300;color:${COLORS.text};line-height:1.25;word-break:break-word;overflow-wrap:anywhere;`, b, sanitizeInlineHtml(b.html))
       case 'subtitle':
-        return `<h2 style="margin:0 0 10px;font-size:18px;font-weight:300;color:${COLORS.text};line-height:1.3;word-break:break-word;overflow-wrap:anywhere;${textBlockStyle(b, '')}">${sanitizeInlineHtml(b.html)}</h2>`
+        return textEl('h2', `margin:0 0 10px;font-size:18px;font-weight:300;color:${COLORS.text};line-height:1.3;word-break:break-word;overflow-wrap:anywhere;`, b, sanitizeInlineHtml(b.html))
       case 'heading':
-        return `<h3 style="margin:0 0 8px;font-size:16px;font-weight:500;color:${COLORS.text};line-height:1.3;word-break:break-word;overflow-wrap:anywhere;${textBlockStyle(b, '')}">${sanitizeInlineHtml(b.html)}</h3>`
+        return textEl('h3', `margin:0 0 8px;font-size:16px;font-weight:500;color:${COLORS.text};line-height:1.3;word-break:break-word;overflow-wrap:anywhere;`, b, sanitizeInlineHtml(b.html))
       case 'bullet_list':
-        return `<ul style="margin:0 0 14px;padding-left:20px;color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere;${textBlockStyle(b, '')}">${b.html}</ul>`
+        return textEl('ul', `margin:0 0 14px;padding-left:20px;color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere;`, b, b.html)
       case 'numbered_list':
-        return `<ol style="margin:0 0 14px;padding-left:20px;color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere;${textBlockStyle(b, '')}">${b.html}</ol>`
+        return textEl('ol', `margin:0 0 14px;padding-left:20px;color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere;`, b, b.html)
       case 'button': {
         const align = b.align ?? 'left'
         const bg = b.bg ?? COLORS.ink
         const fg = b.color ?? (b.bg ? autoTextColor(b.bg) ?? COLORS.ink : '#ffffff')
-        if (b.width === 'full') return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0"><tr><td align="center" style="background:${bg};border-radius:999px"><a href="${b.url || '#'}" style="display:block;padding:0 20px;line-height:44px;color:${fg};font-size:13px;font-weight:500;text-align:center;text-decoration:none;border-radius:999px">${escapeHtml(b.label || 'Gomb')}</a></td></tr></table>`
-        return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0;${align === 'center' ? 'margin-left:auto;margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : ''}"><tr><td style="background:${bg};border-radius:999px"><a href="${b.url || '#'}" style="display:inline-block;padding:0 20px;line-height:44px;color:${fg};font-size:13px;font-weight:500;text-decoration:none;border-radius:999px">${escapeHtml(b.label || 'Gomb')}</a></td></tr></table>`
+        if (b.width === 'full') return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0"><tr><td align="center" style="${keepBg(bg)};border-radius:999px">${keepContent(bg, `<a href="${b.url || '#'}" style="display:block;line-height:44px;color:${fg};font-size:13px;font-weight:500;text-align:center;text-decoration:none">${escapeHtml(b.label || 'Gomb')}</a>`, { pad: '0 20px', radius: '999px', block: true })}</td></tr></table>`
+        return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0;${align === 'center' ? 'margin-left:auto;margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : ''}"><tr><td>${keepButton({ href: b.url || '#', bg, label: escapeHtml(b.label || 'Gomb'), font: `color:${fg};font-size:13px;font-weight:500;line-height:44px`, pad: '0 20px' })}</td></tr></table>`
       }
       case 'button_row': {
         const align = b.align ?? 'left'
         const cells = b.items.map((it, i) => {
           const bg = it.bg ?? COLORS.ink
           const fg = it.color ?? (it.bg ? autoTextColor(it.bg) ?? COLORS.ink : '#ffffff')
-          return `<td style="padding:0 ${i < b.items.length - 1 ? 8 : 0}px 8px 0"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${bg};border-radius:999px"><a href="${it.url || '#'}" style="display:inline-block;padding:0 20px;line-height:44px;color:${fg};font-size:13px;font-weight:500;text-decoration:none;border-radius:999px;white-space:nowrap">${escapeHtml(it.label || 'Gomb')}</a></td></tr></table></td>`
+          return `<td style="padding:0 ${i < b.items.length - 1 ? 8 : 0}px 8px 0"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td>${keepButton({ href: it.url || '#', bg, label: escapeHtml(it.label || 'Gomb'), font: `color:${fg};font-size:13px;font-weight:500;line-height:44px;white-space:nowrap`, pad: '0 20px' })}</td></tr></table></td>`
         }).join('')
         return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 6px;${align === 'center' ? 'margin-left:auto;margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : ''}"><tr>${cells}</tr></table>`
       }
@@ -137,7 +150,7 @@ export function blocksToHtml(blocks: ComposerBlock[], opts: { voucherLabel?: str
         const bg = b.bg ?? '#EEEEEE'
         const fg = b.color ?? autoTextColor(bg) ?? COLORS.text
         const align = b.align ?? 'left'
-        const box = `<td style="background:${bg};border-radius:16px;padding:14px 18px;text-align:${align}"><div style="font-size:15px;color:${fg}">{{date_label}} · {{time}}</div><div style="margin-top:2px;font-size:13px;color:${fg};opacity:.7">{{details}}</div></td>`
+        const box = `<td style="${keepBg(bg)};border-radius:16px;text-align:${align}">${keepContent(bg, `<div style="font-size:15px;color:${fg}">{{date_label}} · {{time}}</div><div style="margin-top:2px;font-size:13px;color:${fg};opacity:.7">{{details}}</div>`, { pad: '14px 18px', radius: '16px', block: true })}</td>`
         if (b.width === 'full') return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 14px"><tr>${box}</tr></table>`
         return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 14px;${align === 'center' ? 'margin-left:auto;margin-right:auto;' : align === 'right' ? 'margin-left:auto;' : ''}"><tr>${box}</tr></table>`
       }
@@ -155,22 +168,22 @@ export function blocksToHtml(blocks: ComposerBlock[], opts: { voucherLabel?: str
         return `<p style="margin:0 0 14px;text-align:${align}">${inner}</p>`
       }
       case 'section':
-        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;table-layout:fixed"><tr><td style="padding:20px;border-radius:14px;background:${b.bg || '#F7F5F0'};color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere">${sanitizeInlineHtml(b.html)}</td></tr></table>`
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;table-layout:fixed"><tr><td style="border-radius:14px;${keepBg(b.bg || '#F7F5F0')};color:${autoTextColor(b.bg) ?? COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere">${keepContent(b.bg || '#F7F5F0', sanitizeInlineHtml(b.html), { pad: '20px', radius: '14px', block: true })}</td></tr></table>`
       case 'columns': {
         const n = b.cols.length || 1
         const width = Math.floor(100 / n)
         const cells = b.cols.map((c) => {
           let inner = ''
           if (c.type === 'text') {
-            const style = `${c.align && c.align !== 'left' ? `text-align:${c.align};` : ''}${c.bg ? `background:${c.bg};padding:10px 14px;border-radius:8px;` : ''}${c.color ? `color:${c.color};` : ''}`
-            const cellHtml = sanitizeInlineHtml(c.html)
+            const style = `${c.align && c.align !== 'left' ? `text-align:${c.align};` : ''}${c.bg ? `${keepBg(c.bg)};border-radius:8px;` : ''}${c.color ? `color:${c.color};` : ''}`
+            const cellHtml = c.bg ? keepContent(c.bg, sanitizeInlineHtml(c.html), { pad: '10px 14px', radius: '8px', block: true }) : sanitizeInlineHtml(c.html)
             inner = style ? `<div style="${style}">${cellHtml}</div>` : cellHtml
           }
           else if (c.type === 'image' && c.url) {
             const img = `<img src="${c.url}" alt="${escapeHtml(c.alt)}" style="max-width:100%;border-radius:8px;display:block;border:0" />`
             inner = c.link?.trim() ? `<a href="${c.link.trim()}" style="text-decoration:none">${img}</a>` : img
           } else if (c.type === 'button') {
-            inner = `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${COLORS.ink};border-radius:999px"><a href="${c.url || '#'}" style="display:inline-block;padding:10px 18px;color:#ffffff;font-size:12px;font-weight:600;text-decoration:none;border-radius:999px">${escapeHtml(c.label || 'Gomb')}</a></td></tr></table>`
+            inner = keepButton({ href: c.url || '#', bg: COLORS.ink, label: escapeHtml(c.label || 'Gomb'), font: 'color:#ffffff;font-size:12px;font-weight:600', pad: '10px 18px' })
           }
           return `<td style="width:${width}%;vertical-align:top;padding:0 10px;color:${COLORS.text};font-size:14px;line-height:1.6;word-break:break-word;overflow-wrap:anywhere">${inner}</td>`
         }).join('')
@@ -195,10 +208,10 @@ export function blocksToHtml(blocks: ComposerBlock[], opts: { voucherLabel?: str
         return cells ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;table-layout:fixed"><tr>${cells}</tr></table>` : ''
       }
       case 'voucher':
-        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px"><tr><td style="width:150px;vertical-align:middle;padding-right:12px"><div style="background:#FFD85F;border-radius:12px;padding:14px;color:#383838"><div style="font-size:11px">${escapeHtml(opts.voucherLabel ?? 'Ajándékutalvány')}</div><div style="margin-top:10px;font-size:20px;font-weight:300">${escapeHtml(b.amount)}</div></div></td><td style="vertical-align:middle;color:${COLORS.text}"><div style="font-size:14px">${escapeHtml(b.title)}</div>${b.text ? `<div style="margin-top:2px;font-size:12px;color:#828282">${escapeHtml(b.text)}</div>` : ''}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px"><tr><td style="background:#EEEEEE;border-radius:999px"><a href="${b.url || '#'}" style="display:inline-block;padding:9px 18px;color:#383838;font-size:12px;font-weight:600;text-decoration:none;border-radius:999px">${escapeHtml(b.label || 'Utalványt veszek')}</a></td></tr></table></td></tr></table>`
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px"><tr><td style="width:150px;vertical-align:middle;padding-right:12px"><div style="${keepBg('#FFD85F')};border-radius:12px;color:#383838">${keepContent('#FFD85F', `<div style="font-size:11px">${escapeHtml(opts.voucherLabel ?? 'Ajándékutalvány')}</div><div style="margin-top:10px;font-size:20px;font-weight:300">${escapeHtml(b.amount)}</div>`, { pad: '14px', radius: '12px', block: true })}</div></td><td style="vertical-align:middle;color:${COLORS.text}"><div style="font-size:14px">${escapeHtml(b.title)}</div>${b.text ? `<div style="margin-top:2px;font-size:12px;color:#828282">${escapeHtml(b.text)}</div>` : ''}<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px"><tr><td>${keepButton({ href: b.url || '#', bg: '#EEEEEE', label: escapeHtml(b.label || 'Utalványt veszek'), font: 'color:#383838;font-size:12px;font-weight:600', pad: '9px 18px' })}</td></tr></table></td></tr></table>`
       case 'text':
       default:
-        return `<p style="margin:0 0 14px;color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere;${textBlockStyle(b, '')}">${sanitizeInlineHtml(b.html)}</p>`
+        return textEl('p', `margin:0 0 14px;color:${COLORS.text};font-size:14px;line-height:1.65;word-break:break-word;overflow-wrap:anywhere;`, b, sanitizeInlineHtml(b.html))
     }
   }).join('')
 }
