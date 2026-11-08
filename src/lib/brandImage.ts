@@ -61,3 +61,8 @@ export function brandImageAbs(place: BrandPlace | null | undefined, where: Brand
 
 /** ahol a logó és az ikon feltölthető: a Foglalóoldal-szerkesztő Arculat része (a `part=brand` rögtön azt nyitja meg) */
 export const brandUploadHref = (restaurant: boolean) => `${restaurant ? '/restaurant' : '/dashboard'}/settings?tab=site&part=brand`
+
+/** A levél fejlécében a kép magassága (px): a logó a tulaj választott mérete szerint (24 / 32 / 44), az ikon 40. */
+export function brandEmailLogoPx(place: BrandPlace | null | undefined): number {
+  return brandIsIcon(place, 'email') ? 40 : LOGO_HEIGHT[brandLogoSize(place)]
+}

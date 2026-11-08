@@ -18,7 +18,7 @@ import {
   escapeHtml,
 } from '@/lib/emailLayout'
 import { introBlockFromHtml, blocksToHtml } from '@/lib/emailBlocks'
-import { brandImageAbs, type BrandPlace } from '@/lib/brandImage'
+import { brandEmailLogoPx, brandImageAbs, type BrandPlace } from '@/lib/brandImage'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
@@ -60,6 +60,7 @@ async function renderPreview(p: URLSearchParams) {
   // A bejelentkezett tulaj tényleges cégének brandingje (logó/borító/név/cím).
   let brandName = type === 'salon' ? 'A szalonod' : 'Az éttermed'
   let brandLogoUrl: string | null = null
+  let brandLogoHeight: number | undefined
   let brandCoverUrl: string | null = null
   let realAddress: string | null = null
   let realPhone: string | null = null
@@ -83,6 +84,7 @@ async function renderPreview(p: URLSearchParams) {
       if (biz) {
         brandName = biz.name
         brandLogoUrl = brandImageAbs(biz as BrandPlace, 'email', APP_URL)
+        brandLogoHeight = brandEmailLogoPx(biz as BrandPlace)
         brandCoverUrl = mediaUrl(biz.cover_image)
         realPhone = biz.phone ?? null
         realEmail = biz.email ?? null
@@ -184,7 +186,7 @@ async function renderPreview(p: URLSearchParams) {
   } else {
     header = brandHeroBlock({
       brandName,
-      brandLogoUrl,
+      brandLogoUrl, brandLogoHeight,
       brandCoverUrl,
       icon: 'success',
       title: t(locale, 'email.confirm.title'),
@@ -209,6 +211,6 @@ async function renderPreview(p: URLSearchParams) {
       ${bottomSpacer()}`
   }
 
-  const html = emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, content })
+  const html = emailLayout({ brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl, header, content })
   return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }

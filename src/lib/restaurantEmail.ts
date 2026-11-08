@@ -22,9 +22,8 @@ import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { isInternalEmailAllowed } from './emailNotifPrefs'
-import { brandImageAbs, type BrandPlace } from './brandImage'
-import { voucherEmailRows } from './emailVoucher'
-import type { VoucherDesign } from './voucherDesign'
+import { brandEmailLogoPx, brandImageAbs, type BrandPlace } from './brandImage'
+import { voucherEmailRows, voucherMailSubject } from './emailVoucher'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -109,10 +108,12 @@ function hasTerms(restaurant: Restaurant): boolean {
   return (restaurant.terms_sections ?? []).some((s) => s?.title || s?.body)
 }
 
-function wrap(restaurant: Restaurant, content: string): string {
+function wrap(restaurant: Restaurant, content: string, lang?: string | null): string {
   return emailLayout({
+    lang,
     brandName: restaurant.name,
     brandLogoUrl: brandImageAbs(restaurant as BrandPlace, 'email', APP_URL),
+    brandLogoHeight: brandEmailLogoPx(restaurant as BrandPlace),
     brandCoverUrl: mediaUrl(restaurant.cover_image),
     content,
   })
@@ -399,32 +400,29 @@ export interface VoucherEmailData {
   recipientName?: string | null
   recipientEmail?: string | null
   message?: string | null
-  /** a típus sablonja (forma, szín, szöveg, kép) — ezzel készül a jegy a levélben */
-  design?: VoucherDesign | null
-  /** a típus saját képe (abszolút URL) */
-  photoUrl?: string | null
   expiresAt?: string | null
+  /** az utalvány nyelve (kiállításkor / vásárláskor választva) — ezen megy a levél és a jegy */
+  lang?: string | null
 }
 
 function voucherHtml(data: VoucherEmailData, forRecipient: boolean): string {
   const biz = data.restaurant
-  // a jegy a levélben (lib/emailVoucher) — a QR rendes képlinkként, mert a Gmail a beágyazott képet nem mutatja
+  // a jegy képként a levélben, a levél az utalvány nyelvén (lib/emailVoucher)
   return wrap(biz, `
     ${voucherEmailRows({
-      appUrl: APP_URL, forRecipient, restaurant: true, bizName: biz.name, bizSlug: biz.slug,
-      bizImg: brandImageAbs(biz as BrandPlace, 'voucher', APP_URL, data.design?.brand),
-      design: data.design, photo: data.photoUrl, code: data.code, amount: formatPrice(data.amountHuf, 'HUF'), expiresAt: data.expiresAt,
-      purchaserName: data.purchaserName, recipientName: data.recipientName, message: data.message,
+      appUrl: APP_URL, forRecipient, restaurant: true, lang: data.lang, bizName: biz.name, bizSlug: biz.slug,
+      code: data.code, amount: formatPrice(data.amountHuf, 'HUF'), expiresAt: data.expiresAt,
+      purchaserName: data.purchaserName, message: data.message,
     }, { heroBlock, detailsCard, infoRow, surface: COLORS.surface })}
     ${bottomSpacer()}
-  `)
+  `, data.lang)
 }
 
 /** Vásárlás-visszaigazolás a vásárlónak (mindig kimegy). */
 export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
   const resend = getResend()
   if (!resend) return
-  const subject = `Ajándékutalvány megvásárolva – ${data.restaurant.name}`
+  const subject = voucherMailSubject(data.lang, false, data.restaurant.name)
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(data.restaurant.name, data.restaurant.slug),
@@ -444,7 +442,7 @@ export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
 export async function sendVoucherGiftEmail(data: VoucherEmailData) {
   const resend = getResend()
   if (!resend || !data.recipientEmail) return
-  const subject = `Ajándékutalványt kaptál – ${data.restaurant.name}`
+  const subject = voucherMailSubject(data.lang, true, data.restaurant.name)
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(data.restaurant.name, data.restaurant.slug),
@@ -514,14 +512,15 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
   const logoUrl = brandImageAbs(restaurant as BrandPlace, 'email', APP_URL)
+  const logoH = brandEmailLogoPx(restaurant as BrandPlace)
   const coverUrl = mediaUrl(restaurant.cover_image)
   return emailLayout({
     brandName: restaurant.name,
-    brandLogoUrl: logoUrl,
+    brandLogoUrl: logoUrl, brandLogoHeight: logoH,
     brandCoverUrl: coverUrl,
     header: brandHeroBlock({
       brandName: restaurant.name,
-      brandLogoUrl: logoUrl,
+      brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'success',
       title: t(locale, 'email.confirm.title'),
@@ -675,14 +674,15 @@ function modificationHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
   const logoUrl = brandImageAbs(restaurant as BrandPlace, 'email', APP_URL)
+  const logoH = brandEmailLogoPx(restaurant as BrandPlace)
   const coverUrl = mediaUrl(restaurant.cover_image)
   return emailLayout({
     brandName: restaurant.name,
-    brandLogoUrl: logoUrl,
+    brandLogoUrl: logoUrl, brandLogoHeight: logoH,
     brandCoverUrl: coverUrl,
     header: brandHeroBlock({
       brandName: restaurant.name,
-      brandLogoUrl: logoUrl,
+      brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'bell',
       title: 'Foglalásod módosítva',

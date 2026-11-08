@@ -153,28 +153,28 @@ export function detailsCard(rows: string): string {
 //    3. fehér hero terület: státusz-ikon + cím + köszöntés + glass dátum-pill
 //    G-Shock-stílus: fehér kártya, dark sávok fent/lent.
 
-// A brand-fejléc teteje: ha van borító, a logó a KÉPEN ül (a kép látszik mögötte).
-// Böngészőben `background:#FFFFFF 0%` + `backdrop-filter: blur+saturate(0.4)` = színtelen üveg;
-// az email-appok a backdrop-filtert kihagyják → ott a sáv áttetsző, a kép élesen jön át.
+// A brand-fejléc teteje: ha van borító, a logó a KÉPEN ül (a kép látszik mögötte). Elmosó sáv NINCS alatta: az Apple
+// Mail megjelenítette a backdrop-filtert, és foltos, sötét szélű homályt rajzolt (2026-11-08) — a Gmail kihagyta.
 function brandTopRow(
   brandCoverUrl: string | null | undefined,
   brandLogoUrl: string | null | undefined,
   alt: string,
+  /** a logó magassága (a tulaj választása: lib/brandImage › brandEmailLogoPx) */
+  logoH = 26,
 ): string {
   if (brandCoverUrl) {
     const logoLight = brandLogoUrl
-      ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
+      ? `<img src="${brandLogoUrl}" alt="${alt}" height="${logoH}" style="height:${logoH}px;max-width:220px;object-fit:contain;border:0;display:inline-block" />`
       : `<span style="font-size:15px;font-weight:700;letter-spacing:-0.2px;color:#ffffff;text-shadow:0 1px 5px rgba(0,0,0,.55)">${alt}</span>`
     return `<!--cover--><tr><td style="padding:0;position:relative;font-size:0;line-height:0">
       <img src="${brandCoverUrl}" alt="" width="560" style="width:100%;height:190px;object-fit:cover;display:block;border:0" />
-      <div style="position:absolute;left:0;right:0;bottom:0;height:96px;background:rgba(255,255,255,0);-webkit-backdrop-filter:blur(10px) saturate(0.6);backdrop-filter:blur(10px) saturate(0.6);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 52px);mask-image:linear-gradient(to bottom,transparent 0,#000 52px)"></div>
       <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 32px;text-align:center;line-height:normal">${logoLight}</div>
     </td></tr><!--/cover-->`
   }
   // Borító nélkül: a levél tetején balra a logó / név. A rendszer-leveleknél (feladó: davelopment booking, saját logó
   // nélkül) a név helyett a favicon — a levél címe alatta a tartalom első sora.
   const logoDark = brandLogoUrl
-    ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
+    ? `<img src="${brandLogoUrl}" alt="${alt}" height="${logoH}" style="height:${logoH}px;max-width:220px;object-fit:contain;border:0;display:inline-block" />`
     : alt === SYSTEM_SENDER
       ? `<img src="${BOOKING_ICON}" alt="${alt}" width="40" height="40" style="width:40px;height:40px;border:0;display:block" />`
       : `<span style="font-size:15px;font-weight:500;letter-spacing:-0.2px;color:#3B3B3B">${alt}</span>`
@@ -184,6 +184,7 @@ function brandTopRow(
 export function brandHeroBlock(opts: {
   brandName: string
   brandLogoUrl?: string | null
+  brandLogoHeight?: number
   brandCoverUrl?: string | null
   icon: HeroIcon
   title: string
@@ -191,7 +192,7 @@ export function brandHeroBlock(opts: {
   formattedDate?: string | null
   time?: string | null
 }): string {
-  const { brandName, brandLogoUrl, brandCoverUrl, icon, title, subtitle, formattedDate, time } = opts
+  const { brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl, icon, title, subtitle, formattedDate, time } = opts
   const def = HERO_ICONS[icon === 'logo' ? 'bell' : icon]
   const alt = escapeHtml(brandName)
   // A hírlevélnél nem egy állapot-ikon (harang/pipa) kell a badge-be, hanem az üzlet SAJÁT
@@ -201,7 +202,7 @@ export function brandHeroBlock(opts: {
     : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
 
   // 1–2. Borító + logó egyben (a logó a KÉPEN ül, a kép látszik mögötte).
-  const brandTop = brandTopRow(brandCoverUrl, brandLogoUrl, alt)
+  const brandTop = brandTopRow(brandCoverUrl, brandLogoUrl, alt, brandLogoHeight)
 
   // 3. Glass dátum-pill (fehér háttéren, kékes glass-hatással)
   const datePill = (formattedDate && time && icon !== 'cancel')
@@ -245,10 +246,11 @@ export function brandHeroBlock(opts: {
 function brandHeader(opts: {
   brandName: string
   brandLogoUrl?: string | null
+  brandLogoHeight?: number
   brandCoverUrl?: string | null
 }): string {
-  const { brandName, brandLogoUrl, brandCoverUrl } = opts
-  return brandTopRow(brandCoverUrl, brandLogoUrl, escapeHtml(brandName))
+  const { brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl } = opts
+  return brandTopRow(brandCoverUrl, brandLogoUrl, escapeHtml(brandName), brandLogoHeight)
 }
 
 export function heroBlock(opts: { icon: Exclude<HeroIcon, 'logo'>; title: string; subtitle: string }): string {
@@ -444,14 +446,21 @@ export function bottomSpacer(): string {
 export interface EmailLayoutOptions {
   brandName: string
   brandLogoUrl?: string | null
+  /** a levél nyelve (a lábléc és a html lang) — üres = magyar */
+  lang?: string | null
+  /** a logó magassága a fejlécben (lib/brandImage › brandEmailLogoPx); üres = 26 */
+  brandLogoHeight?: number
   brandCoverUrl?: string | null
   /** Ha megadva, LEVÁLTJA a belső brandHeader() hívást (pl. brandHeroBlock esetén). */
   header?: string
   content: string
 }
 
-export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, content }: EmailLayoutOptions): string {
-  const headerHtml = header ?? brandHeader({ brandName, brandLogoUrl, brandCoverUrl })
+const RIGHTS: Record<string, string> = { hu: 'Minden jog fenntartva', en: 'All rights reserved', de: 'Alle Rechte vorbehalten', fr: 'Tous droits réservés', es: 'Todos los derechos reservados', it: 'Tutti i diritti riservati' }
+
+export function emailLayout({ brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl, header, content, lang }: EmailLayoutOptions): string {
+  const lg = lang && lang in RIGHTS ? lang : 'hu'
+  const headerHtml = header ?? brandHeader({ brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl })
   // A borító széltől szélig fut (a fejléc elején, <!--cover--> jelöléssel); minden más — a fejléc többi része és a
   // tartalom — középen, max. 600px-es oszlopban (design 18.3: „fehér, teljes szélességű levél”).
   const m = headerHtml.match(/^\s*<!--cover-->([\s\S]*?)<!--\/cover-->/)
@@ -459,7 +468,7 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
   const rest = m ? headerHtml.slice(m[0].length) : headerHtml
   // a színes gombok sötét módban is megtartják a színüket (lib/emailDark) — a levelekben kézzel írtak is
   return darkSafeButtons(`<!DOCTYPE html>
-<html lang="hu">
+<html lang="${lg}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -486,7 +495,7 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
         <a href="${BOOKING_SITE_URL}" target="_blank" title="davelopment booking — online foglalási rendszer" style="text-decoration:none;display:inline-block">
           <img src="${BOOKING_LOCKUP}" alt="davelopment Booking" width="120" height="44" style="width:120px;height:44px;display:block;border:0" />
         </a>
-        ${keepContent(COLORS.ink, `<p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>`, { block: true })}
+        ${keepContent(COLORS.ink, `<p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · ${RIGHTS[lg]}</p>`, { block: true })}
       </td>
     </tr>
   </table>

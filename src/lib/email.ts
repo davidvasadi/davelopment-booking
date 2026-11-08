@@ -22,9 +22,8 @@ import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { filterAllowedEmails, isBookingNotifyLevelOff } from './emailNotifPrefs'
-import { brandImageAbs, type BrandPlace } from './brandImage'
-import { voucherEmailRows } from './emailVoucher'
-import type { VoucherDesign } from './voucherDesign'
+import { brandEmailLogoPx, brandImageAbs, type BrandPlace } from './brandImage'
+import { voucherEmailRows, voucherMailSubject } from './emailVoucher'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -112,10 +111,12 @@ function hasTerms(salon: Salon): boolean {
   return (salon.terms_sections ?? []).some((s) => s?.title || s?.body)
 }
 
-function wrap(salon: Salon, content: string): string {
+function wrap(salon: Salon, content: string, lang?: string | null): string {
   return emailLayout({
+    lang,
     brandName: salon.name,
     brandLogoUrl: brandImageAbs(salon as BrandPlace, 'email', APP_URL),
+    brandLogoHeight: brandEmailLogoPx(salon as BrandPlace),
     brandCoverUrl: mediaUrl(salon.cover_image),
     content,
   })
@@ -435,32 +436,29 @@ export interface VoucherEmailData {
   recipientName?: string | null
   recipientEmail?: string | null
   message?: string | null
-  /** a típus sablonja (forma, szín, szöveg, kép) — ezzel készül a jegy a levélben */
-  design?: VoucherDesign | null
-  /** a típus saját képe (abszolút URL) */
-  photoUrl?: string | null
   expiresAt?: string | null
+  /** az utalvány nyelve (kiállításkor / vásárláskor választva) — ezen megy a levél és a jegy */
+  lang?: string | null
 }
 
 function voucherHtml(data: VoucherEmailData, forRecipient: boolean): string {
   const biz = data.salon
-  // a jegy a levélben (lib/emailVoucher) — a QR rendes képlinkként, mert a Gmail a beágyazott képet nem mutatja
+  // a jegy képként a levélben, a levél az utalvány nyelvén (lib/emailVoucher)
   return wrap(biz, `
     ${voucherEmailRows({
-      appUrl: APP_URL, forRecipient, restaurant: false, bizName: biz.name, bizSlug: biz.slug,
-      bizImg: brandImageAbs(biz as BrandPlace, 'voucher', APP_URL, data.design?.brand),
-      design: data.design, photo: data.photoUrl, code: data.code, amount: formatPrice(data.amountHuf, 'HUF'), expiresAt: data.expiresAt,
-      purchaserName: data.purchaserName, recipientName: data.recipientName, message: data.message,
+      appUrl: APP_URL, forRecipient, restaurant: false, lang: data.lang, bizName: biz.name, bizSlug: biz.slug,
+      code: data.code, amount: formatPrice(data.amountHuf, 'HUF'), expiresAt: data.expiresAt,
+      purchaserName: data.purchaserName, message: data.message,
     }, { heroBlock, detailsCard, infoRow, surface: COLORS.surface })}
     ${bottomSpacer()}
-  `)
+  `, data.lang)
 }
 
 /** Vásárlás-visszaigazolás a vásárlónak (mindig kimegy). */
 export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
   const resend = getResend()
   if (!resend) return
-  const subject = `Ajándékutalvány megvásárolva – ${data.salon.name}`
+  const subject = voucherMailSubject(data.lang, false, data.salon.name)
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(data.salon.name, data.salon.slug),
@@ -480,7 +478,7 @@ export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
 export async function sendVoucherGiftEmail(data: VoucherEmailData) {
   const resend = getResend()
   if (!resend || !data.recipientEmail) return
-  const subject = `Ajándékutalványt kaptál – ${data.salon.name}`
+  const subject = voucherMailSubject(data.lang, true, data.salon.name)
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(data.salon.name, data.salon.slug),
@@ -599,14 +597,15 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   const logoUrl = brandImageAbs(salon as BrandPlace, 'email', APP_URL)
+  const logoH = brandEmailLogoPx(salon as BrandPlace)
   const coverUrl = mediaUrl(salon.cover_image)
   return emailLayout({
     brandName: salon.name,
-    brandLogoUrl: logoUrl,
+    brandLogoUrl: logoUrl, brandLogoHeight: logoH,
     brandCoverUrl: coverUrl,
     header: brandHeroBlock({
       brandName: salon.name,
-      brandLogoUrl: logoUrl,
+      brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'success',
       title: t(locale, 'email.confirm.title'),
@@ -769,14 +768,15 @@ function modificationHtml(data: BookingEmailData): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   const logoUrl = brandImageAbs(salon as BrandPlace, 'email', APP_URL)
+  const logoH = brandEmailLogoPx(salon as BrandPlace)
   const coverUrl = mediaUrl(salon.cover_image)
   return emailLayout({
     brandName: salon.name,
-    brandLogoUrl: logoUrl,
+    brandLogoUrl: logoUrl, brandLogoHeight: logoH,
     brandCoverUrl: coverUrl,
     header: brandHeroBlock({
       brandName: salon.name,
-      brandLogoUrl: logoUrl,
+      brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'bell',
       title: 'Foglalásod módosítva',
