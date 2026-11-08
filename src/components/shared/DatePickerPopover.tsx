@@ -22,25 +22,45 @@ const POP = {
   exit: { opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.12, ease: 'easeIn' as const } },
 }
 
-/** Egy hónap zárt napjai a terheltség-végpontból (`?month=YYYY-MM` → closedDates, closedWeekdays) — a naptár és a
- *  napválasztó csík csíkozza őket. Hónaponként egyszer kér. */
-const closedCache = new Map<string, Promise<{ closedDates: string[]; closedWeekdays: number[] } | null>>()
+/** Egy hónap zárt napjai és napi foglalásszámai a terheltség-végpontból (`?month=YYYY-MM` → closedDates,
+ *  closedWeekdays, counts) — a naptár csíkozza a zárt napot és a foglaltság szerint színez (design 6.20), a napválasztó
+ *  csík csíkoz. Hónaponként egyszer kér; egy perc után frissít (közben felvett foglalások). */
+type MonthLoad = { closedDates: string[]; closedWeekdays: number[]; counts: Record<string, number>; util: Record<string, number> }
+const closedCache = new Map<string, { t: number; p: Promise<MonthLoad | null> }>()
 export function useMonthClosed(endpoint: string | undefined, month: string) {
-  const [data, setData] = useState<{ closedDates: string[]; closedWeekdays: number[] } | null>(null)
+  const [data, setData] = useState<MonthLoad | null>(null)
   useEffect(() => {
     if (!endpoint) return
     const k = `${endpoint}|${month}`
-    if (!closedCache.has(k)) {
-      closedCache.set(k, fetch(`${endpoint}?month=${month}`, { credentials: 'include' })
+    const hit = closedCache.get(k)
+    if (!hit || Date.now() - hit.t > 60_000) {
+      closedCache.set(k, { t: Date.now(), p: fetch(`${endpoint}?month=${month}`, { credentials: 'include' })
         .then((r) => (r.ok ? r.json() : null))
-        .then((j) => (j ? { closedDates: j.closedDates ?? [], closedWeekdays: j.closedWeekdays ?? [] } : null))
-        .catch(() => { closedCache.delete(k); return null }))
+        .then((j) => (j ? { closedDates: j.closedDates ?? [], closedWeekdays: j.closedWeekdays ?? [], counts: j.counts ?? {}, util: j.util ?? {} } : null))
+        .catch(() => { closedCache.delete(k); return null }) })
     }
     let alive = true
-    closedCache.get(k)!.then((v) => { if (alive) setData(v) })
+    closedCache.get(k)!.p.then((v) => { if (alive) setData(v) })
     return () => { alive = false }
   }, [endpoint, month])
   return data
+}
+
+/** A nap foglaltsági fokozata (design 6.20): 1 szabad, 2 közepes, 3 telt — a napi kihasználtságból (a foglalható
+ *  időhöz / ülőhelyhez mérve, lib/dayUtil); ha arra a napra nincs (nincs nyitvatartás / beosztás), a hónap legteltebb
+ *  napjához mért foglalásszámból. */
+function loadTier(util: number | undefined, count: number, max: number): 1 | 2 | 3 {
+  if (util != null) return util >= 75 ? 3 : util >= 40 ? 2 : 1
+  if (!count || max <= 0) return 1
+  const r = count / max
+  return r >= 0.8 ? 3 : r >= 0.45 ? 2 : 1
+}
+
+/** „Csüt., Nov. 19.” — a kiválasztott nap felirata */
+function dayTitle(key: string): string {
+  const [yy, mm, dd] = key.split('-').map(Number)
+  const d = new Date(yy, mm - 1, dd)
+  return `${['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat'][d.getDay()]}, ${HU_MONTHS_FULL[mm - 1].slice(0, 3)}. ${dd}.`
 }
 
 function monthKey(y: number, m: number): string {
@@ -70,6 +90,8 @@ export function MonthPicker({ value, rangeTo, onPick, loadEndpoint, yearRange, o
   const y = viewDate.getFullYear()
   const m = viewDate.getMonth()
   const today = ymdLocal(new Date())
+  // a hónap legteltebb napja — ehhez mérjük a fokozatot
+  const maxCount = closed ? Math.max(0, ...Object.entries(closed.counts).filter(([k]) => k.startsWith(monthKey(y, m))).map(([, v]) => v)) : 0
 
   return (
     <div>
@@ -96,8 +118,24 @@ export function MonthPicker({ value, rangeTo, onPick, loadEndpoint, yearRange, o
         {HU_DAYS_SHORT.map((d, i) => <span key={i} className={i > 4 ? 'text-ui-bad-dot' : 'text-ui-muted'}>{d}</span>)}
       </div>
       <div className="mt-1">
-        <CalendarMonthGrid year={y} month={m} value={value} rangeTo={rangeTo} closed={closed ? (d) => isClosedDay(d, today, closed) : undefined} onSelectDay={(d) => onPick?.(d)} />
+        <CalendarMonthGrid year={y} month={m} value={value} rangeTo={rangeTo} closed={closed ? (d) => isClosedDay(d, today, closed) : undefined}
+          load={closed && !rangeTo ? (d) => loadTier(closed.util[d], closed.counts[d] ?? 0, maxCount) : undefined} onSelectDay={(d) => onPick?.(d)} />
       </div>
+      {/* foglaltság (design 6.20): a kiválasztott nap száma a naptár alatt, alatta a jelmagyarázat */}
+      {closed && !rangeTo && <>
+        {value.startsWith(monthKey(y, m)) && (
+          <div className="mt-3 flex items-center justify-between border-t border-dashed border-ui-divider pt-2.5 text-ui-meta">
+            <span className="text-ui-muted">{dayTitle(value)}</span>
+            <span className="text-ui-text">{isClosedDay(value, '', closed) ? 'Zárva' : `${closed.counts[value] ?? 0} foglalás${closed.util[value] != null ? ` · ${closed.util[value]}%` : ''}`}</span>
+          </div>
+        )}
+        <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-dashed border-ui-divider pt-2.5 text-ui-label text-ui-muted">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ui-cell" />Szabad</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ui-yellow/40" />Közepes</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-ui-yellow" />Telt</span>
+          <span className="flex items-center gap-1.5"><span className="ui-hatch-cell h-2.5 w-2.5 rounded-full" />Zárva</span>
+        </div>
+      </>}
       {onClear && value && (
         <div className="mt-3 flex justify-center border-t border-dashed border-ui-divider pt-2.5">
           <Button variant="ghost" size="sm" onClick={onClear}>Törlés</Button>

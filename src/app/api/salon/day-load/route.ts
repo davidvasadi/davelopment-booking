@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { getClosedDays } from '@/lib/closedDays'
+import { dayUtilization } from '@/lib/dayUtil'
 import type { Booking } from '@/payload/payload-types'
 
 /**
@@ -51,5 +52,7 @@ export async function GET(req: NextRequest) {
 
   // a hónap zárt napjai (a dátumválasztó csíkozza őket — design 6.9)
   const { closedDates, closedWeekdays } = await getClosedDays(payload, 'salon', active.id)
-  return NextResponse.json({ counts, closedDates: closedDates.filter((d) => d.startsWith(month)), closedWeekdays })
+  // napi kihasználtság (%) a foglalható időhöz / ülőhelyhez mérve — a naptár ebből színez (design 6.20, lib/dayUtil)
+  const util = await dayUtilization('salon', active.id, monthStart, `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`).catch(() => ({}))
+  return NextResponse.json({ counts, util, closedDates: closedDates.filter((d) => d.startsWith(month)), closedWeekdays })
 }
