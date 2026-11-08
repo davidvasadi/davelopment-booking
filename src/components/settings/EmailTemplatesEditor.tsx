@@ -8,10 +8,12 @@ import { newBlock } from '@/components/dashboard/NewsletterBlockEditor'
 import { useBlockInspector } from '@/components/dashboard/useBlockInspector'
 import { BlockPalette, LetterBlocks, type InsertKind } from '@/components/blocks/marketing'
 import { GuestEmailsPage, ReminderSettingsCard } from '@/components/blocks/settings'
-import { Button, EmptyState, Input as KitInput, Note } from '@/components/ui-kit'
+import { Button, EmptyState, FieldRow, Input as KitInput, Meta, Note, Segmented } from '@/components/ui-kit'
 import { Mail, Undo2 } from 'lucide-react'
 import { useSettingsFormContext } from './settingsFormContext'
 import type { ComposerBlock } from '@/lib/emailBlocks'
+import { BrandPicker } from '@/components/blocks/brand-picker'
+import { LOGO_HEIGHT, brandUploadHref } from '@/lib/brandImage'
 
 type Loc = ReturnType<typeof useLocalizedFields>
 
@@ -128,8 +130,20 @@ function GuestEmails({ variant, loc, onPreview, sender, logo }: { variant: 'rest
   const intro = et ? loc.current[et.introField] : []
   const setIntro = (b: ComposerBlock[]) => { if (et) loc.setField(et.introField, b) }
   // a kijelölt blokk szerkesztése — ugyanaz, mint a Marketing kampány-szerkesztőjében
-  const inspector = useBlockInspector({ blocks: intro, setBlocks: setIntro, focusId, logo, bizName: sender, linkPresets: LINK_PRESETS })
+  const inspector = useBlockInspector({ blocks: intro, setBlocks: setIntro, focusId, logo, bizName: sender, linkPresets: LINK_PRESETS, uploadHref: brandUploadHref(variant === 'restaurant') })
   const full = intro.some((b) => b.type === 'booking_details')
+  // a levél fejléce (kijelölve: '__brand'): logó / ikon a feltöltött képekkel, és a méret — design 24.2
+  const brand = ctl.brand
+  const brandSel = focusId === '__brand'
+  const headImg = brand ? (brand.value === 'icon' ? brand.icon ?? brand.logo : brand.logo ?? brand.icon) : logo
+  const brandBody = brand ? (
+    <div className="space-y-3 py-2">
+      <FieldRow label="Kép" stacked><BrandPicker value={brand.value} logo={brand.logo} icon={brand.icon} missingHref={brandUploadHref(variant === 'restaurant')} onChange={(v) => brand.set({ value: v === 'icon' ? 'icon' : 'logo' })} /></FieldRow>
+      {brand.value === 'icon' && !brand.icon && <Meta className="text-ui-label">Nincs ikon feltöltve — addig a logót használjuk.</Meta>}
+      <FieldRow label="Méret" stacked><Segmented tone="cell" size="sm" options={['S', 'M', 'L']} active={['sm', 'md', 'lg'].indexOf(brand.size)} onSelect={(i) => brand.set({ size: (['sm', 'md', 'lg'] as const)[i] })} /></FieldRow>
+      <Meta className="text-ui-label">Minden levélre érvényes (vendég-, csapat- és üzleti levelek, vendég-oldalak).</Meta>
+    </div>
+  ) : null
   // a kész sablon (szalon / étterem, a szerkesztett nyelven) — lib/guestEmailTemplates
   const tpl = et ? GUEST_EMAIL_TEMPLATES[et.key][variant][loc.editLocale] : null
   const subjectPh = tpl?.subject ?? ''
@@ -180,7 +194,8 @@ function GuestEmails({ variant, loc, onPreview, sender, logo }: { variant: 'rest
       // saját blokkos levélnél (a sablonból: van „foglalás adatai” blokk) a régi fix részek nem kellenek — ott vannak a levélben
       details={full || !intro.length ? null : variant === 'salon' ? { line: 'Hétfő, Nov. 10. · 13:30', meta: 'Viktória · 60 perc · minta' } : { line: 'Péntek, Nov. 14. · 19:00', meta: '4 fő · terasz · minta' }}
       buttons={full || !intro.length ? [] : BUTTONS[sel]} cancelLink={!full && intro.length > 0 && CANCEL_LINK[sel]}
-      biz={{ name: sender, initials: sender.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), logo, footer: sender }}
+      biz={{ name: sender, initials: sender.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), logo: headImg, footer: sender }}
+      onBrand={brand ? () => setFocusId('__brand') : undefined} brandSelected={brandSel} logoH={brand ? LOGO_HEIGHT[brand.size] : undefined}
       device={device} onDevice={setDevice}
       // bal oszlop (a levelek alatt): a levél beállításai; jobb oszlop, mint a Marketingnél: a kijelölt blokk szerkesztése,
       // a beszúrható adatok, a sablon, az előnézet és a mentés
@@ -193,7 +208,7 @@ function GuestEmails({ variant, loc, onPreview, sender, logo }: { variant: 'rest
           sender={sender} />
       }
       settings={
-        <ReminderSettingsCard part="editor" className="self-start" block={et ? { name: inspector.name, body: inspector.inspector } : undefined}
+        <ReminderSettingsCard part="editor" className="self-start" block={brandSel && brandBody ? { name: 'Fejléc', body: brandBody } : et ? { name: inspector.name, body: inspector.inspector } : undefined}
           tags={et ? TAGS[variant].map(([l]) => l) : []} onTag={(l) => { const t = TAGS[variant].find(([x]) => x === l); if (t) insertTag(t[1]) }}
           onTemplate={et ? loadTemplate : undefined} onPreview={et ? () => onPreview(et.state, intro) : undefined}
           onSave={ctl.save} saveBusy={ctl.saving} saveDisabled={!ctl.dirty} />

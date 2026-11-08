@@ -24,6 +24,7 @@ import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
 import { resolveAvailableLocales, LOCALES, type Locale } from '@/lib/i18n'
 import { bookableDayCount } from '@/lib/bookingWindow'
+import { brandImage, brandLogoSize, LOGO_HEIGHT, type BrandPlace } from '@/lib/brandImage'
 
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ editor?: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -133,9 +134,9 @@ export default async function SalonPublicPage({
   const coverUrl = salon.cover_image && typeof salon.cover_image === 'object'
     ? (salon.cover_image as Media).url ?? null
     : null
-  const logoUrl = salon.logo && typeof salon.logo === 'object'
-    ? (salon.logo as Media).url ?? null
-    : null
+  // a fejléc képe: logó / ikon (a tulaj választása, design 24.2) és a logó mérete
+  const logoUrl = brandImage(salon as BrandPlace, 'page')
+  const logoH = LOGO_HEIGHT[brandLogoSize(salon as BrandPlace)]
 
   // HeroNextSlot renderelése server-oldalon, átadva a kliensbe ReactNode-ként
   const nextSlotNode = services.length > 0
@@ -161,6 +162,7 @@ export default async function SalonPublicPage({
     coverFocalMobileX: salon.cover_focal_mobile_x ?? null,
     coverFocalMobileY: salon.cover_focal_mobile_y ?? null,
     logoUrl,
+    logoH,
     // a saját szövegek a vendég nyelvén — ami nincs lefordítva, ott az alap szöveg (nem a magyar)
     page: { ...pageStyleOf(salon), ...(await ownLocaleTexts(await getPayloadClient() as never, 'salons', salon.id, locale)) },
     gallery: galleryOf(salon),

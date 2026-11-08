@@ -8,8 +8,10 @@ import type { Payload, PayloadRequest } from 'payload'
  */
 const MEDIA_FIELDS: { collection: string; field: string }[] = [
   { collection: 'salons', field: 'logo' },
+  { collection: 'salons', field: 'icon' },
   { collection: 'salons', field: 'cover_image' },
   { collection: 'restaurants', field: 'logo' },
+  { collection: 'restaurants', field: 'icon' },
   { collection: 'restaurants', field: 'cover_image' },
   { collection: 'services', field: 'image' },
   { collection: 'service-categories', field: 'image' },

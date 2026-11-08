@@ -18,6 +18,7 @@ export function cleanupPlaceMedia(): CollectionAfterDeleteHook {
     if (!doc) return
     await Promise.all([
       deleteMediaIfOrphan(req.payload, extractMediaId(doc.logo), req),
+      deleteMediaIfOrphan(req.payload, extractMediaId(doc.icon), req),
       deleteMediaIfOrphan(req.payload, extractMediaId(doc.cover_image), req),
     ])
   }

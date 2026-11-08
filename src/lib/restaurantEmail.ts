@@ -22,6 +22,7 @@ import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { isInternalEmailAllowed } from './emailNotifPrefs'
+import { brandImageAbs, type BrandPlace } from './brandImage'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -109,7 +110,7 @@ function hasTerms(restaurant: Restaurant): boolean {
 function wrap(restaurant: Restaurant, content: string): string {
   return emailLayout({
     brandName: restaurant.name,
-    brandLogoUrl: mediaUrl(restaurant.logo),
+    brandLogoUrl: brandImageAbs(restaurant as BrandPlace, 'email', APP_URL),
     brandCoverUrl: mediaUrl(restaurant.cover_image),
     content,
   })
@@ -515,7 +516,7 @@ function detailRows(data: ReservationEmailData): string {
 function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
-  const logoUrl = mediaUrl(restaurant.logo)
+  const logoUrl = brandImageAbs(restaurant as BrandPlace, 'email', APP_URL)
   const coverUrl = mediaUrl(restaurant.cover_image)
   return emailLayout({
     brandName: restaurant.name,
@@ -676,7 +677,7 @@ function declineHtml(data: ReservationEmailData): string {
 function modificationHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
-  const logoUrl = mediaUrl(restaurant.logo)
+  const logoUrl = brandImageAbs(restaurant as BrandPlace, 'email', APP_URL)
   const coverUrl = mediaUrl(restaurant.cover_image)
   return emailLayout({
     brandName: restaurant.name,

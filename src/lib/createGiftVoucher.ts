@@ -7,6 +7,7 @@ import { sendVoucherPurchaseEmail, sendVoucherGiftEmail } from './email'
 import { sendVoucherPurchaseEmail as sendRestaurantVoucherPurchaseEmail, sendVoucherGiftEmail as sendRestaurantVoucherGiftEmail } from './restaurantEmail'
 import type { Salon, Restaurant, GiftVoucherType } from '@/payload/payload-types'
 import { isForeignCountry } from './countries'
+import { brandImage, type BrandPlace } from './brandImage'
 
 /**
  * A ténylegesen kifizetett (vagy helyszínen készpénzben/kártyával átvett) ajándékutalvány
@@ -46,7 +47,9 @@ export async function createGiftVoucher(params: {
   const code = await generateUniqueVoucherCode()
   const expiresAt = new Date()
   expiresAt.setMonth(expiresAt.getMonth() + (business.voucher_settings?.validity_months ?? 12))
-  const logoUrl = business.logo && typeof business.logo === 'object' ? fixMediaUrl(business.logo.url) : null
+  // a QR-kód közepe: a tulaj választása (ikon / logó / nincs — design 24.2, lib/brandImage)
+  const qrImg = brandImage(business as BrandPlace, 'qr')
+  const logoUrl = qrImg ? fixMediaUrl(qrImg) : null
   const qrCodeDataUrl = await generateVoucherQrDataUrl(business.slug, code, logoUrl)
 
   const imageId = voucherType?.image && typeof voucherType.image === 'object' ? voucherType.image.id : (voucherType?.image ?? undefined)

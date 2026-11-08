@@ -7,6 +7,7 @@ import type { Media, Salon, Restaurant } from '@/payload/payload-types'
 import { TermsContent, buildTermsItems, type CompanyInfo } from '@/components/booking/TermsContent'
 import { getLocale } from '@/lib/i18n/server'
 import { t, resolveAvailableLocales } from '@/lib/i18n'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 export const metadata = { title: 'Foglalási feltételek' }
 
@@ -66,7 +67,7 @@ export default async function TermsPage({ params }: { params: Promise<{ slug: st
   const items = buildTermsItems(sections, company, locale)
   if (items.length === 0) notFound()
 
-  const logo = biz.logo && typeof biz.logo === 'object' ? (biz.logo as Media).url ?? null : null
+  const logo = brandImage(biz as BrandPlace, 'email') // logó / ikon — a vendég-oldalak a levelekét követik (design 24.2)
   return (
     <GuestShell wide biz={{ name, logo }}>
       <div className="text-ui-sub font-light text-ui-text">{t(locale, 'public.terms.title')}</div>

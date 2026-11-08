@@ -19,6 +19,7 @@ import { StaffOverview } from '@/components/dashboard/StaffOverview'
 import { fixMediaUrl, capsWords } from '@/lib/utils'
 import { deleteStaleTasks } from '@/lib/taskCleanup'
 import type { Reservation, Media, Task, OpeningHour, Shift } from '@/payload/payload-types'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 // Idő-függő tartalom (naptár + header-pillek a szolgáltatás-nap szerint) → mindig frissüljön.
 export const dynamic = 'force-dynamic'
@@ -41,7 +42,7 @@ export default async function RestaurantDashboardPage() {
   const todayLabel = capsWords(now.toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' }))
   const greeting = hour < 10 ? 'Jó reggelt' : hour < 18 ? 'Jó napot' : 'Jó estét'
 
-  const logoUrl = restaurant.logo && typeof restaurant.logo === 'object' ? (restaurant.logo as Media).url ?? null : null
+  const logoUrl = brandImage(restaurant as BrandPlace, 'dash') // vezérlőpult: az ikon, ha van (design 24.2)
   // Profil-kép a nagy kártyára: a fiók avatarja (Google-nál nagyobb méretet kérünk, hogy ne
   // legyen pixeles), fallback a logó, végül gradiens+monogram. A regex csak a Google-mintát
   // cseréli — más URL-t érintetlenül hagy.

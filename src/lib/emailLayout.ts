@@ -19,7 +19,8 @@ const BOOKING_SITE_URL = `${APP_URL.replace(/\/$/, '')}/`
 
 const BOOKING_LOCKUP = `${APP_URL}/email/davelopment-booking-wordmark.png`
 /** a rendszer-levelek (belépés, próbaidő…) fejlécében a favicon — PNG, mert az SVG-t sok kliens nem mutatja */
-const BOOKING_ICON = `${APP_URL}/icons/icon-192.png`
+// a márka-ikon (lekerekített sarkú, ahogy megrajzoltuk) — NEM a szögletes app-ikon, és nem kerekítjük rá
+const BOOKING_ICON = `${APP_URL}/email/davelopment-booking-icon.png`
 const SYSTEM_SENDER = 'davelopment booking'
 
 // Crextio/davelopment email-paletta: meleg krém háttér, fehér kártyák, ink-sötét sáv, arany accent.
@@ -173,7 +174,7 @@ function brandTopRow(
   const logoDark = brandLogoUrl
     ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
     : alt === SYSTEM_SENDER
-      ? `<img src="${BOOKING_ICON}" alt="${alt}" width="40" height="40" style="width:40px;height:40px;border-radius:12px;border:0;display:block" />`
+      ? `<img src="${BOOKING_ICON}" alt="${alt}" width="40" height="40" style="width:40px;height:40px;border:0;display:block" />`
       : `<span style="font-size:15px;font-weight:500;letter-spacing:-0.2px;color:#3B3B3B">${alt}</span>`
   return `<tr><td style="padding:28px 32px 2px;text-align:left;background:${COLORS.surface}">${logoDark}</td></tr>`
 }
@@ -194,7 +195,7 @@ export function brandHeroBlock(opts: {
   // A hírlevélnél nem egy állapot-ikon (harang/pipa) kell a badge-be, hanem az üzlet SAJÁT
   // logója — ha nincs feltöltött logó, visszaesik a harang-glifre.
   const iconSvg = icon === 'logo' && brandLogoUrl
-    ? `<img src="${brandLogoUrl}" alt="${alt}" width="30" height="30" style="width:30px;height:30px;object-fit:contain;display:block;border:0;border-radius:6px" />`
+    ? `<img src="${brandLogoUrl}" alt="${alt}" width="30" height="30" style="width:30px;height:30px;object-fit:contain;display:block;border:0" />`
     : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
 
   // 1–2. Borító + logó egyben (a logó a KÉPEN ül, a kép látszik mögötte).

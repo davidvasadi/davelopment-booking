@@ -19,7 +19,7 @@ export default async function VouchersPage() {
   const phone = (salon as { phone?: string | null }).phone
   return (
     <VouchersView businessId={String(salon.id)} vouchers={vouchers} types={types} base="/dashboard"
-      biz={{ name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? fixMediaUrl((salon.logo as Media).url) : null, addr: [[salon.city, salon.address].filter(Boolean).join(', '), phone].filter(Boolean).join(' · ') || null }}
+      biz={{ name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? fixMediaUrl((salon.logo as Media).url) : null, icon: salon.icon && typeof salon.icon === 'object' ? fixMediaUrl((salon.icon as Media).url) : null, addr: [[salon.city, salon.address].filter(Boolean).join(', '), phone].filter(Boolean).join(' · ') || null }}
       stripe={!!salon.stripe_connect_onboarded} locales={resolveAvailableLocales(salon.supported_locales ?? null)}
       minAmount={salon.voucher_settings?.min_amount_huf ?? 2000} maxAmount={salon.voucher_settings?.max_amount_huf ?? 100000}
       canManage={can(capabilities, 'vouchers.manage')} />

@@ -20,6 +20,7 @@ import { getMyUpcomingShifts } from '@/lib/myShifts'
 import { StaffOverview } from '@/components/dashboard/StaffOverview'
 import { ArrowUpRight, Banknote, CalendarDays, Clock, Wallet } from 'lucide-react'
 import type { Booking, Service, StaffMember, Media, Task, Availability } from '@/payload/payload-types'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 // Idő-függő tartalom (naptár + header-pillek) → mindig frissüljön.
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
   const greeting = hour < 10 ? 'Jó reggelt' : hour < 18 ? 'Jó napot' : 'Jó estét'
   const todayDow = JS_TO_DOW[now.getDay()]
 
-  const logoUrl = salon.logo && typeof salon.logo === 'object' ? (salon.logo as Media).url ?? null : null
+  const logoUrl = brandImage(salon as BrandPlace, 'dash') // vezérlőpult: az ikon, ha van (design 24.2)
   // Profil-kép a nagy kártyára: a fiók avatarja (Google-nál nagyobb méret), fallback monogram.
   const rawAvatar = user?.avatar_url ?? null
   const userAvatar = rawAvatar && rawAvatar.includes('googleusercontent') ? rawAvatar.replace(/=s\d+-c/, '=s512-c') : rawAvatar

@@ -122,6 +122,11 @@ export interface Restaurant {
   cover_focal_mobile_x?: number | null
   cover_focal_mobile_y?: number | null
   logo?: string | Media | null
+  icon?: string | Media | null
+  brand_logo_size?: string | null
+  brand_page?: string | null
+  brand_email?: string | null
+  brand_qr?: string | null
   turn_duration_minutes?: number | null
   online_capacity_pct?: number | null
   min_online_pax?: number | null
@@ -454,6 +459,7 @@ export interface GiftVoucherType {
   card_layout?: string | null
   card_color?: string | null
   card_text?: string | null
+  card_brand?: string | null
   description?: string | null
   active?: boolean | null
   createdAt: string
@@ -876,6 +882,11 @@ export interface Salon {
   owner: string | User
   description?: string | null
   logo?: string | Media | null
+  icon?: string | Media | null
+  brand_logo_size?: string | null
+  brand_page?: string | null
+  brand_email?: string | null
+  brand_qr?: string | null
   cover_image?: string | Media | null
   cover_focal_x?: number | null
   cover_focal_y?: number | null

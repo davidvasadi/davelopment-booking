@@ -22,7 +22,7 @@ export default async function RestaurantVouchersPage() {
   const { vouchers, types } = await getVouchersVM('restaurant', restaurant.id)
   return (
     <VouchersView restaurant businessId={String(restaurant.id)} vouchers={vouchers} types={types} base="/restaurant"
-      biz={{ name: restaurant.name, logo: restaurant.logo && typeof restaurant.logo === 'object' ? fixMediaUrl((restaurant.logo as Media).url) : null, addr: [[restaurant.city, restaurant.address].filter(Boolean).join(', '), restaurant.phone].filter(Boolean).join(' · ') || null }}
+      biz={{ name: restaurant.name, logo: restaurant.logo && typeof restaurant.logo === 'object' ? fixMediaUrl((restaurant.logo as Media).url) : null, icon: restaurant.icon && typeof restaurant.icon === 'object' ? fixMediaUrl((restaurant.icon as Media).url) : null, addr: [[restaurant.city, restaurant.address].filter(Boolean).join(', '), restaurant.phone].filter(Boolean).join(' · ') || null }}
       stripe={!!(restaurant as { stripe_connect_onboarded?: boolean | null }).stripe_connect_onboarded} locales={resolveAvailableLocales(restaurant.supported_locales ?? null)}
       minAmount={restaurant.voucher_settings?.min_amount_huf ?? 2000} maxAmount={restaurant.voucher_settings?.max_amount_huf ?? 100000}
       canManage={can(capabilities, 'vouchers.manage')} />

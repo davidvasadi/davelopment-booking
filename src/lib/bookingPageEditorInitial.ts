@@ -5,6 +5,7 @@ import { hasActivePackage } from '@/lib/newsletterLimits'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import type { BookingPageEditorInitial, EditorStaff } from '@/components/settings/booking-page/BookingPageEditor'
 import type { Media, Restaurant, Salon } from '@/payload/payload-types'
+import { brandChoice, brandLogoSize, type BrandPlace } from './brandImage'
 
 const mediaOf = (m: unknown) => (m && typeof m === 'object' ? { id: Number((m as Media).id), url: (m as Media).url ?? null } : { id: null, url: null })
 
@@ -38,6 +39,7 @@ export function buildBookingPageEditorInitial(
   const fm = doc.feature_modules ?? {}
   const cover = mediaOf(doc.cover_image)
   const logo = mediaOf(doc.logo)
+  const icon = mediaOf(doc.icon)
   return {
     variant: kind,
     hours: extra.hours ?? [],
@@ -61,6 +63,12 @@ export function buildBookingPageEditorInitial(
     coverFocalMobileY: doc.cover_focal_mobile_y ?? null,
     logoId: logo.id,
     logoUrl: logo.url,
+    iconId: icon.id,
+    iconUrl: icon.url,
+    brandLogoSize: brandLogoSize(doc as BrandPlace),
+    brandPage: brandChoice(doc as BrandPlace, 'page') === 'icon' ? 'icon' : 'logo',
+    brandEmail: brandChoice(doc as BrandPlace, 'email') === 'icon' ? 'icon' : 'logo',
+    brandQr: brandChoice(doc as BrandPlace, 'qr'),
     goodToKnow: (doc.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
     showServiceCount: isSalon && (br.show_service_count_on_public ?? br.show_catalog_counts_on_public !== false),
     showStaffCount: isSalon && (br.show_staff_count_on_public ?? br.show_catalog_counts_on_public !== false),

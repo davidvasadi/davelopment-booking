@@ -7,6 +7,7 @@ import { EditorQuickBar, QuickColor, QuickTool } from '@/components/blocks/edito
 import { postToEditor, type BarTool } from '@/lib/editorBridge'
 import { formatSelection } from './EditableText'
 import { ColorPicker } from '@/components/blocks/color-picker'
+import { BrandPicker } from '@/components/blocks/brand-picker'
 
 const ICONS = { up: ArrowUp, down: ArrowDown, settings: Settings, bold: Bold, italic: Italic } as const
 
@@ -52,6 +53,7 @@ export function PreviewQuickBar({ id, label, tools }: { id: string; label: strin
             </button>
           )
           if (x.t === 'icon') return <QuickTool key={i} icon={ICONS[x.icon]} label={x.label} on={x.on} onClick={() => act(x.action)} />
+          if (x.t === 'brand') return <BrandPicker key={i} dark value={x.value} logo={x.logo} icon={x.icon} onChange={(v) => act(x.action, v)} />
           if (x.t === 'button') return <Button key={i} variant="yellow" size="sm" className="shrink-0" onClick={() => act(x.action)}>{x.label}</Button>
           return <span key={i} className="shrink-0 px-2 text-ui-meta text-white/80">{x.label}</span>
         })}

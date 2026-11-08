@@ -15,8 +15,9 @@ export default async function MarketingPage() {
   const vm = await getMarketingVM('restaurant', restaurant, `${APP_URL}/${restaurant.slug}`)
   const phone = (restaurant as { phone?: string | null }).phone
   const logo = await businessLogoUrl(restaurant.logo)
+  const icon = await businessLogoUrl(restaurant.icon)
   return (
     <MarketingView restaurant businessId={String(restaurant.id)} vm={vm} canManage={can(capabilities, 'marketing.manage')}
-      biz={{ name: restaurant.name, logo, footer: [restaurant.address, phone].filter(Boolean).join(' · ') || null, social: (restaurant.social_links ?? []).map((l) => l.url).filter(Boolean) }} />
+      biz={{ name: restaurant.name, logo, icon, footer: [restaurant.address, phone].filter(Boolean).join(' · ') || null, social: (restaurant.social_links ?? []).map((l) => l.url).filter(Boolean) }} />
   )
 }

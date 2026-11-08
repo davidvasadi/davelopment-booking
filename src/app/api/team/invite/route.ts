@@ -9,6 +9,7 @@ import { assertCapability } from '@/lib/apiCapability'
 import { roleLabel, type TeamRole } from '@/lib/permissions'
 import { emitBookingChange } from '@/lib/sseEmitter'
 import type { Salon, Restaurant } from '@/payload/payload-types'
+import { brandImageAbs, type BrandPlace } from '@/lib/brandImage'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
@@ -151,11 +152,8 @@ export async function POST(request: NextRequest) {
 
   const acceptUrl = `${APP_URL}/team/accept/${token}`
   // Az invitáló üzlet logója (abszolút URL) a meghívó-email fejlécébe; ha nincs, a neve jelenik meg.
-  const bizLogo = biz.logo
-  const businessLogoUrl =
-    bizLogo && typeof bizLogo === 'object' && bizLogo.url
-      ? (bizLogo.url.startsWith('http') ? bizLogo.url : `${APP_URL}${bizLogo.url}`)
-      : null
+  // (logó / ikon — a tulaj választása, design 24.2, lib/brandImage)
+  const businessLogoUrl = brandImageAbs(biz as BrandPlace, 'email', APP_URL)
   // Az email-küldés NEM fatális: ha az SMTP nem elérhető (pl. lokál), a meghívó akkor is
   // létrejön — a linket a tulaj kézzel is megoszthatja (visszaadjuk a válaszban).
   try {

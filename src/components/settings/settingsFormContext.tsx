@@ -45,6 +45,8 @@ export type GuestEmailCtl = {
   setReminder: (patch: Partial<GuestEmailCtl['reminder']>) => void
   /** a visszajelzés-kérés késleltetése (óra) a felirathoz */
   feedbackDelayHours: number | null
+  /** a levél fejléce (design 24.2): logó / ikon és a logó mérete — a feltöltött képekkel; ugyanaz, mint a Foglalóoldal-szerkesztő Arculatában */
+  brand?: { value: 'logo' | 'icon'; size: 'sm' | 'md' | 'lg'; logo: string | null; icon: string | null; set: (p: { value?: 'logo' | 'icon'; size?: 'sm' | 'md' | 'lg' }) => void }
   /** a lap mentése / mentés alatt / van-e mit menteni */
   save: () => void
   saving: boolean

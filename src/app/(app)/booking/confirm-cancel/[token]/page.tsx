@@ -5,6 +5,7 @@ import { t } from '@/lib/i18n'
 import { formatBookingDate } from '@/lib/emailLayout'
 import { Button } from '@/components/ui-kit'
 import { GuestResult, GuestShell } from '@/components/blocks/guest-pages'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 /**
  * Szalon: a lemondás megerősítése (a visszaigazoló / emlékeztető levél „Foglalás lemondása” linkje) — design 21.12.
@@ -18,7 +19,7 @@ export default async function ConfirmCancelPage({ params }: { params: Promise<{ 
   const booking = result.docs[0]
 
   const salon = booking && typeof booking.salon === 'object' ? (booking.salon as Salon) : null
-  const biz = salon ? { name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? (salon.logo as Media).url ?? null : null } : null
+  const biz = salon ? { name: salon.name, logo: brandImage(salon as BrandPlace, 'email') } : null // logó / ikon (design 24.2)
   const home = salon?.slug ? `/${salon.slug}` : '/'
 
   if (!booking) {

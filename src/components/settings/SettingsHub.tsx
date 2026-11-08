@@ -876,7 +876,12 @@ export function SettingsHub({
   const fmBase = useMemo(() => ({ reminders_on: !!featureModules.reminders_on, reviews_on: !!featureModules.reviews_on, reminder_t_48h: !!featureModules.reminder_t_48h, reminder_t_24h: !!featureModules.reminder_t_24h, reminder_t_3h: !!featureModules.reminder_t_3h, reminder_t_1h: !!featureModules.reminder_t_1h, reminder_ch_email: !!featureModules.reminder_ch_email, reminder_ch_push: !!featureModules.reminder_ch_push }), [featureModules])
   const [emailFm, setEmailFm] = useState(fmBase)
   const emailFmDirty = JSON.stringify(emailFm) !== JSON.stringify(fmBase)
+  // a levél fejléce (logó / ikon, méret) — ugyanaz a mező, mint a Foglalóoldal-szerkesztő Arculatában (design 24.2)
+  const brandBase = useMemo(() => ({ value: bookingPageEditor?.brandEmail ?? 'logo', size: bookingPageEditor?.brandLogoSize ?? 'md' }) as { value: 'logo' | 'icon'; size: 'sm' | 'md' | 'lg' }, [bookingPageEditor?.brandEmail, bookingPageEditor?.brandLogoSize])
+  const [emailBrand, setEmailBrand] = useState(brandBase)
+  const emailBrandDirty = emailBrand.value !== brandBase.value || emailBrand.size !== brandBase.size
   const saveGuestEmailTab = async () => {
+    if (emailBrandDirty) await patchGroup({ brand_email: emailBrand.value, brand_logo_size: emailBrand.size })
     if (notifDirty) await saveNotif()
     if (emailFmDirty && await patchGroup({ feature_modules: { ...featureModules, ...emailFm } })) router.refresh()
     if (formDirty) await saveForm()
@@ -896,7 +901,8 @@ export function SettingsHub({
       ...(p.email !== undefined ? { reminder_ch_email: p.email } : {}), ...(p.push !== undefined ? { reminder_ch_push: p.push } : {}),
     })),
     feedbackDelayHours: featureModules.review_delay_hours ?? null,
-    save: () => void saveGuestEmailTab(), saving, dirty: formDirty || notifDirty || emailFmDirty,
+    brand: { ...emailBrand, logo: bookingPageEditor?.logoUrl ?? null, icon: bookingPageEditor?.iconUrl ?? null, set: (p) => setEmailBrand((b) => ({ ...b, ...p })) },
+    save: () => void saveGuestEmailTab(), saving, dirty: formDirty || notifDirty || emailFmDirty || emailBrandDirty,
   }
 
   const activeBar =
@@ -1395,7 +1401,7 @@ export function SettingsHub({
                 initialFeatureModules={featureModules}
                 onDirtyChange={integPanel.onDirtyChange}
                 registerApi={integPanel.registerApi}
-                qr={<BusinessQrLauncher variant="card" url={bookingUrl} businessName={bookingPageEditor?.name ?? businessName} restaurant={variant === 'restaurant'} logoUrl={bookingPageEditor?.logoUrl ?? null} hours={bookingPageEditor?.hours ?? (hoursVM ? hoursRows(hoursVM.days) : [])} socialLinks={bookingPageEditor?.socialLinks ?? []} />}
+                qr={<BusinessQrLauncher variant="card" url={bookingUrl} businessName={bookingPageEditor?.name ?? businessName} restaurant={variant === 'restaurant'} logoUrl={bookingPageEditor ? (bookingPageEditor.brandQr === 'none' ? null : bookingPageEditor.brandQr === 'icon' ? bookingPageEditor.iconUrl ?? bookingPageEditor.logoUrl : bookingPageEditor.logoUrl ?? bookingPageEditor.iconUrl) : null} hours={bookingPageEditor?.hours ?? (hoursVM ? hoursRows(hoursVM.days) : [])} socialLinks={bookingPageEditor?.socialLinks ?? []} />}
               />
             </div>
           )}

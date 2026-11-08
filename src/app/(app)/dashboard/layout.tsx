@@ -12,6 +12,7 @@ import { AppShell } from '@/components/dashboard/AppShell'
 import { PageTransition } from '@/components/ui/page-transition'
 import { LiveRefreshProvider } from '@/components/LiveRefreshProvider'
 import type { Salon, Subscription } from '@/payload/payload-types'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth()
@@ -59,7 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       variant="salon"
       businessName={salon.name}
       businessSlug={salon.slug}
-      brandLogoUrl={typeof salon.logo === 'object' && salon.logo?.url ? salon.logo.url : null}
+      brandLogoUrl={brandImage(salon as BrandPlace, 'dash')}
       subscription={sub}
       lockedStatus={lockedStatus}
       basePath="/dashboard"

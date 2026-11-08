@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import type { Reservation, Booking } from '@/payload/payload-types'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 /**
  * Csak akkor irányítjuk oda a jó értékelést adó vendéget, ha a beállított link ténylegesen
@@ -177,12 +178,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         const restaurantId = typeof reservation.restaurant === 'object' ? reservation.restaurant.id : reservation.restaurant
         const restaurant = await payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 1, overrideAccess: true })
         fm = restaurant?.feature_modules
-        if (restaurant) business = { name: restaurant.name, logo: restaurant.logo && typeof restaurant.logo === 'object' ? (restaurant.logo as { url?: string | null }).url ?? null : null }
+        if (restaurant) business = { name: restaurant.name, logo: brandImage(restaurant as BrandPlace, 'email') }
       } else if (booking) {
         const salonId = typeof booking.salon === 'object' ? booking.salon.id : booking.salon
         const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 1, overrideAccess: true })
         fm = salon?.feature_modules
-        if (salon) business = { name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? (salon.logo as { url?: string | null }).url ?? null : null }
+        if (salon) business = { name: salon.name, logo: brandImage(salon as BrandPlace, 'email') }
       }
       googleReviewUrl = validGoogleUrl(fm?.google_review_url)
       const target = fm?.review_target === 'tripadvisor' ? validGoogleUrl(fm.tripadvisor_review_url) : fm?.review_target === 'facebook' ? validGoogleUrl(fm.facebook_review_url) : null

@@ -9,6 +9,7 @@
 import type { BasePayload } from 'payload'
 import { sendPushToUsers } from './webPush'
 import { sendShiftChangeEmail } from './email'
+import { brandImageAbs, type BrandPlace } from './brandImage'
 
 type Event = 'created' | 'modified' | 'deleted'
 type BizType = 'salon' | 'restaurant'
@@ -80,8 +81,7 @@ export async function notifyShiftMember(
     if (userEmail && personalPrefs?.schedule_email === true) {
       const biz = await payload.findByID({ collection: bizType === 'restaurant' ? 'restaurants' : 'salons', id: bizId, depth: 1, overrideAccess: true }).catch(() => null)
       const bizName = (biz as { name?: string } | null)?.name ?? 'davelopment booking'
-      const logoField = (biz as { logo?: unknown } | null)?.logo
-      const bizLogoUrl = logoField && typeof logoField === 'object' && 'url' in logoField ? (logoField as { url: string }).url : null
+      const bizLogoUrl = brandImageAbs(biz as BrandPlace | null, 'email', '') // logó / ikon (design 24.2)
       const memberName = (membership.name as string | null | undefined) || (fullUser?.name as string | null | undefined) || userEmail
       const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
       await sendShiftChangeEmail({
@@ -151,8 +151,7 @@ export async function notifyShiftStaff(
     if (email && personalPrefs?.schedule_email === true) {
       const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 1, overrideAccess: true }).catch(() => null)
       const bizName = (salon as { name?: string } | null)?.name ?? 'davelopment booking'
-      const logoField = (salon as { logo?: unknown } | null)?.logo
-      const bizLogoUrl = logoField && typeof logoField === 'object' && 'url' in logoField ? (logoField as { url: string }).url : null
+      const bizLogoUrl = brandImageAbs(salon as BrandPlace | null, 'email', '') // logó / ikon (design 24.2)
       const staffName = (staffMember as { name?: string | null } | null)?.name ?? email
       const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
       await sendShiftChangeEmail({

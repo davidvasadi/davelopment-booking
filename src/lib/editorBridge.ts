@@ -46,6 +46,8 @@ export type BarTool =
   | { t: 'icon'; action: string; label: string; icon: 'up' | 'down' | 'settings' | 'bold' | 'italic'; on?: boolean }
   | { t: 'button'; action: string; label: string }
   | { t: 'note'; label: string }
+  /** logó / ikon választó a feltöltött képekkel (a fejléc logójánál — design 24.2) */
+  | { t: 'brand'; action: string; value: 'logo' | 'icon'; logo: string | null; icon: string | null }
 
 /** Union-tagonként alkalmazott Omit (a sima Omit egy union közös mezőire szűkítene). */
 type WithoutSource<T> = T extends unknown ? Omit<T, 'source'> : never

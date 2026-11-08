@@ -5,7 +5,9 @@ import { Check } from 'lucide-react'
 import { Button, FieldRow, Modal, Pill, Segmented } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { VoucherCard, VoucherSwatch, type VoucherBiz } from './money'
-import { VOUCHER_COLORS, VOUCHER_LAYOUTS, VOUCHER_TEXTS, type VoucherDesign } from '@/lib/voucherDesign'
+import { VOUCHER_BRANDS, VOUCHER_COLORS, VOUCHER_LAYOUTS, VOUCHER_TEXTS, type VoucherDesign } from '@/lib/voucherDesign'
+import { BrandPicker } from './brand-picker'
+import { brandUploadHref } from '@/lib/brandImage'
 
 /**
  * Az utalvány-típus sablonja (design 12.3): a szerkesztőben csak egy sor (a választott forma + szín), mellette a
@@ -62,6 +64,11 @@ export function VoucherTemplateGrid({ value, photo, amount, restaurant = false, 
           {photo && <span title="Saját kép" className="block h-9 w-9 overflow-hidden rounded-full ring-2 ring-ui-dark ring-offset-2 ring-offset-white">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={photo} alt="" className="h-full w-full object-cover" /></span>}
         </span>
         {photo && <span className="text-ui-meta text-ui-muted">Saját kép — színre váltva a kép lekerül</span>}
+        {/* az üzlet képe a jegy fejlécében (design 24.2): ikon (alap) / logó / nincs */}
+        <span className="flex items-center gap-3">
+          <span className="text-ui-body text-ui-muted">Az üzlet képe</span>
+          <BrandPicker none value={value.brand ?? 'icon'} logo={biz?.logo} icon={biz?.icon} missingHref={onChange ? brandUploadHref(restaurant) : undefined} onChange={onChange ? (v) => onChange({ ...value, brand: v }) : undefined} />
+        </span>
         {/* a szöveg színe: alapból a háttérhez igazodik; képnél / egyedi hangulatnál átállítható */}
         <span className="flex items-center gap-3 sm:ml-auto">
           <span className="text-ui-body text-ui-muted">Szöveg</span>

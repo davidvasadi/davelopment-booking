@@ -26,6 +26,8 @@ import { Switch } from '@/components/ui/toggle-switch'
 import { ColorPicker } from '@/components/blocks/color-picker'
 import { EditorGroup, EditorOverview, EditorPublishBar, EditorRow, EditorStepBar, EditorStepSwitch, Swatches } from '@/components/blocks/editor'
 import { DARK_BG, HERO_KEYS, makeReadable, PLACEHOLDER_KEYS, readable, textsOf, type FieldPlaceholders, type HeroKey, type PublicPageStyle } from '@/lib/publicPageView'
+import { LOGO_HEIGHT } from '@/lib/brandImage'
+import { BrandPicker } from '@/components/blocks/brand-picker'
 
 /**
  * Beállítások → Foglalóoldal: Framer-szerű élő szerkesztő.
@@ -71,6 +73,13 @@ export type BookingPageEditorInitial = {
   coverZoom: number
   logoId: number | null
   logoUrl: string | null
+  /** az ikon (kicsi helyekre) és hol mi jelenjen meg (design 24.x, lib/brandImage) */
+  iconId: number | null
+  iconUrl: string | null
+  brandLogoSize: 'sm' | 'md' | 'lg'
+  brandPage: 'logo' | 'icon'
+  brandEmail: 'logo' | 'icon'
+  brandQr: 'logo' | 'icon' | 'none'
   goodToKnow: GoodToKnowItem[]
   coverFocalMobileX: number | null
   coverFocalMobileY: number | null
@@ -339,6 +348,8 @@ export function BookingPageEditor({
   // mobil: a beállító lap — a gyors-sáv fogaskerekére, vagy ha a listából / a sávból választanak
   const [sheetOpen, setSheetOpen] = useState(false)
   const selectPart = (id: string | null) => { setPicked(null); setSel(id); setSheetOpen(true) }
+  // link máshonnan (pl. „Ikon · nincs → feltöltés”): `?part=brand` — rögtön az Arculat rész nyílik meg
+  useEffect(() => { const p = new URLSearchParams(window.location.search).get('part'); if (p) { setSel(p); setSheetOpen(true) } }, [])
   // mobil: az „Elemek” gomb — az oldal elemei felcsúszó lapon
   const [elemsOpen, setElemsOpen] = useState(false)
   useEffect(() => { if (sel) setElemsOpen(false) }, [sel])
@@ -415,6 +426,7 @@ export function BookingPageEditor({
   const onActionRef = useRef<(id: string, action: string, value: string | null) => void>(() => {})
   onActionRef.current = (id, action, value) => {
     if (action === 'settings') { setSheetOpen(true); return }
+    if (action === 'brand') { setDraft((d) => ({ ...d, brandPage: value === 'icon' ? 'icon' : 'logo' })); return }
     if (action === 'step') { const first = flow.find((f) => f.id !== 'main'); if (first) goStep(first.id); return }
     if (action === 'hours') { router.push(`${adminBase}/availability`); return }
     if (action === 'color') {
@@ -549,7 +561,9 @@ export function BookingPageEditor({
       coverZoom: draft.coverZoom,
       coverFocalMobileX: draft.coverFocalMobileX,
       coverFocalMobileY: draft.coverFocalMobileY,
-      logoUrl: draft.logoUrl,
+      // a fejléc képe a választás szerint (logó / ikon), a logó méretével (design 24.2)
+      logoUrl: draft.brandPage === 'icon' ? draft.iconUrl ?? draft.logoUrl : draft.logoUrl ?? draft.iconUrl,
+      logoH: LOGO_HEIGHT[draft.brandLogoSize],
       showServiceCount: draft.showServiceCount,
       showStaffCount: draft.showStaffCount,
       card: {
@@ -625,6 +639,8 @@ export function BookingPageEditor({
     else if (selDom === 'successTitle') t.push({ t: 'format' }, { t: 'color', value: draft.page.successTitleColor ?? 'white', options: toneOptions })
     else if (selDom.startsWith('staffbio:')) t.push({ t: 'format' })
     else if (selDom === 'cta') t.push({ t: 'button', action: 'step', label: 'Foglalás megnyitása' })
+    // a fejléc képe: logó / ikon (a feltöltött képekkel — design 24.2)
+    else if (selDom === 'logo') t.push({ t: 'brand', action: 'brand', value: draft.brandPage, logo: draft.logoUrl, icon: draft.iconUrl })
     else if (selDom === 'sec:slots') t.push({ t: 'button', action: 'hours', label: 'Nyitvatartás' })
     // a főoldal elemei: áthelyezhetők (a foglalás gomb mindig alul)
     if ((HERO_KEYS as readonly string[]).includes(selDom) && step === 'main') t.push({ t: 'icon', action: 'hero-up', label: 'Feljebb', icon: 'up' }, { t: 'icon', action: 'hero-down', label: 'Lejjebb', icon: 'down' })
@@ -681,6 +697,11 @@ export function BookingPageEditor({
         body.cover_focal_mobile_y = d.coverFocalMobileY
       }
       if (changed('logoId')) body.logo = d.logoId
+      if (changed('iconId')) body.icon = d.iconId
+      if (changed('brandLogoSize')) body.brand_logo_size = d.brandLogoSize
+      if (changed('brandPage')) body.brand_page = d.brandPage
+      if (changed('brandEmail')) body.brand_email = d.brandEmail
+      if (changed('brandQr')) body.brand_qr = d.brandQr
       if (changed('goodToKnow')) body.good_to_know = d.goodToKnow
       if (changed('supportedLocales')) body.supported_locales = d.supportedLocales
       if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours', 'fieldOrder', 'hiddenFields', 'addressDetailLevel', 'showMarketingConsent'].some((k) => changed(k as keyof Draft))) {
@@ -811,8 +832,8 @@ export function BookingPageEditor({
   useEffect(() => { registerApi?.({ save, discard }) }, [registerApi, save, discard])
 
   // ── Kép feltöltése (borító / logó) — ugyanaz az út, mint a régi profil-űrlapon ──
-  const [uploading, setUploading] = useState<'cover' | 'logo' | null>(null)
-  const upload = async (kind: 'cover' | 'logo', file: File) => {
+  const [uploading, setUploading] = useState<'cover' | 'logo' | 'icon' | null>(null)
+  const upload = async (kind: 'cover' | 'logo' | 'icon', file: File) => {
     if (file.size > 10 * 1024 * 1024) { toast.error('A kép mérete legfeljebb 10 MB lehet.'); return }
     setUploading(kind)
     try {
@@ -827,6 +848,7 @@ export function BookingPageEditor({
       }
       const { doc } = await res.json()
       if (kind === 'cover') setDraft((d) => ({ ...d, coverId: doc.id, coverUrl: doc.url, coverFocalX: 50, coverFocalY: 50, coverZoom: 1 }))
+      else if (kind === 'icon') setDraft((d) => ({ ...d, iconId: doc.id, iconUrl: doc.url }))
       else setDraft((d) => ({ ...d, logoId: doc.id, logoUrl: doc.url }))
     } catch (e) {
       toast.error(`Kép feltöltése sikertelen: ${e instanceof Error ? e.message : 'ismeretlen hiba'}`)
@@ -1490,8 +1512,26 @@ export function BookingPageEditor({
             </>
           )}
 
+          {/* Arculat (design 24.1–24.2): a LOGÓ és az IKON — mindkettő a feltöltött alakjában; a fejléc képe (logó / ikon),
+              a logó mérete, és hogy a levelekben melyik jelenjen meg. A kép mindenhol változatlan alakú (nem vágjuk). */}
           {shown('logo') && (
-            <ImagePicker url={draft.logoUrl} busy={uploading === 'logo'} onPick={(f) => upload('logo', f)} onRemove={() => setDraft((d) => ({ ...d, logoId: null, logoUrl: null }))} />
+            <div className="space-y-3">
+              <EditorRow label="Logó" hint="széles helyekre — a fejléc, a levelek, a hírlevél">
+                <ImagePicker url={draft.logoUrl} busy={uploading === 'logo'} onPick={(f) => upload('logo', f)} onRemove={() => setDraft((d) => ({ ...d, logoId: null, logoUrl: null }))} />
+              </EditorRow>
+              <EditorRow label="Ikon" hint="kicsi helyekre — utalvány, QR-kód, vezérlőpult (négyzetes ajánlott)">
+                <ImagePicker url={draft.iconUrl} busy={uploading === 'icon'} onPick={(f) => upload('icon', f)} onRemove={() => setDraft((d) => ({ ...d, iconId: null, iconUrl: null }))} />
+              </EditorRow>
+              <EditorRow label="A fejlécben" hint={draft.brandPage === 'icon' && !draft.iconUrl ? 'nincs ikon — a logót használjuk' : undefined}>
+                <BrandPicker value={draft.brandPage} logo={draft.logoUrl} icon={draft.iconUrl} onChange={(v) => setDraft((d) => ({ ...d, brandPage: v === 'icon' ? 'icon' : 'logo' }))} />
+              </EditorRow>
+              <EditorRow label="Méret" hint="a fejlécben és a levelekben — csak a magasság változik">
+                <Segmented size="sm" tone="cell" options={['S', 'M', 'L']} active={['sm', 'md', 'lg'].indexOf(draft.brandLogoSize)} onSelect={(i) => setDraft((d) => ({ ...d, brandLogoSize: (['sm', 'md', 'lg'] as const)[i] }))} />
+              </EditorRow>
+              <EditorRow label="A levelekben" hint={draft.brandEmail === 'icon' && !draft.iconUrl ? 'nincs ikon — a logót használjuk' : 'vendég- és csapatlevelek, vendég-oldalak'}>
+                <BrandPicker value={draft.brandEmail} logo={draft.logoUrl} icon={draft.iconUrl} onChange={(v) => setDraft((d) => ({ ...d, brandEmail: v === 'icon' ? 'icon' : 'logo' }))} />
+              </EditorRow>
+            </div>
           )}
 
           {shown('link') && (
@@ -1502,7 +1542,11 @@ export function BookingPageEditor({
                 <a href={`/${baseline.slug}`} target="_blank" rel="noopener noreferrer" className="flex h-11 shrink-0 items-center rounded-full border border-ui-divider bg-white px-4 text-ui-meta font-medium text-ui-text">Megnyitás</a>
               </div>
               {/* az URL azonosító (slug) itt NEM módosítható — átírva minden régi link, QR-kód és e-mail elromlana */}
-              <BusinessQrLauncher url={publicUrl} businessName={draft.name} restaurant={isRestaurant} logoUrl={draft.logoUrl} hours={initial.hours ?? []} socialLinks={draft.socialLinks} />
+              {/* a QR-kód közepe (design 24.2): ikon (alap) / logó / nincs — a nyomtatható QR-kártya és az utalvány QR-kódja is ezt követi */}
+              <EditorRow label="A QR-kód közepén" hint={draft.brandQr === 'icon' && !draft.iconUrl ? 'nincs ikon — a logót használjuk' : 'a nyomtatható QR-kártyán és az utalványon'}>
+                <BrandPicker none value={draft.brandQr} logo={draft.logoUrl} icon={draft.iconUrl} onChange={(v) => setDraft((d) => ({ ...d, brandQr: v }))} />
+              </EditorRow>
+              <BusinessQrLauncher url={publicUrl} businessName={draft.name} restaurant={isRestaurant} logoUrl={draft.brandQr === 'none' ? null : draft.brandQr === 'icon' ? draft.iconUrl ?? draft.logoUrl : draft.logoUrl ?? draft.iconUrl} hours={initial.hours ?? []} socialLinks={draft.socialLinks} />
             </>
           )}
 

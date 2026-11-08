@@ -4,6 +4,7 @@ import type { Media, Restaurant, Salon, User } from '@/payload/payload-types'
 import { WINDOW_NOTICE_DAYS, addDays, budapestToday, daysBetween, effectiveWindowEnd, huDate, periodEndFrom, windowLength } from './bookingWindow'
 import { sendBookingWindowEmail } from './email'
 import { sendPushToUsers } from './webPush'
+import { brandImage, type BrandPlace } from './brandImage'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
@@ -15,7 +16,8 @@ const relId = (v: unknown): string | null =>
   v == null ? null : typeof v === 'object' ? String((v as { id: string | number }).id) : String(v)
 
 function logoUrl(place: Place): string | null {
-  const url = place.logo && typeof place.logo === 'object' ? (place.logo as Media).url : null
+  // logó / ikon — a tulaj választása a levelekre (design 24.2, lib/brandImage)
+  const url = brandImage(place as BrandPlace, 'email')
   if (!url) return null
   return url.startsWith('http') ? url : `${APP_URL}${url}`
 }

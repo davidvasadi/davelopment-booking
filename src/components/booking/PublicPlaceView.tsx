@@ -51,6 +51,8 @@ type PlaceViewBase = {
   coverFocalMobileX: number | null
   coverFocalMobileY: number | null
   logoUrl: string | null
+  /** a fejléc képének magassága px-ben (a logó mérete — design 24.1); nélküle 36 */
+  logoH?: number
   showServiceCount: boolean
   showStaffCount: boolean
   serviceCount: number
@@ -255,12 +257,12 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
         <>
           {/* Felső sáv: logó (vagy monogram), számlálók, ajándékutalvány, nyelvek — mobilon számlálók nélkül */}
           <nav className="relative z-50 lg:hidden">
-            <PageNav mobile logo={d.logoUrl} logoAlt={d.name} letters={initials} counts={counts}
+            <PageNav mobile logo={d.logoUrl} logoH={d.logoH} logoAlt={d.name} letters={initials} counts={counts}
               voucher={voucherOn ? <VoucherPill mobile label={t(locale, 'public.voucher')} onClick={openVoucher} /> : null}
               langs={<PageLangPills mobile current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs', voucher: 'sec:voucher' }} />
           </nav>
           <nav className="relative z-50 hidden lg:block">
-            <PageNav logo={d.logoUrl} logoAlt={d.name} letters={initials} counts={counts}
+            <PageNav logo={d.logoUrl} logoH={d.logoH} logoAlt={d.name} letters={initials} counts={counts}
               voucher={voucherOn ? <VoucherPill label={t(locale, 'public.voucher')} onClick={openVoucher} /> : null}
               langs={<PageLangPills current={locale} available={available} />} editIds={{ logo: 'logo', counts: 'counts', langs: 'langs', voucher: 'sec:voucher' }} />
           </nav>

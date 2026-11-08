@@ -22,7 +22,7 @@ export const Salons: CollectionConfig = {
   hooks: {
     afterChange: [
       revalidatePlaceOnChange('salon'),
-      cleanupMediaOnChange(['logo', 'cover_image']),
+      cleanupMediaOnChange(['logo', 'icon', 'cover_image']),
       auditAfterChange('Szalon beállítás', 'self-salon'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
@@ -168,6 +168,13 @@ export const Salons: CollectionConfig = {
               relationTo: 'media',
               hasMany: false,
             },
+            // az üzlet ikonja (kicsi helyekre — utalvány, QR-kód közepe, vezérlőpult), ahogy feltöltötte (design 24.x)
+            { name: 'icon', type: 'upload', relationTo: 'media', label: 'Ikon' },
+            // hol mi jelenjen meg (design 24.2): 'logo' | 'icon' — a QR-nál 'none' is; üres = az alap (lib/brandImage)
+            { name: 'brand_logo_size', type: 'text', label: 'Logó mérete', admin: { description: "'sm' | 'md' | 'lg' — üres = közepes" } },
+            { name: 'brand_page', type: 'text', label: 'Foglalóoldal fejléce: logó / ikon' },
+            { name: 'brand_email', type: 'text', label: 'E-mailek és vendég-oldalak: logó / ikon' },
+            { name: 'brand_qr', type: 'text', label: 'QR-kód közepe: logó / ikon / nincs' },
             {
               name: 'cover_image',
               type: 'relationship',

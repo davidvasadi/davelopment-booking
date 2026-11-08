@@ -8,6 +8,7 @@ import { emitBookingChange } from '@/lib/sseEmitter'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
 import type { Salon } from '@/payload/payload-types'
+import { brandImageAbs, type BrandPlace } from '@/lib/brandImage'
 
 /**
  * Szalon-munkatárs LÉTREHOZÁSA. A StaffManager ide POST-ol (`{ ...data, salon, avatar }`).
@@ -106,11 +107,8 @@ export async function POST(request: NextRequest) {
             depth: 1,
             overrideAccess: true,
           }) as Salon
-          const bizLogo = salon.logo
-          const businessLogoUrl =
-            bizLogo && typeof bizLogo === 'object' && bizLogo.url
-              ? (bizLogo.url.startsWith('http') ? bizLogo.url : `${APP_URL}${bizLogo.url}`)
-              : null
+          // az üzlet képe a levélben (logó / ikon — design 24.2, lib/brandImage)
+          const businessLogoUrl = brandImageAbs(salon as BrandPlace, 'email', APP_URL)
           await sendTeamInviteEmail({
             to: email,
             businessName: salon.name,

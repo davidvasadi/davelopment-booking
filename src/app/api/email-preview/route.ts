@@ -18,6 +18,7 @@ import {
   escapeHtml,
 } from '@/lib/emailLayout'
 import { introBlockFromHtml, blocksToHtml } from '@/lib/emailBlocks'
+import { brandImageAbs, type BrandPlace } from '@/lib/brandImage'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
@@ -81,7 +82,7 @@ async function renderPreview(p: URLSearchParams) {
       const biz = res.docs[0] as Restaurant | Salon | undefined
       if (biz) {
         brandName = biz.name
-        brandLogoUrl = mediaUrl(biz.logo)
+        brandLogoUrl = brandImageAbs(biz as BrandPlace, 'email', APP_URL)
         brandCoverUrl = mediaUrl(biz.cover_image)
         realPhone = biz.phone ?? null
         realEmail = biz.email ?? null

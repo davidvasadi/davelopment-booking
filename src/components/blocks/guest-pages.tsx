@@ -21,7 +21,7 @@ export function GuestShell({ biz = { name: 'Fodrászat Budapest' }, wide = false
       {biz?.name && (
         <div className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {biz.logo ? <img src={biz.logo} alt="" className="h-9 w-auto max-w-[120px] rounded-ui-control object-contain" /> : <IconCircle tone="dark" size="md">{initials}</IconCircle>}
+          {biz.logo ? <img src={biz.logo} alt="" className="h-9 w-auto max-w-[120px] object-contain" /> : <IconCircle tone="dark" size="md">{initials}</IconCircle>}
           <span className="text-ui-body text-ui-text">{biz.name}</span>
         </div>
       )}

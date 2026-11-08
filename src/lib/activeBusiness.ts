@@ -45,6 +45,8 @@ export interface Business {
 
 const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
   typeof logo === 'object' && logo?.url ? fixMediaUrl(logo.url) : null
+/** a vezérlőpulton (üzletváltó, Telephelyek) az ikon, ha van — különben a logó (design 24.2: itt nincs választás) */
+const dashImageOf = (b: { icon?: string | Media | null; logo?: string | Media | null }): string | null => logoUrlOf(b.icon) ?? logoUrlOf(b.logo)
 
 /** A felhasználó összes üzlete (étterem + szalon), createdAt szerint növekvőn. */
 /** Egy kérésen belül egyszer (React `cache`) — a keret és az oldal is kéri. */
@@ -60,7 +62,7 @@ async function getUserBusinessesUncached(userId: string | number): Promise<Busin
       limit: 100,
       depth: 1,
       // csak a váltóhoz kellő mezők — a teljes adatlap 14–20 al-tábla lenne üzletenként (sebesség, docs/audit/2026-11-05_1921)
-      select: { name: true, slug: true, logo: true, tier: true, custom_monthly_fee_huf: true, createdAt: true },
+      select: { name: true, slug: true, logo: true, icon: true, tier: true, custom_monthly_fee_huf: true, createdAt: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -69,7 +71,7 @@ async function getUserBusinessesUncached(userId: string | number): Promise<Busin
       limit: 100,
       depth: 1,
       // csak a váltóhoz kellő mezők — a teljes adatlap 14–20 al-tábla lenne üzletenként (sebesség, docs/audit/2026-11-05_1921)
-      select: { name: true, slug: true, logo: true, tier: true, custom_monthly_fee_huf: true, createdAt: true },
+      select: { name: true, slug: true, logo: true, icon: true, tier: true, custom_monthly_fee_huf: true, createdAt: true },
       overrideAccess: true,
     }),
     // Tagként (membership) elért üzletek — hogy a MEGHÍVOTT+elfogadott tag is lássa a dashboardot,
@@ -93,7 +95,7 @@ async function getUserBusinessesUncached(userId: string | number): Promise<Busin
       id: String(s.id),
       name: s.name,
       slug: s.slug,
-      logoUrl: logoUrlOf(s.logo),
+      logoUrl: dashImageOf(s),
       createdAt: s.createdAt,
       tier: resolveTier(s.tier),
       customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null,
@@ -106,7 +108,7 @@ async function getUserBusinessesUncached(userId: string | number): Promise<Busin
       id: String(r.id),
       name: r.name,
       slug: r.slug,
-      logoUrl: logoUrlOf(r.logo),
+      logoUrl: dashImageOf(r),
       createdAt: r.createdAt,
       tier: resolveTier(r.tier),
       customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null,
@@ -128,11 +130,11 @@ async function getUserBusinessesUncached(userId: string | number): Promise<Busin
     const memName = memRole === 'owner' ? 'Tulajdonos' : memCustomRole?.name ?? 'Nincs szerep'
     if (s && !seen.has(`salon:${s.id}`)) {
       seen.add(`salon:${s.id}`)
-      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier), customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
+      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: dashImageOf(s), createdAt: s.createdAt, tier: resolveTier(s.tier), customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
     }
     if (r && !seen.has(`restaurant:${r.id}`)) {
       seen.add(`restaurant:${r.id}`)
-      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier), customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
+      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: dashImageOf(r), createdAt: r.createdAt, tier: resolveTier(r.tier), customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
     }
   }
 

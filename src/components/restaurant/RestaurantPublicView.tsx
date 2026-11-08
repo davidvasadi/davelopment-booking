@@ -19,6 +19,7 @@ import { hasActivePackage } from '@/lib/newsletterLimits'
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import { canEditPlace } from '@/lib/canEditPlace'
 import { bookableDayCount } from '@/lib/bookingWindow'
+import { brandImage, brandLogoSize, LOGO_HEIGHT, type BrandPlace } from '@/lib/brandImage'
 
 /**
  * Renders an active restaurant's public landing page.
@@ -58,9 +59,9 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
   const coverUrl = restaurant.cover_image && typeof restaurant.cover_image === 'object'
     ? (restaurant.cover_image as Media).url ?? null
     : null
-  const logoUrl = restaurant.logo && typeof restaurant.logo === 'object'
-    ? (restaurant.logo as Media).url ?? null
-    : null
+  // a fejléc képe: logó / ikon (a tulaj választása, design 24.2) és a logó mérete
+  const logoUrl = brandImage(restaurant as BrandPlace, 'page')
+  const logoH = LOGO_HEIGHT[brandLogoSize(restaurant as BrandPlace)]
 
   const enabledEvents = ((restaurant as Restaurant).event_types ?? [])
     .filter((e) => e?.enabled !== false && e?.label)
@@ -87,6 +88,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     coverFocalMobileX: restaurant.cover_focal_mobile_x ?? null,
     coverFocalMobileY: restaurant.cover_focal_mobile_y ?? null,
     logoUrl,
+    logoH,
     // a saját szövegek a vendég nyelvén — ami nincs lefordítva, ott az alap szöveg (nem a magyar)
     page: { ...pageStyleOf(restaurant), ...(await ownLocaleTexts(await getPayloadClient() as never, 'restaurants', restaurant.id, locale)) },
     gallery: galleryOf(restaurant),

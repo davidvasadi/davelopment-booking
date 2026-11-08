@@ -154,7 +154,7 @@ export function CampaignList({ more, items = SAMPLE_CAMPAIGNS, openId = 'a', onO
 }
 
 /** a levél fejléce / lábléce: az üzlet neve, logója, címe; `social`: a beállított közösségi linkek (a Közösségi blokk alapja) */
-export type LetterBiz = { name: string; logo?: string | null; footer?: string | null; social?: string[] }
+export type LetterBiz = { name: string; logo?: string | null; /** az ikon — a „Logó” blokkban választható a logó helyett (design 24.2) */ icon?: string | null; footer?: string | null; social?: string[] }
 
 /** A levél-blokkok írás-módja: a kijelölt blokk (sárga szaggatott keret + kis sötét eszköztár), a módosítás, mozgatás,
  *  törlés; `onStyle` (mobil: a ceruza a stílus-lapot nyitja), `onInsert` (mobil: sárga + a blokk alatt). Callback nélkül
@@ -407,7 +407,7 @@ export function CampaignLetter({ biz, blocks, editState, restaurant = false, edi
         <span className={`pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex items-center gap-2 px-5 pb-4 pt-10 ${cover.url ? 'bg-gradient-to-t from-ui-dark/60 to-transparent text-white' : 'text-ui-text'}`}>
           {/* a logó a saját formájában, lekerekített sarokkal (mint a referencián) — háttér / keret nélkül */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {b.logo && <img src={b.logo} alt="" className="h-10 w-auto max-w-[140px] shrink-0 rounded-ui-control" />}
+          {b.logo && <img src={b.logo} alt="" className="h-10 w-auto max-w-[140px] shrink-0 object-contain" />}
           <span className="text-ui-row">{b.name}</span>
         </span>
       ) : undefined} />
@@ -598,6 +598,8 @@ export function BlockStyle({ value = SAMPLE_STYLE, onChange, onFormat, supports 
       {supports.bg && (
         <FieldRow label="Háttér" stacked>
           <span className="flex flex-wrap items-center gap-1.5">
+            {/* nincs háttér: átlátszó (a levél fehérje látszik) — csíkos kör jelzi */}
+            {pick(<IconCircle tone="white" size="md" className={`ui-hatch-lines-dense border border-dashed border-ui-dark/30 ${value.bg === 'transparent' ? ring : ''}`} />, 'Nincs háttér', () => set({ bg: 'transparent' }), 'none')}
             {BG_PRESETS.map(([c, t, l]) => pick(<IconCircle tone={t} size="md" className={`border border-ui-divider ${value.bg === c ? ring : ''}`} />, l, () => set({ bg: c }), l))}
             <CustomColor value={value.bg} presets={EMAIL_BG} fallback={EMAIL_BG[1] ?? ''} onPick={onChange ? (c) => set({ bg: c }) : undefined} ring={ring} />
           </span>

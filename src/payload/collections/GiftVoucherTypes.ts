@@ -115,6 +115,8 @@ export const GiftVoucherTypes: CollectionConfig = {
     { name: 'card_layout', type: 'text', label: 'Sablon (forma)' },
     { name: 'card_color', type: 'text', label: 'Sablon (szín)' },
     { name: 'card_text', type: 'text', label: 'Sablon (szövegszín)' },
+    // az üzlet képe a jegy fejlécében (design 24.2): 'logo' | 'icon' | 'none' — üres = ikon (lib/brandImage)
+    { name: 'card_brand', type: 'text', label: 'Sablon (az üzlet képe)' },
     { name: 'description', type: 'textarea', localized: true, label: 'Leírás' },
     { name: 'active', type: 'checkbox', defaultValue: true, label: 'Aktív' },
   ],

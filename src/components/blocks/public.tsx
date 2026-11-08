@@ -156,8 +156,10 @@ function Monogram({ mobile = false, letters = 'FB' }: { mobile?: boolean; letter
 /** Felső sáv a borítón: az üzlet logója (a mi jelünk csak a foglaló kártya alján), középen a számlálók, jobbra az
  *  ajándékutalvány és a nyelv-váltó. Élőben: `logo` (null → monogram az üzlet kezdőbetűiből), `counts`, `voucher`
  *  (a gomb — null: nincs utalvány), `langs` (a nyelv-váltó). */
-export function PageNav({ mobile = false, blank = false, restaurant = false, logo, letters, logoAlt = '', counts, voucher, langs, editIds }: {
+export function PageNav({ mobile = false, blank = false, restaurant = false, logo, logoH, letters, logoAlt = '', counts, voucher, langs, editIds }: {
   mobile?: boolean; blank?: boolean; restaurant?: boolean
+  /** a kép magassága (a logó mérete: 24 / 32 / 44 px) — csak a magasság, az alak marad */
+  logoH?: number
   logo?: string | null; letters?: string; logoAlt?: string; counts?: [string, string][]
   voucher?: React.ReactNode | null; langs?: React.ReactNode
   /** a szerkesztő kijelöléséhez (`data-edit-id`) */
@@ -170,7 +172,7 @@ export function PageNav({ mobile = false, blank = false, restaurant = false, log
     <div className={`relative z-10 flex items-center justify-between gap-3 ${mobile ? 'px-5 pt-5' : 'px-8 pt-6'}`}>
       {/* logó nélkül: monogram (az üzlet nevének kezdőbetűi) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <span data-edit-id={editIds?.logo}>{showLogo ? <img src={live ? logo! : BIZ_LOGO} alt={logoAlt} className="h-9 w-auto max-w-[160px] object-contain" /> : <Monogram mobile={mobile} letters={letters ?? (restaurant ? 'BA' : 'FB')} />}</span>
+      <span data-edit-id={editIds?.logo}>{showLogo ? <img src={live ? logo! : BIZ_LOGO} alt={logoAlt} className="h-9 w-auto max-w-[200px] object-contain" style={logoH ? { height: logoH } : undefined} /> : <Monogram mobile={mobile} letters={letters ?? (restaurant ? 'BA' : 'FB')} />}</span>
       {!mobile && cnt.length > 0 && <span data-edit-id={editIds?.counts} className="flex items-center gap-5 text-ui-meta text-white/70">{cnt.map(([n, l], i) => <span key={l} className="flex items-center gap-5">{i > 0 && <span className="h-4 w-px bg-white/20" />}<span><span className="text-white">{n}</span> {l}</span></span>)}</span>}
       {/* jobbra: az ajándékutalvány (ugyanaz a kártya, a vásárlás lépéseivel) és a nyelv-váltó — az aktív nyelv fehér */}
       {/* a sáv jobb oldala: utalvány + nyelvek — mind 36 px magas, egy vonalban (mobilon és desktopon is) */}

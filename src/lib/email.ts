@@ -22,6 +22,7 @@ import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { filterAllowedEmails, isBookingNotifyLevelOff } from './emailNotifPrefs'
+import { brandImageAbs, type BrandPlace } from './brandImage'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -112,7 +113,7 @@ function hasTerms(salon: Salon): boolean {
 function wrap(salon: Salon, content: string): string {
   return emailLayout({
     brandName: salon.name,
-    brandLogoUrl: mediaUrl(salon.logo),
+    brandLogoUrl: brandImageAbs(salon as BrandPlace, 'email', APP_URL),
     brandCoverUrl: mediaUrl(salon.cover_image),
     content,
   })
@@ -600,7 +601,7 @@ function bookingRows(data: BookingEmailData): string {
 function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
-  const logoUrl = mediaUrl(salon.logo)
+  const logoUrl = brandImageAbs(salon as BrandPlace, 'email', APP_URL)
   const coverUrl = mediaUrl(salon.cover_image)
   return emailLayout({
     brandName: salon.name,
@@ -770,7 +771,7 @@ function declineHtml(data: BookingEmailData): string {
 function modificationHtml(data: BookingEmailData): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
-  const logoUrl = mediaUrl(salon.logo)
+  const logoUrl = brandImageAbs(salon as BrandPlace, 'email', APP_URL)
   const coverUrl = mediaUrl(salon.cover_image)
   return emailLayout({
     brandName: salon.name,

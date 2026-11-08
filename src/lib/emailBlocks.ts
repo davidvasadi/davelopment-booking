@@ -84,7 +84,8 @@ function textBlockStyle(b: { align?: TextAlign; bg?: string | null; color?: stri
   const family = b.font ? FONT_STACK[b.font] : null
   const font = family ? `font-family:${family};` : ''
   const align = b.align && b.align !== 'left' ? `text-align:${b.align};` : ''
-  const bg = b.bg ? `background:${b.bg};padding:10px 14px;border-radius:8px;` : ''
+  // „nincs háttér” (transparent): nincs doboz, mint a háttér nélküli szöveg
+  const bg = b.bg && b.bg !== 'transparent' ? `background:${b.bg};padding:10px 14px;border-radius:8px;` : ''
   const c = b.color ?? autoTextColor(b.bg)
   const color = c ? `color:${c};` : ''
   const fontSize = b.fontSize ? `font-size:${b.fontSize}px;` : ''

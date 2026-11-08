@@ -531,7 +531,7 @@ export function VoucherSwatch({ color, on = false }: { color: keyof typeof VBG; 
 /** Az utalvány maga — kétoldalú. Előlap: az üzlet logója (a mintában a davelopment booking ikonja), érték, kód, lejárat; a háttér a típusból jön (sötét / sárga / a
  *  szalon fotója). Hátoldal: a beolvasható QR-kód (a valódi generateVoucherQrDataUrl kimenete), a kód és hogy hol
  *  váltható be. Egy helyen — a lista, a popupok és a típus-választó is ezt mutatja. */
-export type VoucherBiz = { name: string; logo?: string | null; addr?: string | null }
+export type VoucherBiz = { name: string; logo?: string | null; /** az ikon (kicsi helyekre) — a sablon `brand`-je dönt (design 24.2) */ icon?: string | null; addr?: string | null }
 /** Élőben: `biz` (az üzlet neve, logója, címe), `expires` (felirat), `photo` (a típus képe — `bg="photo"`-nál a háttér). */
 export function VoucherCard({ design, ...p }: VoucherCardProps & {
   /** a típus sablonja (lib/voucherDesign): egyoldalas jegy a választott formában és színben; kép esetén a kép a háttér.
@@ -540,6 +540,12 @@ export function VoucherCard({ design, ...p }: VoucherCardProps & {
 }) {
   if (!design) return <VoucherCardBase {...p} />
   const bg = p.photo ? 'photo' : design.color
+  // az üzlet képe a jegyen (design 24.2): ikon (alap) / logó / nincs — ha a választott hiányzik, a másik; a kép a saját alakjában
+  if (p.biz) {
+    const b = design.brand ?? 'icon'
+    const logo = b === 'none' ? null : b === 'logo' ? p.biz.logo ?? p.biz.icon ?? null : p.biz.icon ?? p.biz.logo ?? null
+    p = { ...p, biz: { ...p.biz, logo } }
+  }
   const ink = design.text && design.text !== 'auto' ? design.text : undefined
   return p.small ? <VoucherCardBase {...p} bg={bg} ink={ink} /> : <VoucherCardBase {...p} bg={bg} ink={ink} side="single" layout={design.layout} />
 }
@@ -580,7 +586,7 @@ function VoucherCardBase({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark', 
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2.5">
-                  {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className="h-8 w-auto shrink-0 rounded-ui-inner" /></>}
+                  {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className="h-8 w-auto shrink-0 object-contain" /></>}
                   <span className="text-ui-meta leading-tight">{biz.name}</span>
                 </div>
                 <div className={`mt-4 text-ui-label ${soft}`}>{to ? `${L.gift} · ${L.forTo(to)}` : L.gift}</div>
@@ -602,7 +608,7 @@ function VoucherCardBase({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark', 
           <>
             <div className="flex items-center gap-2.5">
               {/* az üzlet beállított logója — a példa kedvéért a davelopment booking ikonja */}
-              {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className={`w-auto shrink-0 rounded-ui-inner ${small ? 'h-8' : 'h-10'}`} /></>}
+              {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className={`w-auto shrink-0 object-contain ${small ? 'h-8' : 'h-10'}`} /></>}
               <span className={`leading-tight ${small ? 'text-ui-meta' : 'text-ui-body'}`}>{biz.name}</span>
             </div>
             <div className={`${small ? 'mt-4 text-ui-label' : 'mt-6 text-ui-body'} ${soft}`}>{to ? `${L.gift} · ${L.forTo(to)}` : L.gift}</div>
@@ -639,7 +645,7 @@ function VoucherCardBase({ amount = '20 000 Ft', code = VCODE, to, bg = 'dark', 
 function SingleLayout({ L, message, layout, bg, photo, biz, to, amount, code, expires, qr, soft, light }: { L: ReturnType<typeof vtxt>; message?: string | null; layout: 'stub' | 'band' | 'card' | 'vertical' | 'postcard' | 'cinema' | 'tag' | 'wristband'; bg: keyof typeof VBG; photo?: string | null; biz: VoucherBiz & { where: string }; to?: string; amount: string; code: string; expires: string; qr?: string; soft: string; light: boolean }) {
   const head = (
     <div className="flex items-center gap-2.5">
-      {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className="h-8 w-auto shrink-0 rounded-ui-inner" /></>}
+      {biz.logo && <>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={biz.logo} alt="" className="h-8 w-auto shrink-0 object-contain" /></>}
       <span className="text-ui-meta leading-tight">{biz.name}</span>
     </div>
   )

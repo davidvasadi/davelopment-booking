@@ -36,7 +36,7 @@ export async function getVouchersVM(kind: 'salon' | 'restaurant', businessId: st
     })),
     types: typeDocs.map((t) => ({
       id: String(t.id), name: t.name, amount_huf: t.amount_huf, description: t.description ?? null, active: t.active !== false,
-      image: t.image && typeof t.image === 'object' ? { id: String((t.image as Media).id), url: imgOf(t) } : null, design: voucherDesign(t.card_layout, t.card_color, t.card_text), sold: sold.get(String(t.id)) ?? 0,
+      image: t.image && typeof t.image === 'object' ? { id: String((t.image as Media).id), url: imgOf(t) } : null, design: voucherDesign(t.card_layout, t.card_color, t.card_text, t.card_brand), sold: sold.get(String(t.id)) ?? 0,
     })),
   }
 }

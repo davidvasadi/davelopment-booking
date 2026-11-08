@@ -27,6 +27,7 @@ import { MONTHS_SHORT } from '@/lib/schedule'
 import type { CampaignVM, MarketingVM, SubscriberVM } from '@/lib/marketingView'
 import { useAppendPages } from '@/lib/useAppendPages'
 import { LoadMoreSentinel } from '@/components/shared/LoadMoreSentinel'
+import { brandUploadHref } from '@/lib/brandImage'
 
 /**
  * Marketing — szalon és étterem közös oldala (design 13.1–13.8). Fülek: Kampányok (bal lista, közép a levél, jobb a
@@ -223,7 +224,7 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
   }
   const focused = blocks.find((b) => b.id === focusId) ?? null
   // a kijelölt blokk szerkesztése (tartalom-mezők, stílus, formázás, link) — közös a Vendég e-mailekkel
-  const { blockFields, support, styleValue, setStyle, format, linkModal } = useBlockInspector({ blocks, setBlocks, focusId, linkPlaceholder: vm.bookingUrl, logo: biz.logo ?? null, bizName: biz.name })
+  const { blockFields, support, styleValue, setStyle, format, linkModal } = useBlockInspector({ blocks, setBlocks, focusId, linkPlaceholder: vm.bookingUrl, logo: biz.logo ?? null, icon: biz.icon ?? null, bizName: biz.name, uploadHref: brandUploadHref(restaurant) })
   const insertBlocks = (nb: ComposerBlock[]) => {
     const i = focusId ? blocks.findIndex((b) => b.id === focusId) : -1
     setBlocks(i < 0 ? [...blocks, ...nb] : [...blocks.slice(0, i + 1), ...nb, ...blocks.slice(i + 1)])

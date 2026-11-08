@@ -423,7 +423,7 @@ export function ReminderSettingsCard({ title = 'Emlékeztető', on = true, onTog
 /** A Vendég e-mailek lapja (16.6) — ugyanaz a felépítés, mint a Marketing kampány-szerkesztője: bal a levelek kártyákon (mikor
  *  mennek ki, Be / Ki; a megnyitott sárga), közép maga a levél (tárgy, Desktop / Mobil, a levélben szerkesztesz, alatta a
  *  foglalás adatai és a gombok), jobb a beállítások (`settings`). `letter`: élőben a szerkeszthető levél-tartalom. */
-export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder', onSelect, subject, letter, details = { line: 'Hétfő, Nov. 10. · 13:30', meta: 'Viktória · 60 perc' }, buttons = ['Naptárba', 'Útvonalterv'], biz = { name: 'Fodrászat Budapest', initials: 'FB', footer: 'Fodrászat Budapest · Andrássy út 12' }, device = 0, onDevice, settings, side, palette, paletteRow, cancelLink = true, className = '' }: {
+export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder', onSelect, subject, letter, details = { line: 'Hétfő, Nov. 10. · 13:30', meta: 'Viktória · 60 perc' }, buttons = ['Naptárba', 'Útvonalterv'], biz = { name: 'Fodrászat Budapest', initials: 'FB', footer: 'Fodrászat Budapest · Andrássy út 12' }, device = 0, onDevice, settings, side, palette, paletteRow, cancelLink = true, className = '' , onBrand, brandSelected = false, logoH}: {
   letters?: GuestLetter[]; selected?: string; onSelect?: (key: string) => void
   /** a tárgy (élőben szerkeszthető mező) */
   subject?: React.ReactNode
@@ -431,6 +431,8 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
   details?: { line: string; meta: string } | null
   buttons?: string[]
   biz?: { name: string; initials: string; logo?: string | null; footer?: string }
+  /** a levél fejléce kijelölhető (logó / ikon, méret — design 24.2); `logoH`: a kép magassága */
+  onBrand?: () => void; brandSelected?: boolean; logoH?: number
   device?: number; onDevice?: (i: number) => void
   settings?: React.ReactNode
   /** a bal oszlopban a levelek alatt (élőben: a levél beállításai — be / ki, időzítés, kapcsolat, nyelv, feladó) */
@@ -478,11 +480,17 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
         <div className="flex items-start">
         {palette && device !== 1 && <div className={`sticky top-3 z-10 shrink-0 pl-4 pt-5 ${paletteRow ? 'max-lg:hidden' : ''}`}>{palette}</div>}
         <div className={`min-w-0 flex-1 ${palette ? 'pb-5' : ''}`}>
-        <div className="flex items-center gap-2 px-6 pt-5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {biz.logo ? <img src={biz.logo} alt="" className="h-8 w-8 rounded-ui-control object-contain" /> : <span className="flex h-8 w-8 items-center justify-center rounded-ui-control bg-ui-dark text-ui-label font-medium text-white">{biz.initials}</span>}
-          <Meta>{biz.name}</Meta>
-        </div>
+        {/* a levél fejléce: az üzlet képe (a választott logó / ikon, a saját alakjában) és a neve — élőben kijelölhető */}
+        {(() => {
+          const head = <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {biz.logo ? <img src={biz.logo} alt="" className="h-8 w-auto max-w-[160px] object-contain" style={logoH ? { height: logoH } : undefined} /> : <span className="flex h-8 w-8 items-center justify-center rounded-ui-control bg-ui-dark text-ui-label font-medium text-white">{biz.initials}</span>}
+            <Meta>{biz.name}</Meta>
+          </>
+          return onBrand
+            ? <button type="button" onClick={onBrand} title="Logó vagy ikon, méret" className={`relative mx-3 mt-3 flex items-center gap-2 rounded-ui-control px-3 py-2 text-left outline-none ${brandSelected ? '' : 'hover:bg-ui-cell'}`}>{brandSelected && <span className="pointer-events-none absolute inset-0 rounded-ui-control border-2 border-dashed border-ui-yellow" />}{head}</button>
+            : <div className="flex items-center gap-2 px-6 pt-5">{head}</div>
+        })()}
         {letter ?? (
           <div className="relative mx-3 mt-3 px-3 py-3">
             <span className="pointer-events-none absolute inset-0 rounded-ui-control border-2 border-dashed border-ui-yellow" />

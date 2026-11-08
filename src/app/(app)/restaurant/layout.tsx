@@ -12,6 +12,7 @@ import { PageTransition } from '@/components/ui/page-transition'
 import { LiveRefreshProvider } from '@/components/LiveRefreshProvider'
 import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
 import type { Restaurant, Subscription } from '@/payload/payload-types'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 export default async function RestaurantLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth()
@@ -51,7 +52,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
       : null
 
   const logo = restaurant.logo
-  const brandLogoUrl = typeof logo === 'object' && logo?.url ? logo.url : null
+  const brandLogoUrl = brandImage(restaurant as BrandPlace, 'dash') ?? (typeof logo === 'object' && logo?.url ? logo.url : null)
 
   return (
     <RestaurantUIProvider>

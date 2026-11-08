@@ -7,6 +7,7 @@ import { Button, Field, IconButton, Input, Meta, Modal, Pill, Segmented } from '
 import { PopupModal } from '@/components/ui/popup-modal'
 import { BlockStyle, type BlockStyleSupport, type BlockStyleValue, type TextFormat } from '@/components/blocks/marketing'
 import { BASE_SIZE, SIZE_FACTOR, type ColumnCell, type ComposerBlock, type ImageWidth, type RowButton } from '@/lib/emailBlocks'
+import { BrandPicker } from '@/components/blocks/brand-picker'
 
 /**
  * A levél-szerkesztők „Kijelölt blokk” kártyája (design 13.4) — a Marketing kampány-szerkesztője és a Beállítások › Vendég
@@ -34,7 +35,7 @@ function replaceLinkAt(html: string, j: number, url: string): string {
 }
 export const blockName = (b: ComposerBlock) => (b.type === 'image' && b.kind === 'logo' ? 'Logó' : BLOCK_NAME[b.type])
 
-export function useBlockInspector({ blocks, setBlocks, focusId, linkPlaceholder, linkPresets, logo, bizName }: {
+export function useBlockInspector({ blocks, setBlocks, focusId, linkPlaceholder, linkPresets, logo, icon, bizName, uploadHref }: {
   blocks: ComposerBlock[]
   setBlocks: (b: ComposerBlock[]) => void
   focusId: string | null
@@ -44,6 +45,10 @@ export function useBlockInspector({ blocks, setBlocks, focusId, linkPlaceholder,
   linkPresets?: [string, string][]
   /** az üzlet logója — képnél „A logóm beillesztése” */
   logo?: string | null
+  /** az üzlet ikonja — a „Logó” blokkban a logó helyett választható (design 24.2) */
+  icon?: string | null
+  /** ahol a hiányzó logó / ikon feltölthető (link a választó alatt) */
+  uploadHref?: string
   bizName?: string
 }) {
   const focused = blocks.find((b) => b.id === focusId) ?? null
@@ -133,7 +138,11 @@ export function useBlockInspector({ blocks, setBlocks, focusId, linkPlaceholder,
       {focused.type === 'button' && linkPresets && linkPresets.length > 0 && (
         <div className="flex flex-wrap gap-1">{linkPresets.map(([l, v]) => <button key={v} type="button" onClick={() => patchFocused({ url: v })} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><Pill size="sm" tone={focused.url === v ? 'dark' : 'cell'}>{l}</Pill></button>)}</div>
       )}
-      {focused.type === 'image' && logo && focused.url !== logo && <Button variant="cell" size="sm" icon={Plus} onClick={() => patchFocused({ url: logo, alt: focused.alt || bizName, kind: 'logo', width: 'md', align: 'center' })}>A logóm beillesztése</Button>}
+      {/* a „Logó” blokk képe: a feltöltött logó vagy ikon (a képekkel; ami nincs feltöltve, ott a neve) — nem kell feltölteni */}
+      {focused.type === 'image' && focused.kind === 'logo' && (
+        <Field label="Kép"><BrandPicker value={icon && focused.url === icon ? 'icon' : 'logo'} logo={logo} icon={icon} missingHref={uploadHref} onChange={(v) => { const u = v === 'icon' ? icon : logo; if (u) patchFocused({ url: u }) }} /></Field>
+      )}
+      {focused.type === 'image' && logo && focused.kind !== 'logo' && focused.url !== logo && <Button variant="cell" size="sm" icon={Plus} onClick={() => patchFocused({ url: logo, alt: focused.alt || bizName, kind: 'logo', width: 'md', align: 'center' })}>A logóm beillesztése</Button>}
     </div>
   ) : null)
   const ft = focused?.type ?? ''

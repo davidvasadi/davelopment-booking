@@ -5,6 +5,7 @@ import { assertCapability } from '@/lib/apiCapability'
 import { sendTeamInviteEmail } from '@/lib/email'
 import { roleLabel } from '@/lib/permissions'
 import type { Membership, Salon, Restaurant, Role } from '@/payload/payload-types'
+import { brandImageAbs, type BrandPlace } from '@/lib/brandImage'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
@@ -27,7 +28,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   const denied = await assertCapability(user.id, m.salon ? 'salon' : 'restaurant', biz.id, 'team.manage')
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
-  const logo = biz.logo && typeof biz.logo === 'object' && biz.logo.url ? (biz.logo.url.startsWith('http') ? biz.logo.url : `${APP_URL}${biz.logo.url}`) : null
+  const logo = brandImageAbs(biz as BrandPlace, 'email', APP_URL) // logó / ikon (design 24.2)
   try {
     await sendTeamInviteEmail({
       to: m.email,

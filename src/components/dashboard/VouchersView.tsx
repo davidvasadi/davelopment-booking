@@ -295,7 +295,7 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
         const r = await fetch(`/api/gift-voucher-types/${tEdit.id}?locale=${tLoc}`, json('PATCH', { name: tEdit.v.name.trim(), description: tEdit.v.description.trim() || undefined }))
         if (!r.ok) throw new Error()
       } else {
-        const body = { ...(restaurant ? { restaurant: Number(businessId) } : { salon: Number(businessId) }), name: tEdit.v.name.trim(), amount_huf: amount, description: tEdit.v.description.trim() || undefined, active: tEdit.v.active, image: tEdit.imageId ?? null, card_layout: tEdit.v.design.layout, card_color: tEdit.v.design.color, card_text: tEdit.v.design.text === 'auto' ? null : tEdit.v.design.text ?? null }
+        const body = { ...(restaurant ? { restaurant: Number(businessId) } : { salon: Number(businessId) }), name: tEdit.v.name.trim(), amount_huf: amount, description: tEdit.v.description.trim() || undefined, active: tEdit.v.active, image: tEdit.imageId ?? null, card_layout: tEdit.v.design.layout, card_color: tEdit.v.design.color, card_text: tEdit.v.design.text === 'auto' ? null : tEdit.v.design.text ?? null, card_brand: tEdit.v.design.brand ?? null }
         const r = tEdit.id ? await fetch(`/api/gift-voucher-types/${tEdit.id}`, json('PATCH', body)) : await fetch('/api/gift-voucher-types', json('POST', body))
         const j = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(j?.errors?.[0]?.message ?? j?.error)

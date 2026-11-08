@@ -6,6 +6,7 @@ import { formatBookingDate } from '@/lib/emailLayout'
 import { Button } from '@/components/ui-kit'
 import { GuestResult, GuestShell } from '@/components/blocks/guest-pages'
 import { GuestCancelActions } from '@/components/booking/GuestCancelActions'
+import { brandImage, type BrandPlace } from '@/lib/brandImage'
 
 /** Étterem: a foglalás lemondása a levél linkjéről (design 21.12) — az étterem logójával, a foglalás adataival. */
 export default async function RestaurantCancelPage({ params }: { params: Promise<{ slug: string; token: string }> }) {
@@ -15,7 +16,7 @@ export default async function RestaurantCancelPage({ params }: { params: Promise
   const res = await payload.find({ collection: 'reservations', where: { cancel_token: { equals: token } }, depth: 1, limit: 1, overrideAccess: true })
   const r = res.docs[0] as Reservation | undefined
   const rest = r && typeof r.restaurant === 'object' ? (r.restaurant as Restaurant) : null
-  const biz = rest ? { name: rest.name, logo: rest.logo && typeof rest.logo === 'object' ? (rest.logo as Media).url ?? null : null } : null
+  const biz = rest ? { name: rest.name, logo: brandImage(rest as BrandPlace, 'email') } : null // logó / ikon (design 24.2)
   const home = `/${rest?.slug ?? slug}`
 
   if (!r) return <GuestShell biz={null}><GuestResult tone="bad" title={t(locale, 'public.cancel.invalidTitle')} text={t(locale, 'public.cancel.invalidBody')} /></GuestShell>
