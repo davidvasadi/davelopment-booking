@@ -1,5 +1,6 @@
 import { escapeHtml } from './emailLayout'
 import type { VoucherDesign } from './voucherDesign'
+import { voucherAssetSig } from './voucherAssetSig'
 
 /**
  * Az ajándékutalvány a levélben (design: E-mailek › Vendégnek › Ajándékutalvány): a jegy KÉPKÉNT (api/vouchers/card —
@@ -34,7 +35,7 @@ export function voucherEmailRows(o: {
   const url = `${o.appUrl}/${o.bizSlug}/voucher/${encodeURIComponent(o.code)}`
   // a jegy KÉPKÉNT (api/vouchers/card) — a Gmail sötét módja nem nyúl hozzá; kicsinyítve, hogy minden telefonon
   // elférjen, és kattintható: az utalvány oldalára visz, ahol nagyban megmutatható / kinyomtatható
-  const ticket = `<a href="${url}" target="_blank" style="display:block;text-decoration:none"><img src="${o.appUrl}/api/vouchers/card/${encodeURIComponent(o.code)}.png" alt="Ajándékutalvány — ${escapeHtml(o.amount)} · ${escapeHtml(o.code)}" width="420" style="display:block;width:100%;max-width:420px;height:auto;margin:0 auto;border:0" /></a>
+  const ticket = `<a href="${url}" target="_blank" style="display:block;text-decoration:none"><img src="${o.appUrl}/api/vouchers/card/${encodeURIComponent(o.code)}.png?s=${voucherAssetSig(o.code)}" alt="Ajándékutalvány — ${escapeHtml(o.amount)} · ${escapeHtml(o.code)}" width="420" style="display:block;width:100%;max-width:420px;height:auto;margin:0 auto;border:0" /></a>
     <p style="margin:8px 0 0;text-align:center;color:#9A9A9A;font-size:12px">Koppints a jegyre a teljes méretért és a nyomtatáshoz.</p>`
   return `
     ${parts.heroBlock({ icon: 'success', title: o.forRecipient ? 'Ajándékutalványt kaptál!' : 'Ajándékutalvány megvásárolva', subtitle })}
@@ -43,7 +44,7 @@ export function voucherEmailRows(o: {
       parts.infoRow('sparkle', 'Kód', escapeHtml(o.code)),
       parts.infoRow('note', 'Összeg', escapeHtml(o.amount)),
       ...(expires ? [parts.infoRow('calendar', 'Érvényes', `${escapeHtml(expires)}-ig`)] : []),
-      ...(o.message && !o.design ? [parts.infoRow('mail', 'Üzenet', escapeHtml(o.message))] : []),
+      ...(o.message ? [parts.infoRow('mail', 'Üzenet', escapeHtml(o.message))] : []),
     ].join(''))}
     <tr><td style="background:${parts.surface};padding:22px 28px 0;text-align:center">
       <a href="${url}" style="display:inline-block;background:#FFD85F;color:#3B3B3B;font-size:14px;font-weight:600;text-decoration:none;padding:13px 28px;border-radius:999px">Utalvány megnyitása</a>

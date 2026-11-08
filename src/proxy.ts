@@ -45,6 +45,14 @@ const RULES: Rule[] = [
     windowMs: 60_000,
     bucket: 'read',
   },
+  // Utalvány-kód ellenőrzés és az utalvány oldala: a kód az utalvány kulcsa (aki ismeri, beválthatja) — korlát, hogy
+  // gépi próbálgatással ne lehessen létező kódot keresni. Egy vendég ennél sokkal ritkábban nyitja meg.
+  {
+    test: (p) => p.startsWith('/api/vouchers/validate') || /^\/[^/]+\/voucher\//.test(p),
+    limit: 20,
+    windowMs: 60_000,
+    bucket: 'voucher',
+  },
   // Hírlevél-kampány küldése: nagyon szigorú — egy hívás akár SZÁZAS nagyságrendű emailt
   // indíthat el (a havi plafonig), az `/api/marketing/send` saját atomi zárja + havi-keret
   // ellenőrzése mellett ez a réteg egy kompromittált/script-elt fiók IP-szintű hentergetése
