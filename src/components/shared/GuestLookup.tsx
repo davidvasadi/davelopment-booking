@@ -31,9 +31,21 @@ export function useGuestLookup(enabled: boolean) {
     return () => { clearTimeout(t); ctrl.abort() }
   }, [q, enabled])
 
+  // máshova kattintva a lista bezárul (újabb gépelésre nyílik újra) — a lista saját kattintása (mousedown) nem zárja
+  useEffect(() => {
+    if (!field) return
+    const close = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.('[data-guest-suggest]')) setField(null) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [field])
+
+  // ha a mező tartalma már pontosan egy javasolt vendég adata (pl. végiggépelt / kiválasztott e-mail), nincs mit javasolni
+  const norm = (v: string | null | undefined) => (field === 'phone' ? (v ?? '').replace(/\D/g, '') : (v ?? '').trim().toLowerCase())
+  const filled = !!field && q.trim().length > 0 && results.some((g) => norm(g[field]) === norm(q))
+
   return {
     field,
-    results,
+    results: filled ? [] : results,
     /** Gépelés egy mezőbe — ez a mező kapja a javaslatlistát. */
     type: (f: GuestLookupField, value: string) => { setField(f); setQ(value) },
     clear: () => { setResults([]); setQ(''); setField(null) },
@@ -53,6 +65,7 @@ export function GuestSuggestList({
   if (!show || results.length === 0) return null
   // a design 6.9 vendég-lépése: cella-kártya, felül a magyarázat, soronként egy korábbi vendég (az első kiemelve)
   return (
+    <div data-guest-suggest>
     <Card tone="cell" inner pad="xs" className="mt-1.5">
       <Meta className="px-3 pt-1 text-ui-label">Korábbi vendég — kattints a kitöltéshez</Meta>
       {results.map((g, i) => (
@@ -67,5 +80,6 @@ export function GuestSuggestList({
         </button>
       ))}
     </Card>
+    </div>
   )
 }
