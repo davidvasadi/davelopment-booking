@@ -56,14 +56,14 @@ export function InviteModal({ stacked = false, value = SAMPLE_INVITE, onChange, 
     ? <button key={key} type="button" aria-pressed={on} onClick={act} className="block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">{card}</button>
     : <div key={key}>{card}</div>
   return (
-    <Panel pad="lg" size={stacked ? 'md' : 'lg'} className={`mx-auto ${className}`}>
+    <Panel pad="lg" size={stacked ? 'md' : 'xl'} className={`mx-auto ${stacked ? '' : 'lg:w-[min(1040px,calc(100vw-4rem))]'} ${className}`}>
       <div className="flex items-center justify-between"><span className="text-ui-sub font-light text-ui-text">Munkatárs meghívása</span><IconButton icon={X} label="Bezárás" variant="cell" size="sm" onClick={onCancel} /></div>
       <div className={`grid gap-x-6 ${stacked ? '' : 'lg:grid-cols-2'}`}>
         <div>
           <Field label="E-mail" className="mt-4"><Input type="email" value={value.email} readOnly={!live} onChange={(e) => set({ email: e.target.value })} placeholder="nev@email.hu" /></Field>
           <Field label="Név" className="mt-4"><Input value={value.name} readOnly={!live} onChange={(e) => set({ name: e.target.value })} placeholder="Kiss Nóra" /></Field>
           <div className="mt-4 text-ui-meta text-ui-muted">Szerep</div>
-          <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+          <div className={`mt-1.5 grid gap-1.5 ${stacked ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-3'}`}>
             {roles.map((r) => pick(value.roleId === r.id, <OptionCard title={r.label} selected={value.roleId === r.id} className="block">{r.desc}</OptionCard>, () => set({ roleId: r.id }), r.id))}
           </div>
         </div>

@@ -70,7 +70,7 @@ export function InviteFlow({ open, onClose, restaurant = false, businessId, role
         preview={noLogin ? null : `„Meghívtak a csapatba${invite.roleId ? ` (${roles.find((r) => r.id === invite.roleId)?.label ?? ''})` : ''}. A meghívó linkjével saját belépést kapsz.”`}
         onSubmit={() => void submit()} onCancel={onClose} />
       {(noLogin || (!restaurant && invite.profile === 'new')) && extraFee && extraFee.fee > 0 && bookable >= extraFee.included && (
-        <Note warn className="mx-auto mt-2 max-w-[880px]">Új foglalható munkatársként +{extraFee.fee.toLocaleString('hu-HU')} Ft-tal nő a havidíj.</Note>
+        <Note warn className="mx-auto mt-2 max-w-[1040px]">Új foglalható munkatársként +{extraFee.fee.toLocaleString('hu-HU')} Ft-tal nő a havidíj.</Note>
       )}
     </Popup>
   )

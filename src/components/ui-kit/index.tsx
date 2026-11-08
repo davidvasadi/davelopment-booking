@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Bell, Check, ChevronDown, ChevronUp, ChevronsUpDown, Loader2, Search, TriangleAlert, Upload, X, type LucideIcon, Lightbulb } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bell, Check, ChevronDown, ChevronUp, ChevronsUpDown, Loader2, Search, CircleAlert, Upload, X, type LucideIcon, Lightbulb } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -635,8 +635,8 @@ export function Checkbox({ label, className, ...rest }: CheckboxProps) {
  *  háromszög-ikonnal, a legkisebb betűvel: text-ui-label) — minden, ami következményre vagy korlátra figyelmeztet, ezt kapja;
  *  `tip` = JAVASLAT (háttér nélkül, sárga villanykörte, szürke szöveg) — hogyan lehetne jobb / több bevétel. */
 export function Note({ icon, strong = false, warn = false, tip = false, children, className }: Children & { icon?: LucideIcon; strong?: boolean; warn?: boolean; tip?: boolean }) {
-  // figyelmeztetés: mindig narancs + háromszög-ikon, hogy egy pillantásra elváljon a sima tájékoztatástól (szürke)
-  const Icon = icon ?? (warn ? TriangleAlert : tip ? Lightbulb : undefined)
+  // figyelmeztetés: mindig narancs + körben felkiáltójel, hogy egy pillantásra elváljon a sima tájékoztatástól (szürke)
+  const Icon = icon ?? (warn ? CircleAlert : tip ? Lightbulb : undefined)
   return (
     <div className={cn('flex items-start gap-2 leading-relaxed', tip ? 'text-ui-meta text-ui-muted' : 'rounded-ui-control px-3 py-2.5', !tip && (warn ? 'bg-ui-warn-bg text-ui-label text-ui-warn' : cn('bg-ui-cell text-ui-meta', strong ? 'text-ui-dark' : 'text-ui-muted')), className)}>
       {Icon && <Icon className={cn('shrink-0', warn ? 'mt-px h-3 w-3' : 'mt-0.5 h-3.5 w-3.5', tip && 'text-ui-yellow')} strokeWidth={2} />}
