@@ -4,6 +4,7 @@ import { authOrUnauthorized } from '@/lib/salonRouteAuth'
 import { assertAnyCapability } from '@/lib/apiCapability'
 import { getPricing } from '@/lib/pricing'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
+import { marketingEmailsByMonth } from '@/lib/fastRead'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,8 @@ export async function GET(request: NextRequest) {
     payload.find({ collection: 'marketing-campaigns', where: { and: [scope, { status: { equals: 'sent' } }] }, sort: '-createdAt', limit: 6, depth: 0, overrideAccess: true, select: { subject: true, recipient_count: true, createdAt: true } as never }),
     getPricing(),
   ])
+  // az elmúlt 6 hónap kiküldött hírlevelei (a havi grafikonhoz — minden csomagnál, a korlátlannál is)
+  const months = await marketingEmailsByMonth(kind === 'salon' ? { salon: businessId } : { restaurant: businessId }, 6).catch(() => [])
   const tier = resolveTier((biz as { tier?: string | null } | null)?.tier)
   const campaigns = sent.docs as { id: string | number; subject?: string; recipient_count?: number | null; createdAt: string }[]
   const rates = await Promise.all(campaigns.map(async (c) => {
@@ -44,5 +47,6 @@ export async function GET(request: NextRequest) {
     subscribers: subs.totalDocs, newThisMonth: newSubs.totalDocs, unsubscribed: unsubs.totalDocs,
     used: used.totalDocs, cap: monthlyEmailCapForTier(pricing, tier), tier,
     campaigns: rates.reverse(),
+    months,
   })
 }

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 export { SpringPopover } from './SpringPopover'
 export { CountText, GrowSegments, useLoadProgress, LOAD_MS } from './LoadAnim'
 import { CountText, GrowSegments } from './LoadAnim'
+import { Children, Fragment } from 'react'
 export { SlideSwap, SLIDE_SPRING } from './SlideSwap'
 export { Collapse } from './Collapse'
 
@@ -56,7 +57,7 @@ export function Kpi({ icon: Icon, value, label, size = 'md', className }: { icon
       {/* md mobilon a kompakt méret (a design 4.4), lg-től a nagy */}
       <div className={cn('flex items-center', size === 'md' ? 'gap-1.5 lg:gap-2.5' : 'gap-1.5')}>
         <Icon className={cn('shrink-0 text-ui-muted', size === 'md' ? 'h-4 w-4 lg:h-6 lg:w-6' : 'h-4 w-4')} strokeWidth={1.6} />
-        <span className={cn('whitespace-nowrap font-light leading-none text-ui-text', size === 'md' ? 'text-ui-sub lg:text-ui-page' : 'text-ui-sub')}>{typeof value === 'string' || typeof value === 'number' ? <CountText text={String(value)} /> : value}</span>
+        <span data-kpi-num className={cn('whitespace-nowrap font-light leading-none text-ui-text', size === 'md' ? 'text-ui-sub lg:text-ui-page' : 'text-ui-sub')}>{typeof value === 'string' || typeof value === 'number' ? <CountText text={String(value)} /> : value}</span>
       </div>
       <div className={cn('whitespace-nowrap text-ui-muted', size === 'md' ? 'mt-1 text-ui-label lg:mt-1.5 lg:text-ui-meta' : 'mt-1 text-ui-label')}>{label}</div>
     </div>
@@ -69,6 +70,13 @@ export function Kpi({ icon: Icon, value, label, size = 'md', className }: { icon
  *  `back`: aloldalon a cím helyett morzsa (vissza · Szülő › Aktuális), `onBack` a vissza-gomb művelete.
  *  `bar` + `kpis`: a fejléc alatti sáv — balra a megoszlás-csík, jobbra a nagy számok. Alatta mindig ugyanakkora a hely.
  *  Cím nélkül (csak `bar` + `kpis`) az „étterem — csak az eltérések” minták sávja. */
+/** Hány nagy szám van a sorban (a fragmentben a ténylegesen megjelenő elemek — a feltételes `false`-ok nélkül). */
+function kpiCount(kpis: React.ReactNode): number {
+  const el = kpis as React.ReactElement<{ children?: React.ReactNode }> | null
+  const inner = el && typeof el === 'object' && 'props' in el && el.type === Fragment ? el.props.children : kpis
+  return Children.toArray(inner).length
+}
+
 export function PageHead({ nav, title, sub, actions, back, onBack, bar, kpis, className }: { nav?: React.ReactNode; title?: React.ReactNode; sub?: React.ReactNode; actions?: React.ReactNode; back?: [string, string]; onBack?: () => void; bar?: React.ReactNode; kpis?: React.ReactNode; className?: string }) {
   return (
     <div className={cn('mb-6', className)}>
@@ -92,7 +100,8 @@ export function PageHead({ nav, title, sub, actions, back, onBack, bar, kpis, cl
           {/* mobilon a csík teljes szélességű, a nagy számok alatta egy sorban, telefon-szélességben elosztva (design 4.4) —
               max. 420px, hogy szélesebb képernyőn ne húzódjanak szét */}
           <div className="w-full min-w-0 lg:w-auto lg:max-w-[620px] lg:flex-1">{bar}</div>
-          {kpis && <div className="flex w-full max-w-[420px] items-start justify-between gap-3 lg:w-auto lg:max-w-none lg:justify-start lg:gap-8">{kpis}</div>}
+          {/* mobilon legfeljebb 3 szám nagyobban (kifér) — 4-nél a kompakt méret marad */}
+          {kpis && <div className={cn('flex w-full max-w-[420px] items-start justify-between gap-3 lg:w-auto lg:max-w-none lg:justify-start lg:gap-8', kpiCount(kpis) <= 3 && 'max-lg:[&_[data-kpi-num]]:text-ui-num')}>{kpis}</div>}
         </div>
       )}
     </div>
@@ -476,7 +485,7 @@ export function Input({ size = 'md', hug = false, className, ...rest }: InputPro
   return <input {...rest} size={chars} className={cn(FIELD, FIELD_H[size], hug && 'w-auto min-w-[3.5rem] [field-sizing:content]', className)} />
 }
 
-type TextareaProps = { className?: string } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'>
+type TextareaProps = { className?: string; ref?: React.Ref<HTMLTextAreaElement> } & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'>
 export function Textarea({ className, ...rest }: TextareaProps) {
   return <textarea {...rest} className={cn(FIELD, 'min-h-[96px] resize-none py-3 leading-relaxed', className)} />
 }

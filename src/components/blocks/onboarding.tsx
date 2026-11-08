@@ -1,7 +1,8 @@
 import { ArrowRight, Check, Gift, Link2, Scissors, Upload, UtensilsCrossed } from 'lucide-react'
 import { Button, Card, Checkbox, EmptyState, Field, IconButton, IconCircle, Input, Meta, OptionCard, Pill, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { AuthOr } from './auth'
-import { GLASS_FIELD } from './public'
+import { GLASS_INPUT } from './public'
+import { revealOnFocus } from './auth'
 
 // mobilon a lépések a sötét videón, üvegből — mint a belépés (design 3.5)
 const GLASS_TILE = 'border border-white/15 bg-white/[0.06] text-white backdrop-blur-[10px]' // ui-allow: üveg-csempe a videón
@@ -56,7 +57,7 @@ export function BusinessTypeStep({ kind = 'salon', onKind, options = SAMPLE_TYPE
 
 /** Mező a fiók-lépésen: mobilon (`dark`) üveg a videón, különben a kit mezője. */
 function Inp({ dark, ...p }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> & { dark: boolean }) {
-  return dark ? <input {...p} className={`${GLASS_FIELD} w-full outline-none placeholder:text-white/30 ${p.className ?? ''}`} /> : <Input {...p} />
+  return dark ? <input onFocus={p.onChange ? revealOnFocus : undefined} {...p} className={`${GLASS_INPUT} w-full outline-none placeholder:text-white/30 ${p.className ?? ''}`} /> : <Input {...p} />
 }
 function F({ dark, label, hint, children }: { dark: boolean; label: string; hint?: React.ReactNode; children: React.ReactNode }) {
   return dark

@@ -2,7 +2,7 @@ import { SHEET_ROW } from './assets'
 import { ArrowRight, ArrowUpRight, BarChart3, Bell, Building2, Download, Pencil, Briefcase, CalendarDays, Check, ChevronDown, Lock, Clock, CreditCard, FileText, Gift, Globe as Globe2, Link2, Mail, Megaphone, Monitor, MoreHorizontal, Plus, QrCode, Send, Settings, ShieldCheck, Smartphone, Star, UserRound, Users, X, Undo2, Trash2 } from 'lucide-react'
 import { Avatar, BigNumber, Button, Card, CardTitle, NavItem, SearchField, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Marquee, MarqueeText, Meta, Meter, Modal, OptionCard, Pill, RowCheck, SegmentBar, StatusPill, Segmented, Note, Table, Td, Th, Tr, UploadBox } from '@/components/ui-kit'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
-import { DarkLineChart } from './charts'
+import { DarkLineChart, WeekBars, type WeekBar } from './charts'
 import { Switch } from '@/components/ui/toggle-switch'
 import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
@@ -55,9 +55,12 @@ export type NewsletterSummary = {
   subscribers: number; newThisMonth: number; unsubscribed: number; used: number; cap: number; tier: string
   /** az utolsó (legfeljebb hat) kiküldött kampány, időrendben — a legutolsó a végén */
   campaigns: { subject: string; at: string; recipients: number; pct: number }[]
+  /** az elmúlt hónapok kiküldött hírlevelei (a mostani a végén) — régi válaszban hiányozhat */
+  months?: { ym: string; n: number }[]
 }
 const SAMPLE_NEWS: NewsletterSummary = {
   subscribers: 418, newThisMonth: 23, unsubscribed: 6, used: 3612, cap: 5000, tier: 'pro',
+  months: [['2026-06', 820], ['2026-07', 1430], ['2026-08', 610], ['2026-09', 2380], ['2026-10', 1960], ['2026-11', 3612]].map(([ym, n]) => ({ ym: ym as string, n: n as number })),
   campaigns: [47, 52, 49, 61, 51, 58].map((pct, i) => ({ subject: 'Őszi frissítés −15%', at: ['2026-06-10', '2026-07-08', '2026-08-12', '2026-09-02', '2026-09-30', '2026-10-14'][i], recipients: 412, pct })),
 }
 const MONTH_SHORT = ['Jan.', 'Febr.', 'Márc.', 'Ápr.', 'Máj.', 'Jún.', 'Júl.', 'Aug.', 'Szept.', 'Okt.', 'Nov.', 'Dec.']
@@ -94,6 +97,15 @@ export function NewsletterSettings({ aside = true, data = SAMPLE_NEWS, marketing
   <SettingsGroup icon={Send} title="Havi keret">
     {unlimited ? <Meta className="mt-2">Egyedi csomag · korlátlan levél.</Meta> : <Meter label="Ebben a hónapban" value={d?.used ?? 0} max={Math.max(1, d?.cap ?? 1)} className="mt-2" />}
     {!unlimited && <Meta className="mt-2">{d ? `${d.tier === 'starter' ? 'Starter' : 'Pro'} csomag · ${d.cap.toLocaleString('hu-HU')} levél / hó` : '…'} · Egyedi csomagban korlátlan.</Meta>}
+    {/* az elmúlt 6 hónap kiküldött levelei — minden csomagnál (a korlátlannál a legtöbb a skála teteje, egyébként a keret) */}
+    {d?.months?.length ? (
+      <div className="mt-5">
+        <div className="flex items-baseline justify-between gap-3"><span className="text-ui-body text-ui-text">Kiküldött levelek havonta</span><Meta>{unlimited ? `ebben a hónapban: ${d.used.toLocaleString('hu-HU')}` : `keret: ${d.cap.toLocaleString('hu-HU')} / hó`}</Meta></div>
+        <WeekBars className="mt-4" h={90} tag={(v) => `${v.toLocaleString('hu-HU')} db`}
+          max={unlimited ? undefined : Math.max(d.cap, ...d.months.map((m) => m.n), 1)}
+          days={d.months.map((m, i, a) => ({ d: MONTH_SHORT[Number(m.ym.slice(5)) - 1], v: m.n, peak: i === a.length - 1 }))} />
+      </div>
+    ) : null}
   </SettingsGroup>
   <SettingsGroup icon={Users} title="Kik kapják">
     <FieldRow label="Feliratkozott vendég" hint="a vendég maga adta meg a hozzájárulást"><span className="text-ui-body text-ui-text">{d ? `${d.subscribers.toLocaleString('hu-HU')} fő` : '…'}</span></FieldRow>
@@ -789,14 +801,14 @@ export function SettingsMobileList({ groups, query, onQuery, onCloseSearch, foot
 }
 
 /** „Beállítás kész” (16.1, egyben az onboarding): sötét kártya — hány százalék, a sáv, a hiányzó lépések (koppintva a
- *  témájukra visz), és hány kész. Mindennel kész → nem jelenik meg (a hívó dönti el). */
+ *  témájukra visz), és hány kész. 100%-nál is látszik (teli sáv, „Minden a helyén van.”). */
 export function SetupProgressCard({ pct = 62, missing = [{ label: 'Stripe összekötése' }, { label: 'Első hírlevél' }], done = 6, className = '' }: { pct?: number; missing?: { label: string; onClick?: () => void }[]; done?: number; className?: string }) {
   return (
     <Card tone="dark" className={className}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-ui-title font-normal">Beállítás kész</div>
-          <div className="mt-1 text-ui-meta text-white/55">Még {missing.length} lépés, és {missing.length > 1 ? 'minden' : 'ez is'} a helyén van.</div>
+          <div className="mt-1 text-ui-meta text-white/55">{missing.length ? <>Még {missing.length} lépés, és {missing.length > 1 ? 'minden' : 'ez is'} a helyén van.</> : 'Minden a helyén van.'}</div>
         </div>
         <span className="text-ui-page font-light leading-none">{pct}%</span>
       </div>
@@ -822,7 +834,7 @@ export type AccountInvoice = { key: string; period: string; plan: string; amount
 const SAMPLE_PLANS: PlanOption[] = [
   { key: 'starter', name: 'Starter', badge: 'Belépő', price: '5 900', perMonth: true, cap: '500 hírlevél / hó', extra: 'Minden funkció', btn: 'Váltás' },
   { key: 'pro', name: 'Pro', badge: 'Népszerű', price: '9 800', perMonth: true, cap: '5 000 hírlevél / hó', extra: '+ 1 900 Ft / további munkatárs', current: true, btn: 'Jelenlegi' },
-  { key: 'egyedi', name: 'Egyedi', badge: 'Vállalati', price: 'Egyedi', cap: '50 000 hírlevél / hó', extra: 'Veled egyeztetve', btn: 'Kapcsolat' },
+  { key: 'egyedi', name: 'Egyedi', badge: 'Vállalati', price: 'Ajánlatra', cap: '50 000 hírlevél / hó', extra: 'Veled egyeztetve', btn: 'Kapcsolat' },
 ]
 const SAMPLE_INVOICES: AccountInvoice[] = [['2026. Október', 'Pro · havi', '9 800 Ft'], ['2026. Szeptember', 'Pro · havi', '9 800 Ft']].map(([period, plan, amount]) => ({ key: period, period, plan, amount, status: 'Fizetve' }))
 
@@ -834,6 +846,7 @@ export function SubscriptionPage({
   primary = { label: 'Fizetési mód megadása' }, cardLine = 'Nincs mentett kártya',
   usageTitle = 'Felhasználás · November', usage = [{ label: 'Hírlevél-keret', value: 1240, max: 5000, unit: ' e-mail' }, { label: 'Munkatársak', value: 4, max: 6, unit: ' fő', yellow: true }],
   usageNote = 'Keret felett nem megy ki hírlevél — ilyenkor jelzünk, és a következő hónapban újraindul.',
+  usageHistory = { months: [['jún', 820], ['júl', 1430], ['aug', 610], ['szept', 2380], ['okt', 1960], ['nov', 1240]].map(([d, v], i, a) => ({ d: d as string, v: v as number, peak: i === a.length - 1 })), cap: 5000 },
   card = null, cardHint = 'A próbaidő végéig ráérsz megadni.', onCard, billingRows = [['Számlázási név', 'Fodrászat Budapest Kft.'], ['Adószám', '12345678-2-42']], onEditBilling,
   cycle = 0, onCycle, showCycle = true, annualPct = 30, plans = SAMPLE_PLANS, invoices = SAMPLE_INVOICES,
   onPause, showPause = !onPause, cancel = { label: 'Lemondás' }, className = '',
@@ -841,6 +854,8 @@ export function SubscriptionPage({
   plan?: string; statusPill?: string | null; statusLine?: React.ReactNode; notice?: React.ReactNode
   primary?: { label: string; onClick?: () => void; busy?: boolean } | null; cardLine?: string
   usageTitle?: string; usage?: { label: string; value: number; max: number; unit?: string; yellow?: boolean }[]; usageNote?: string
+  /** az elmúlt hónapok hírlevelei oszlopokban (a mostani sárga) és a havi keret (0 = korlátlan: a legtöbb a skála teteje) */
+  usageHistory?: { months: WeekBar[]; cap: number }
   card?: { brand: string; last4: string; expiry: string } | null; cardHint?: string; onCard?: () => void
   billingRows?: [string, string][]; onEditBilling?: () => void
   cycle?: number; onCycle?: (i: number) => void; showCycle?: boolean; annualPct?: number; plans?: PlanOption[]; invoices?: AccountInvoice[]
@@ -881,6 +896,13 @@ export function SubscriptionPage({
             {usage.map((u) => <Meter key={u.label} label={u.label} value={u.value} max={u.max} unit={u.unit} tone={u.yellow ? 'yellow' : undefined} />)}
           </div>
           {usageNote && <Meta className="mt-4">{usageNote}</Meta>}
+          {/* az elmúlt 6 hónap hírlevelei — a havi kerethez mérve (a keret a skála teteje, ha nagyobb a legtöbbnél) */}
+          {usageHistory && (
+            <div className="mt-6 border-t border-dashed border-ui-divider pt-5">
+              <div className="flex items-baseline justify-between gap-3"><span className="text-ui-body text-ui-text">Hírlevelek havonta</span><Meta>{usageHistory.cap ? `keret: ${usageHistory.cap.toLocaleString('hu-HU')} / hó` : 'korlátlan'}</Meta></div>
+              <WeekBars className="mt-4" h={90} days={usageHistory.months} max={usageHistory.cap ? Math.max(usageHistory.cap, ...usageHistory.months.map((m) => m.v), 1) : undefined} tag={(v) => `${v.toLocaleString('hu-HU')} db`} />
+            </div>
+          )}
         </Card>
         <Card tone="white" pad="lg" className="max-lg:px-0">
           <div className="flex items-center justify-between"><CardTitle>Fizetési mód</CardTitle><Button size="sm" variant="cell" icon={card ? undefined : Plus} onClick={onCard}>{card ? 'Csere' : 'Kártya'}</Button></div>
@@ -917,8 +939,15 @@ export function SubscriptionPage({
 
       <Card tone="white" pad="lg" className="max-lg:px-0">
         <CardTitle>Számlák</CardTitle>
-        {invoices.length ? (
-          <div className="overflow-x-auto">
+        {invoices.length ? (<>
+          {/* mobilon lista: időszak, alatta csomag · összeg; jobbra az állapot és a letöltés */}
+          <div className="mt-2 lg:hidden">
+            {invoices.map((v) => (
+              <ListRow key={v.key} title={v.period} meta={`${v.plan} · ${v.amount}`}
+                trailing={<span className="flex shrink-0 items-center gap-1"><StatusPill status="ok">{v.status}</StatusPill>{v.url ? <IconButton icon={Download} size="sm" variant="ghost" label="Letöltés" href={v.url} download /> : <IconButton icon={Download} size="sm" variant="ghost" label="Letöltés" />}</span>} />
+            ))}
+          </div>
+          <div className="overflow-x-auto max-lg:hidden">
             <Table className="mt-2" minWidth={520}>
               <thead><Tr><Th>Időszak</Th><Th>Csomag</Th><Th>Összeg</Th><Th>Állapot</Th><Th /></Tr></thead>
               <tbody>
@@ -929,7 +958,7 @@ export function SubscriptionPage({
               </tbody>
             </Table>
           </div>
-        ) : <Meta className="mt-2">Még nincs számla — az első fizetés után itt jelenik meg.</Meta>}
+        </>) : <Meta className="mt-2">Még nincs számla — az első fizetés után itt jelenik meg.</Meta>}
       </Card>
 
       {(onPause || showPause || cancel) && (
@@ -972,7 +1001,18 @@ export function SitesPage({ rows = SAMPLE_SITES, count = '2 / 3', countLabel = '
       </div>
     </>}>
       <div className="px-6 pt-4 max-lg:px-0">
-        <Table minWidth={480}>
+        {/* mobilon lista (a táblázat nem fér ki): logó, név, alatta típus · szerep · csapat · foglalás; jobbra a jelenlegi / váltás */}
+        <div className="space-y-1.5 lg:hidden">
+          {rows.map((x) => (
+            <ListRow key={x.key} filled open={x.current}
+              // eslint-disable-next-line @next/next/no-img-element
+              leading={x.logo ? <img src={x.logo} alt="" className="h-9 w-12 shrink-0 object-contain" /> : <IconCircle tone="dark" size="md"><span className="text-ui-label">{x.initials}</span></IconCircle>}
+              title={x.name}
+              meta={[x.type === 'restaurant' ? 'Étterem' : 'Szalon', x.role, x.team != null ? `${x.team} fő` : null, x.monthBookings != null ? `${x.monthBookings.toLocaleString('hu-HU')} foglalás / hó` : null].filter(Boolean).join(' · ')}
+              trailing={x.current ? <Pill tone="white" size="sm">Jelenlegi</Pill> : x.action} />
+          ))}
+        </div>
+        <Table minWidth={480} className="max-lg:hidden">
           <thead><tr><Th>Üzlet</Th><Th>Típus</Th><Th>Szerepem</Th><Th>Csapat</Th><Th>Foglalás / hó</Th><Th /></tr></thead>
           <tbody>
             {rows.map((x) => (

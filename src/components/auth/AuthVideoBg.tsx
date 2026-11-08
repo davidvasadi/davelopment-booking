@@ -1,5 +1,8 @@
 export function AuthVideoBg({ fullScreen = false }: { fullScreen?: boolean }) {
+  // mobilon a teljes képernyő, a Safari felső / alsó sávja mögé is (100lvh: a legnagyobb nézet-magasság) — iOS 26-on a
+  // sávok áttetszők, alattuk a videó látszik (elmosva); enélkül a sávok mögött szürke üres hely volt
   const pos = fullScreen ? 'fixed' : 'absolute'
+  const size = fullScreen ? 'left-0 top-0 h-[100lvh] w-full' : 'inset-0 h-full w-full'
   return (
     <>
       {/* NINCS translateZ(0)/willChange — a szülő rounded-[30px] + overflow-hidden kombóval a
@@ -14,13 +17,13 @@ export function AuthVideoBg({ fullScreen = false }: { fullScreen?: boolean }) {
         playsInline
         preload="metadata"
         disablePictureInPicture
-        className={`${pos} inset-0 w-full h-full object-cover`}
+        className={`${pos} ${size} object-cover`}
         aria-hidden="true"
       >
         <source src="/videos/szalon-foglalas-hatter.mp4" type="video/mp4" />
         <source src="/videos/szalon-foglalas-hatter.mp4" type="video/mp4" />
       </video>
-      <div className={`${pos} inset-0 bg-black/60`} aria-hidden="true" />
+      <div className={`${pos} ${size} bg-black/60`} aria-hidden="true" />
     </>
   )
 }

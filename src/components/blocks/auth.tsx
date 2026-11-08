@@ -1,8 +1,9 @@
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { Button, Card, CodeInput, Field, IconCircle, Input, Meta, Note } from '@/components/ui-kit'
+import { KeyboardInset } from '@/components/shared/KeyboardInset'
 import { BrandLogo } from '@/components/BrandLogo'
 import { POSTER } from './assets'
-import { GLASS_FIELD } from './public'
+import { GLASS_FIELD, GLASS_INPUT } from './public'
 
 /*
  * Belépés és regisztráció (design 3.1–3.5) — a design oldal és az élő /login, /register ugyanezeket a blokkokat
@@ -13,6 +14,12 @@ import { GLASS_FIELD } from './public'
 
 const GLASS_ROW = 'flex items-center gap-3 rounded-ui-control border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-[10px]' // ui-allow: üveg-sor a videón
 const GLASS_BTN = 'border border-white/15 bg-transparent backdrop-blur-[10px]' // ui-allow: üveg-gomb a videón
+/** Mobilon a fókuszba került mező a látható rész közepére görget: iPhone-on a billentyűzet fölötti sáv különben
+ *  eltakarja (a sima görgetés — Lenis — elnyeli a Safari saját felgörgetését). A billentyűzet kinyílása után. */
+export const revealOnFocus = (e: React.FocusEvent<HTMLElement>) => {
+  const el = e.currentTarget
+  window.setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300)
+}
 const GLASS_CODE = `${GLASS_FIELD} justify-center` // a kód négyzetei a videón
 
 export const AUTH_INFO = ['30 nap ingyenes próba, kártya nélkül', 'Szakembereknek és vendéglátóhelyeknek', 'Jelszó nélkül — kóddal lépsz be']
@@ -65,9 +72,12 @@ export function AuthScreen({ title = <>Kezeld<br />okosan<br />az üzleted.</>, 
 export function AuthMobile({ media, back = false, onBack, logoHref, full = false, children }: { media?: React.ReactNode; /** fent a Vissza (a logó helyett) */ back?: boolean; onBack?: () => void; logoHref?: string; full?: boolean; children: React.ReactNode }) {
   const logo = <BrandLogo variant="dark" className="h-8 w-fit" />
   return (
-    <div className={`relative flex flex-col overflow-hidden bg-ui-dark px-7 pb-10 text-white ${full ? 'min-h-dvh pt-[calc(3rem+env(safe-area-inset-top))]' : 'h-[740px] w-[360px] shrink-0 rounded-ui-container pt-12'}`}>
+    <div data-auth-dark={full ? '' : undefined} className={`relative flex flex-col overflow-hidden bg-ui-dark px-7 pb-10 text-white ${full ? 'min-h-dvh pt-[calc(3rem+env(safe-area-inset-top))] ' : 'h-[740px] w-[360px] shrink-0 rounded-ui-container pt-12'}`}>
+      {/* nyitott billentyűzetnél az űrlap fentre kerül (data-typing) */}
+      {full && <KeyboardInset />}
       <Media media={media} dim="opacity-60" />
-      <div className="relative flex flex-1 flex-col justify-between gap-8">
+      {/* gépelés közben (data-typing, KeyboardInset) az űrlap fentre kerül — a billentyűzet nem takarja, a Safarinak nem kell görgetnie */}
+      <div className={`relative flex flex-1 flex-col justify-between gap-8 ${full ? '[[data-typing]_&]:justify-start' : ''}`}>
         {back || onBack
           ? <button type="button" onClick={onBack} className="flex w-fit items-center gap-1.5 text-ui-meta text-white/60 outline-none transition-colors hover:text-white"><ArrowLeft className="h-4 w-4" />Vissza</button>
           : logoHref ? <a href={logoHref} aria-label="davelopment booking" className="w-fit">{logo}</a> : logo}
@@ -100,7 +110,7 @@ export function LoginEmailForm({ dark = false, email = 'anna@fodraszat.hu', onEm
 }) {
   const submit = (e: React.FormEvent) => { e.preventDefault(); onSubmit?.() }
   const field = onEmail
-    ? dark ? <input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => onEmail(e.target.value)} placeholder="te@pelda.hu" aria-invalid={!!error} className={`${GLASS_FIELD} w-full outline-none placeholder:text-white/30 ${error ? 'ring-2 ring-ui-bad-dot/60' : ''}`} />
+    ? dark ? <input type="email" inputMode="email" autoComplete="email" value={email} onFocus={revealOnFocus} onChange={(e) => onEmail(e.target.value)} placeholder="te@pelda.hu" aria-invalid={!!error} className={`${GLASS_INPUT} w-full outline-none placeholder:text-white/30 ${error ? 'ring-2 ring-ui-bad-dot/60' : ''}`} />
       : <Input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => onEmail(e.target.value)} placeholder="te@pelda.hu" aria-invalid={!!error} className={error ? 'ring-2 ring-ui-bad-dot/40' : ''} />
     : dark ? <div className={GLASS_FIELD}>{email}</div> : <Input type="email" defaultValue={email} />
   const errLine = error && <div role="alert" className={`mt-2 text-ui-label ${dark ? 'text-ui-bad-bg' : 'text-ui-bad'}`}>{error}</div>

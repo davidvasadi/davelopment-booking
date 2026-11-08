@@ -118,7 +118,7 @@ export interface BillingData {
   /** a mentett fizetési mód a Stripe-tól ÉLŐBEN (nálunk nincs tárolva) — márka, utolsó 4, lejárat */
   card?: { brand: string; last4: string; expiry: string } | null
   /** e havi felhasználás (16.5): hírlevél-keret, foglalható munkatársak (étteremnél nincs) */
-  usage?: { emailsUsed: number; emailCap: number; staff?: number; staffIncluded?: number }
+  usage?: { emailsUsed: number; emailCap: number; staff?: number; staffIncluded?: number; /** az elmúlt hónapok hírlevelei (lib/fastRead) */ emailHistory?: { ym: string; n: number }[] }
 }
 
 /** Csapat & jogok — egy tag. VALÓS adatból (tulajdonos + membershipök). */
@@ -1115,11 +1115,13 @@ export function SettingsHub({
         {/* mobil: a téma lapja alulról (16.20) — a háttér sötétít, fent fogantyú, cím, bezárás */}
         {/* a közös felugró ablak (PopupModal) mobil-lapja: ugyanaz a sötétítés, fehér lap alulról, 85%-ig, fent fogantyú (koppintásra
             bezár, X nincs). A tartalom mountolva marad (a mentetlen mezők ne vesszenek el), ezért nem maga a PopupModal. */}
-        {mobileSheet && <span className="fixed inset-0 z-[94] bg-ui-dark/25 backdrop-blur-sm lg:hidden" onClick={() => setMobileSheet(false)} aria-hidden />}
+        {/* a Foglalóoldal-szerkesztő maga teljes képernyős (portál) — ott nincs lap és nincs elmosott háttér, különben a lap
+            üresen a szerkesztő fölé kerülne, és el kellene koppintani */}
+        {mobileSheet && active !== 'site' && <span className="fixed inset-0 z-[94] bg-ui-dark/25 backdrop-blur-sm lg:hidden" onClick={() => setMobileSheet(false)} aria-hidden />}
 
         {/* PANEL — az Értesítéseknél a profil-form (Értesítő sablon) a kapcsolók ALÁ kerül (order-last). */}
         {/* a Számlák mobilon teljes oldal (jobbról becsúszva), nem felcsúszó lap — fent a kereső és a szűrők ikonja */}
-        <div ref={panelRef} className={`min-w-0 ${mobileSheet ? (pageTopic ? 'max-lg:[animation:ui-slide-in_.45s_cubic-bezier(.34,1.2,.64,1)_both] max-lg:fixed max-lg:inset-0 max-lg:z-[95] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:bg-white max-lg:px-4 max-lg:pb-28' : 'max-lg:origin-bottom max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup') : 'max-lg:hidden'}`} style={mobileSheet && pageTopic ? { ['--dx' as string]: '100%' } : undefined} data-lenis-prevent>
+        <div ref={panelRef} className={`min-w-0 ${mobileSheet && active === 'site' ? '' : mobileSheet ? (pageTopic ? 'max-lg:[animation:ui-slide-in_.45s_cubic-bezier(.34,1.2,.64,1)_both] max-lg:fixed max-lg:inset-0 max-lg:z-[95] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:bg-white max-lg:px-4 max-lg:pb-28' : 'max-lg:origin-bottom max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup') : 'max-lg:hidden'}`} style={mobileSheet && pageTopic ? { ['--dx' as string]: '100%' } : undefined} data-lenis-prevent>
           {mobileSheet && pageTopic && (
             <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center gap-2 bg-white px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
               <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" onClick={() => setMobileSheet(false)} />
@@ -1128,7 +1130,7 @@ export function SettingsHub({
               <IconButton icon={Settings2} label="Szűrők" variant="cell" onClick={() => window.dispatchEvent(new Event(`davelopment:${active}-filter`))} />
             </div>
           )}
-          <div className={`sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden ${pageTopic ? 'hidden' : ''}`}>
+          <div className={`sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden ${pageTopic || active === 'site' ? 'hidden' : ''}`}>
             <button type="button" aria-label="Vissza a témákhoz" onClick={() => setMobileSheet(false)} className="w-full pt-2.5"><SheetHandle /></button>
             <MarqueeText className="pt-4 text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</MarqueeText>
           </div>
@@ -1139,7 +1141,7 @@ export function SettingsHub({
               <span className="text-ui-title font-normal text-ui-text">{RAIL_LABELS[active]}</span>
             </div>
           )}
-          {setupMissing.length > 0 && active !== 'site' && !fullWidth && <SetupProgressCard className={`mb-[5px] ${mobileSheet && pageTopic ? 'max-lg:hidden' : ''}`} pct={setupPct} done={setupSteps.length - setupMissing.length} missing={setupMissing.map((x) => ({ label: x.label, onClick: () => openTopic(x.tab) }))} />}
+          {setupSteps.length > 0 && active !== 'site' && !fullWidth && <SetupProgressCard className={`mb-[5px] ${mobileSheet && pageTopic ? 'max-lg:hidden' : ''}`} pct={setupPct} done={setupSteps.length - setupMissing.length} missing={setupMissing.map((x) => ({ label: x.label, onClick: () => openTopic(x.tab) }))} />}
           {/* a téma címe (desktop) — mobilon a lap fejlécében */}
           <div className={`mb-[5px] items-center justify-between gap-2 px-1 pt-1 ${PAGE_TABS.has(active) ? 'hidden' : 'hidden lg:flex'}`}>
             <span className="text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</span>
@@ -1453,6 +1455,7 @@ export function SettingsHub({
                     ...(u ? [{ label: 'Hírlevél-keret', value: u.emailsUsed, max: Math.max(1, u.emailCap), unit: ' e-mail' }] : []),
                     ...(u?.staff != null ? [{ label: 'Munkatársak', value: u.staff, max: Math.max(u.staff, u.staffIncluded ?? 1), unit: ' fő', yellow: true }] : []),
                   ]}
+                  usageHistory={u?.emailHistory?.length ? { months: u.emailHistory.map((m, i, a) => ({ d: new Date(`${m.ym}-01T12:00:00`).toLocaleDateString('hu-HU', { month: 'short' }).replace('.', ''), v: m.n, peak: i === a.length - 1 })), cap: curTier === 'egyedi' ? 0 : u.emailCap } : undefined}
                   usageNote={u?.staff != null && u.staffIncluded != null && u.staff > u.staffIncluded ? `${u.staffIncluded} foglalható munkatárs az árban, a többi +${pricing.salon_extra_staff_huf.toLocaleString('hu-HU')} Ft / fő / hó.` : 'Keret felett nem megy ki hírlevél — ilyenkor jelzünk, és a következő hónapban újraindul.'}
                   card={card} cardHint={st === 'trialing' ? 'A próbaidő végéig ráérsz megadni.' : 'A kártyát a Stripe biztonságos oldalán adod meg.'}
                   onCard={() => void (billing.hasStripeCustomer ? openPortal() : startCheckout())}
@@ -1462,7 +1465,7 @@ export function SettingsHub({
                   plans={[
                     { key: 'starter', name: 'Starter', badge: 'Belépő', price: price('starter').toLocaleString('hu-HU'), perMonth: true, cap: cap('starter'), extra: kindB === 'salon' ? 'Minden funkció' : 'Minden funkció, fix havidíj', current: curTier === 'starter', btn: planBtn('starter'), onClick: curTier === 'starter' ? undefined : () => void selectTier('starter'), busy: subBusy === 'starter' },
                     { key: 'pro', name: 'Pro', badge: 'Népszerű', price: price('pro').toLocaleString('hu-HU'), perMonth: true, cap: cap('pro'), extra: kindB === 'salon' ? `+ ${applyCycle(pricing.salon_extra_staff_huf, selectedCycle, billingAccount.annualDiscountPct).toLocaleString('hu-HU')} Ft / további munkatárs` : 'Minden funkció, fix havidíj', current: curTier !== 'starter' && curTier !== 'egyedi', btn: planBtn('pro'), onClick: curTier === 'pro' ? undefined : () => void selectTier('pro'), busy: subBusy === 'pro' },
-                    { key: 'egyedi', name: 'Egyedi', badge: 'Vállalati', price: 'Egyedi', cap: 'Korlátlan hírlevél', extra: 'Több telephely, veled egyeztetve', current: curTier === 'egyedi', btn: curTier === 'egyedi' ? 'Jelenlegi' : 'Kapcsolat', onClick: curTier === 'egyedi' ? undefined : () => { window.location.href = `mailto:hello@davelopment.hu?subject=${encodeURIComponent(`Egyedi ${kindB === 'salon' ? 'szalon' : 'étterem'} csomag`)}` } },
+                    { key: 'egyedi', name: 'Egyedi', badge: 'Vállalati', price: 'Ajánlatra', cap: 'Korlátlan hírlevél', extra: 'Több telephely, veled egyeztetve', current: curTier === 'egyedi', btn: curTier === 'egyedi' ? 'Jelenlegi' : 'Kapcsolat', onClick: curTier === 'egyedi' ? undefined : () => { window.location.href = `mailto:hello@davelopment.hu?subject=${encodeURIComponent(`Egyedi ${kindB === 'salon' ? 'szalon' : 'étterem'} csomag`)}` } },
                   ]}
                   invoices={billing.invoices.map((inv) => ({ key: inv.id, period: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' }) : '—', plan: `${inv.invoice_number}${inv.test ? ' · teszt' : ''}`, amount: inv.amount_huf ? `${inv.amount_huf.toLocaleString('hu-HU')} Ft` : '—', status: 'Fizetve', url: `/api/billing/invoice-pdf?id=${inv.id}` }))}
                   cancel={st === 'active' ? (billing.cancelAtPeriodEnd

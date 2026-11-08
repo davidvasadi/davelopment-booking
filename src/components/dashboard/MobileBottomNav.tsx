@@ -225,7 +225,7 @@ const [moreOpen, setMoreOpen] = useState(false)
 
             <div className="mx-4 border-t border-dashed border-ui-divider" />
 
-            <div className="px-3 py-2">
+            <div className="space-y-1 px-3 py-2">
               {secondaryNav.map(({ href, label, icon: Icon, exact }) => {
                 const dim = isLocked && !isAllowedWhenLocked(href)
                 if (dim) {
@@ -248,7 +248,8 @@ const [moreOpen, setMoreOpen] = useState(false)
                     onClick={() => setMoreOpen(false)}
                     className={cn(
                       'flex items-center gap-3 rounded-ui-control px-3 py-3 text-ui-row transition-colors',
-                      isActive(href, exact) ? 'bg-ui-dark text-white' : 'text-ui-text hover:bg-ui-cell'
+                      // a Partnerprogram sárga sor, mint a fiók-menüben és a desktop „Több” menüben (design 20.3)
+                      isActive(href, exact) ? 'bg-ui-dark text-white' : href.endsWith('/partnerprogram') ? 'bg-ui-yellow text-ui-text' : 'text-ui-text hover:bg-ui-cell'
                     )}
                   >
                     <Icon className="h-5 w-5" />

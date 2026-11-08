@@ -26,6 +26,7 @@ import type { AccountBilling } from '@/lib/accountBilling'
 import type { Restaurant, Invoice, Role, Room, Table } from '@/payload/payload-types'
 import { RESTAURANT_TEMPLATES } from '@/lib/restaurantTemplates'
 import type { CustomQuestionType } from '@/components/settings/CustomQuestionsEditor'
+import { marketingEmailsByMonth } from '@/lib/fastRead'
 
 const EMPTY_ACCOUNT_BILLING: AccountBilling = {
   items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
@@ -165,8 +166,10 @@ export default async function RestaurantSettingsPage() {
     ? new Date(sub.trial_ends_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     : null
 
+  // az elmúlt 6 hónap hírlevelei (Előfizetés › Felhasználás grafikon) — közvetlen SQL, egy csoportosított számolás
+  const emailHistory = canSeeBilling ? await marketingEmailsByMonth({ restaurant: restaurant.id }, 6).catch(() => []) : []
   const billingUsage = canSeeBilling ? {
-    emailsUsed,
+    emailsUsed, emailHistory,
     emailCap: monthlyEmailCapForTier(pricing, resolveTier(restaurant.tier)),
   } : undefined
 

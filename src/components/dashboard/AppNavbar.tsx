@@ -202,10 +202,11 @@ export function AppNavbar({
                           whileTap="hover"
                           className={cn(
                             'flex items-center gap-2.5 rounded-ui-control px-3 py-2.5 text-ui-body transition-colors',
-                            active ? 'bg-ui-dark text-white' : 'text-ui-text hover:bg-ui-cell',
+                            // a Partnerprogram sárga sor, mint a fiók-menüben (design 20.3) — kiemelve, nem szürke hover
+                            active ? 'bg-ui-dark text-white' : href.endsWith('/partnerprogram') ? 'bg-ui-yellow text-ui-text hover:opacity-90' : 'text-ui-text hover:bg-ui-cell',
                           )}
                         >
-                          <Icon className={cn('h-4 w-4', !active && 'text-ui-muted')} strokeWidth={1.8} />
+                          <Icon className={cn('h-4 w-4', !active && !href.endsWith('/partnerprogram') && 'text-ui-muted')} strokeWidth={1.8} />
                           {label}
                         </MotionLink>
                       </motion.div>

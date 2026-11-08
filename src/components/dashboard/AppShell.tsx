@@ -78,6 +78,10 @@ export function AppShell({
   ]
   return (
     <div data-app-variant={variant} className="font-onest min-h-screen bg-ui-page text-ui-text">
+      {/* az óra / akku sáv háttere mobilon: pontosan a sáv magasságában, az oldal kezdőszínével. Az iOS 26 Safari a sávot a
+          lap tetején lévő rögzített elem színével festi (theme-color-t már nem néz) — a nav szándékosan nem rögzített, ezért
+          kell ez a külön réteg; a görgetett tartalom alatta csúszik el, mint a natív appokban */}
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[max(8px,env(safe-area-inset-top))] ui-app-top lg:hidden" />
       {/* Mobil fejléc (desktopon az AppNavbar) */}
       <DashboardNav
         salonName={businessName}

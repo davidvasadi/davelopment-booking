@@ -90,6 +90,18 @@ html {
   background-color: var(--ui-cell);
 }
 
+/* Az app felülete (vezérlőpult, étterem): a háttér a színátmenet első színe. Az új iOS Safari a felső (óra / akku) sávot
+   már nem a theme-color-ral, hanem a html / body háttérszínével festi — e nélkül a sáv világosabb volt, mint az oldal. */
+html:has([data-app-variant]),
+html:has([data-app-variant]) body {
+  background-color: #E3E5E6; /* = a --ui-page-bg színátmenet kezdete és a dashboard / restaurant theme-color-ja */
+}
+/* a rögzített csík a lap tetején (AppShell) — ennek a színét veszi át az iOS 26 Safari a felső sávra */
+.ui-app-top { background-color: #E3E5E6; }
+/* a sötét, videós bejelentkezés / regisztráció mobilon: a lap háttere is sötét (betöltés közben és a sávok mögött) */
+html:has([data-auth-dark]),
+html:has([data-auth-dark]) body { background-color: #120D0B; }
+
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;

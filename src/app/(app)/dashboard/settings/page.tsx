@@ -24,6 +24,7 @@ import type { AccountBilling } from '@/lib/accountBilling'
 import type { Invoice, Role } from '@/payload/payload-types'
 import type { BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
 import { buildBookingPageEditorInitial } from '@/lib/bookingPageEditorInitial'
+import { marketingEmailsByMonth } from '@/lib/fastRead'
 
 const EMPTY_ACCOUNT_BILLING: AccountBilling = {
   items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
@@ -157,8 +158,10 @@ export default async function SettingsPage() {
     ? new Date(sub.trial_ends_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     : null
 
+  // az elmúlt 6 hónap hírlevelei (Előfizetés › Felhasználás grafikon) — közvetlen SQL, egy csoportosított számolás
+  const emailHistory = canSeeBilling ? await marketingEmailsByMonth({ salon: salon.id }, 6).catch(() => []) : []
   const billingUsage = canSeeBilling ? {
-    emailsUsed: usedEmails,
+    emailsUsed: usedEmails, emailHistory,
     emailCap: monthlyEmailCapForTier(pricing, resolveTier(salon.tier)),
     staff: activeStaff, staffIncluded: SALON_INCLUDED_STAFF,
   } : undefined

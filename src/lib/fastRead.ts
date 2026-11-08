@@ -116,3 +116,23 @@ export async function reservationsFor(restaurantId: number | string, f: RowFilte
     payment_status: r.payment_status ?? null, deposit_amount_huf: num(r.deposit_amount_huf),
   }))
 }
+
+/**
+ * Kiküldött hírlevél-e-mailek havonta (az utolsó `months` hónap, a mostanival együtt) — az Előfizetés › Felhasználás
+ * grafikonjához. Közvetlen SQL — sebesség, docs/sebesseg (egy csoportosított számolás, üzletre szűrve). A hiányzó hónap 0.
+ */
+export async function marketingEmailsByMonth(b: BizRef, months = 6): Promise<{ ym: string; n: number }[]> {
+  const rows = await rawQuery<{ ym: string; n: unknown }>(sql`
+    SELECT to_char(date_trunc('month', created_at AT TIME ZONE 'Europe/Budapest'), 'YYYY-MM') AS ym, count(*) AS n
+    FROM email_log
+    WHERE ${bizWhere(b)} AND type = 'marketing_broadcast'
+      AND created_at >= (date_trunc('month', now() AT TIME ZONE 'Europe/Budapest') - make_interval(months => ${months - 1})) AT TIME ZONE 'Europe/Budapest'
+    GROUP BY 1`)
+  const got = new Map(rows.map((r) => [r.ym, Number(r.n)]))
+  const now = new Date()
+  return Array.from({ length: months }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1)
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    return { ym, n: got.get(ym) ?? 0 }
+  })
+}

@@ -566,8 +566,8 @@ export function AttentionSettings({ value, onChange, payment = true, className =
         <Segmented tone="cell" size="sm" options={['Sáv', 'Popup']} active={v.pending === 'popup' ? 1 : 0} onSelect={onChange ? (i) => onChange({ ...v, pending: i ? 'popup' : 'bar' }) : undefined} />
       </FieldRow>
       {payment && (
-        <FieldRow label="Fizetésre vár" hint="a foglalás vége után, amíg nincs lezárva">
-          <Segmented tone="cell" size="sm" options={['Jel + sáv', 'Csak jel']} active={v.payment ? 0 : 1} onSelect={onChange ? (i) => onChange({ ...v, payment: !i }) : undefined} />
+        <FieldRow label="Lezáratlan fizetés" hint={v.payment ? 'véget ért, de még nem fizetett foglalás: jelölve a naptárban, és alul egy sáv is szól' : 'véget ért, de még nem fizetett foglalás: csak a naptárban jelöljük'}>
+          <Segmented tone="cell" size="sm" options={['Jelölés + sáv', 'Csak jelölés']} active={v.payment ? 0 : 1} onSelect={onChange ? (i) => onChange({ ...v, payment: !i }) : undefined} />
         </FieldRow>
       )}
     </Card>
