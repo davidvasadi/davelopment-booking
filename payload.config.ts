@@ -47,7 +47,7 @@ import { ShiftTemplates } from './src/payload/collections/ShiftTemplates'
 import { PricingSettings } from './src/payload/globals/PricingSettings'
 
 // Központi márkanév (egyetlen forrás a rebrandhez).
-import { BRAND_NAME } from './src/lib/brand'
+import { BRAND_NAME, EMAIL_SENDER_NAME } from './src/lib/brand'
 
 // A publikus app-URL (prod: https://booking.davelopment.hu). A CSRF/CORS/serverURL ehhez igazodik,
 // különben az nginx-proxy mögött a böngésző-eredetű login CSRF-blokkolt → 401
@@ -146,7 +146,8 @@ export default buildConfig({
   sharp,
   email: resendAdapter({
     defaultFromAddress: process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu',
-    defaultFromName: process.env.RESEND_FROM_NAME ?? BRAND_NAME,
+    // a feladónév a kódban (lib/brand) — a szerver RESEND_FROM_NAME-je a régi „davelopment booking” volt
+    defaultFromName: EMAIL_SENDER_NAME,
     apiKey: process.env.RESEND_API_KEY ?? '',
   }),
   typescript: {

@@ -12,6 +12,9 @@
 /** Megjelenő márkanév (UI, e-mail feladó, copyright). */
 export const BRAND_NAME = 'davelopment booking'
 
+/** A rendszer-levelek feladóneve a levelezőben (Dave kérése, 2026-11-08) — az üzletek levelei az üzlet nevén mennek. */
+export const EMAIL_SENDER_NAME = '[davelopment]© Booking'
+
 /** A publikus app-URL. Prod: https://booking.davelopment.hu */
 export const APP_URL = (
   process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
