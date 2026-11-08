@@ -1311,7 +1311,7 @@ export function RestaurantRulesPage({ value, onChange, tablesMax, tablesHref, sa
  *  emberi nyelven (`lib/auditText`: „Állapot: Megerősítve → Leültetve”). */
 export type AuditTableRow = {
   key: string; time: string; actor: { name: string; email?: string | null; img?: string | null }
-  event: string; tone: 'ok' | 'bad' | 'neutral'; title: string; lines: { label: string; from?: string; to?: string; text?: string }[]
+  event: string; tone: 'ok' | 'bad' | 'warn' | 'pending' | 'neutral'; title: string; lines: { label: string; from?: string; to?: string; text?: string }[]
 }
 export function AuditTable({ rows }: { rows: AuditTableRow[] }) {
   const line = (l: AuditTableRow['lines'][number], i: number) => (

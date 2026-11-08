@@ -8,7 +8,7 @@
 export type AuditAction = 'create' | 'update' | 'delete'
 export type AuditChange = { field: string; from: string | number | boolean | null; to: string | number | boolean | null }
 export type AuditLine = { label: string; from?: string; to?: string; text?: string }
-export type AuditView = { event: string; tone: 'ok' | 'bad' | 'neutral'; title: string; lines: AuditLine[] }
+export type AuditView = { event: string; tone: 'ok' | 'bad' | 'warn' | 'pending' | 'neutral'; title: string; lines: AuditLine[] }
 
 /** a napló entitás-neve (collection-felirat) → a mondatban használt főnév */
 const NOUN: Record<string, string> = {
@@ -118,5 +118,5 @@ export function auditView(e: { action: AuditAction; collection: string; summary:
   const settings = SETTINGS.has(entity)
   const event = e.action === 'create' ? `Új ${noun.toLowerCase()}` : e.action === 'delete' ? `${noun} törölve` : settings ? 'Beállítások módosítva' : `${noun} módosítva`
   const fallback = settings ? (lines.length ? lines.map((l) => l.label).slice(0, 3).join(', ') : 'Beállítások') : noun
-  return { event, tone: e.action === 'create' ? 'ok' : e.action === 'delete' ? 'bad' : 'neutral', title: settings ? fallback : title || fallback, lines: settings && lines.every((l) => l.text === 'módosítva') && lines.length <= 3 ? [] : lines }
+  return { event, tone: e.action === 'create' ? 'ok' : e.action === 'delete' ? 'bad' : e.action === 'update' ? (lines.some((l) => l.label === 'Ár') ? 'pending' : 'warn') : 'neutral', title: settings ? fallback : title || fallback, lines: settings && lines.every((l) => l.text === 'módosítva') && lines.length <= 3 ? [] : lines }
 }
