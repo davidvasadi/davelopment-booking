@@ -144,7 +144,7 @@ export const Users: CollectionConfig = {
     { name: 'birthday', type: 'date', label: 'Születésnap', admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } } },
     { name: 'join_date', type: 'date', label: 'Belépés / alapítás', admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } } },
     { name: 'address', type: 'text', label: 'Cím' },
-    { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'tax_id', type: 'text', label: 'TAJ-szám' },
     { name: 'tax_number', type: 'text', label: 'Adószám' },
     { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
     { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },

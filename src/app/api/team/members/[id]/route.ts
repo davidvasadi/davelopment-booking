@@ -148,6 +148,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const mediaId = (v: unknown) => (v == null || v === '' ? null : /^\d+$/.test(String(v)) ? Number(v) : v)
   if ('avatar' in body) data.avatar = mediaId(body.avatar)
   if (Array.isArray(body.documents)) data.documents = (body.documents as { label?: string; file?: unknown }[]).map((d) => ({ label: d.label ?? '', file: mediaId(d.file) }))
+  if ('annual_leave_days' in body) data.annual_leave_days = body.annual_leave_days === '' || body.annual_leave_days == null ? null : Math.max(0, Math.round(Number(body.annual_leave_days)))
   if ('weekly_hours' in body) data.weekly_hours = body.weekly_hours === '' || body.weekly_hours == null ? null : Number(body.weekly_hours)
   if ('salary' in body && loaded.isOwner) data.salary = body.salary === '' || body.salary == null ? null : Number(body.salary)
   // Bér típusa + rate — csak a tulaj (a fizetés a naptárból számolódik a profilon).

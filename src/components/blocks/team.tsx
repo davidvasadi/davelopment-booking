@@ -463,6 +463,8 @@ export type StaffEditValue = {
   taxId: string; taxNumber: string; address: string
   bookable: boolean; buffer: number | null; minLead: number | null; serviceIds: string[]
   payType: 'daily' | 'hourly'; payRate: string; weeklyTarget: number | null; tipEligible: boolean
+  /** éves szabadság-keret (nap); nincs megadva: null */
+  annualLeave?: number | null
   bio: string; socialLinks: string[]
   /** null: a heti munkaidő még töltődik / nincs (étterem, tulaj) */
   hours: { custom: boolean; days: StaffDay[] } | null
@@ -485,7 +487,7 @@ export type StaffEditOptions = {
 }
 const SAMPLE_EDIT: StaffEditValue = {
   name: 'Kovács Viktória', position: 'Stylist', phone: '+36 30 412 7781', email: 'viktoria@davelopment.hu', birthday: '1994-05-12', joinDate: '2024-03-04',
-  taxId: '8456•••••2', taxNumber: '', address: 'Budapest, Bartók B. út 22.',
+  taxId: '123-456-789', taxNumber: '', address: 'Budapest, Bartók B. út 22.',
   bookable: true, buffer: 10, minLead: 2, serviceIds: ['a', 'b', 'c'], payType: 'hourly', payRate: '2 400', weeklyTarget: 40, tipEligible: true,
   bio: '10 éve vág, a balayage és a természetes színek specialistája.', socialLinks: ['https://instagram.com/viktoria.hair'],
   hours: { custom: true, days: [['09:00', '17:00'], ['09:00', '17:00'], null, ['12:00', '20:00'], ['09:00', '17:00'], ['09:00', '14:00'], null].map((d) => ({ on: !!d, start: d?.[0] ?? '09:00', end: d?.[1] ?? '17:00' })) },
@@ -585,9 +587,11 @@ export function StaffEditSections({ only = ['Alapadatok', 'Foglalás', 'Bér és
     ...(rest ? [['Bér típusa', <Segmented key="t" options={['Napi', 'Órabér']} active={v.payType === 'hourly' ? 1 : 0} tone="cell" size="sm" onSelect={live ? (i) => set({ payType: i ? 'hourly' : 'daily' }) : undefined} />] as [string, React.ReactNode]] : []),
     [v.payType === 'hourly' ? 'Órabér' : 'Napidíj', <span key="r" className="flex items-center gap-2"><Input size="sm" inputMode="numeric" value={live ? thousands(v.payRate) : v.payRate} readOnly={!live} onChange={(e) => set({ payRate: e.target.value.replace(/\D/g, '') })} placeholder="0" hug className="text-right" /><span className="text-ui-body text-ui-muted">Ft</span></span>],
     ['Heti óra', <Stepper key="h" value={v.weeklyTarget} step={1} max={80} unit="óra" label="Heti óra" onChange={live ? (n) => set({ weeklyTarget: n }) : undefined} />],
+    // az éves szabadság-keret — a Naptár szabadság-ablaka ebből mutatja, mennyi marad
+    ['Éves szabadság', <Stepper key="al" value={v.annualLeave ?? null} step={1} max={60} unit="nap" label="Éves szabadság" onChange={live ? (n) => set({ annualLeave: n }) : undefined} />],
     ...(rest || !live ? [['Borravaló-jogosult', sw(v.tipEligible, (on) => set({ tipEligible: on }), 'Borravaló-jogosult')] as [string, React.ReactNode]] : []),
   ], calc ? <Note strong className="mt-2">{calc}</Note> : undefined))
-  if (show('Adó és cím')) cards.push(card('Adó és cím', FileText, [['Adóazonosító', text('taxId')], ['Adószám', text('taxNumber', '—')], ['Lakcím', text('address')]]))
+  if (show('Adó és cím')) cards.push(card('Adó és cím', FileText, [['TAJ-szám', text('taxId', '000-000-000')], ['Adószám', text('taxNumber', '—')], ['Lakcím', text('address')]]))
   if (show('Munkaidő')) cards.push(
     <Box key="Munkaidő" bare={bare} wide={!stacked}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -685,7 +689,7 @@ export const TEAM_EXPORT_FIELDS: { key: string; label: string; only?: 'salon' | 
   { key: 'days', label: 'Ledolgozott nap' }, { key: 'leave', label: 'Szabadság / beteg' },
   { key: 'bookings', label: 'Foglalás — e hó', only: 'salon' }, { key: 'revenue', label: 'Bevétel — e hó', only: 'salon' },
   { key: 'tips', label: 'Borravaló — e hó', only: 'restaurant' }, { key: 'pay', label: 'Bér (napidíj / órabér)', pay: true },
-  { key: 'tax', label: 'Adóazonosító, adószám, lakcím', pay: true },
+  { key: 'tax', label: 'TAJ-szám, adószám, lakcím', pay: true },
 ]
 export const TEAM_EXPORT_DEFAULT = ['name', 'position', 'role', 'status', 'email', 'phone', 'join', 'month']
 

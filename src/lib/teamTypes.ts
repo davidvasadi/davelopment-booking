@@ -30,6 +30,8 @@ export interface TeamMemberVM {
   weekHours: number
   /** szerződés szerinti heti óra */
   weeklyTarget: number | null
+  /** éves szabadság-keret (nap) — a Naptár szabadság-ablaka ebből számolja a hátralévőt */
+  annualLeave: number | null
   /** szalon: e heti foglalt idő a beosztott idő %-ában (nincs beosztás → null) */
   weekUtil: number | null
   serviceIds: string[]

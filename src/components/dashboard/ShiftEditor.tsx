@@ -148,7 +148,11 @@ export function ShiftEditor({ date, staffId: initialStaff, staff, shifts, isRest
   const year = date.slice(0, 4)
   const usedLeave = staffId ? shifts.filter((s) => s.staffId === staffId && s.type === 'leave' && s.date.startsWith(year) && !(s.date >= from && s.date <= to)).length : 0
   const keret = person?.annual_leave_days
-  const leaveHint = keret != null ? `Éves keret: ${keret} nap · ezzel ${Math.max(0, keret - usedLeave - (v.type === 1 ? nDays : 0))} marad` : undefined
+  // keret nélkül nem a minta-szöveg (a DayEditor alapértéke) jelenik meg, hanem a kivett napok száma
+  const taking = v.type === 1 ? nDays : 0
+  const leaveHint = keret != null
+    ? `Éves keret: ${keret} nap · ezzel ${Math.max(0, keret - usedLeave - taking)} marad`
+    : `${taking} nap · idén eddig ${usedLeave} nap · éves keret nincs megadva (Munkatársak › szerkesztés)`
   // az érintett (legelső) foglalás nyílik meg a napján; ha még nem tudjuk, a nap / hét
   const bookingsLink = firstBooking
     ? `${isRestaurant ? '/restaurant' : '/dashboard'}/bookings?date=${firstBooking.date}&range=day&booking=${firstBooking.id}`
@@ -382,7 +386,8 @@ export function NewShiftModal({ date, prefillDay, prefillRange, templateId, staf
   const previewPages = Math.max(1, Math.ceil(allRows.length / PREVIEW_PER))
   const pg = Math.min(previewPg, previewPages)
   const pageRows = allRows.slice((pg - 1) * PREVIEW_PER, pg * PREVIEW_PER)
-  const conflicts = v.people.flatMap((sid) => datesOf(sid).filter((d) => absent(sid, d)).map((d) => ({ sid, d })))
+  // a figyelmeztetés az előnézetben látott hétre szól (hetet váltva cserélődik / eltűnik)
+  const conflicts = v.people.flatMap((sid) => datesOf(sid).filter((d) => absent(sid, d) && week.includes(d)).map((d) => ({ sid, d })))
   const warn = conflicts.length ? (() => {
     const by = new Map<string, string[]>()
     for (const c of conflicts) by.set(c.sid, [...(by.get(c.sid) ?? []), c.d])

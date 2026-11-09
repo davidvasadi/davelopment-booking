@@ -194,7 +194,7 @@ export const Staff: CollectionConfig = {
     },
     { name: 'email', type: 'text', label: 'Email' },
     { name: 'address', type: 'text', label: 'Cím' },
-    { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'tax_id', type: 'text', label: 'TAJ-szám' },
     { name: 'tax_number', type: 'text', label: 'Adószám' },
     // Saját számlázás (vállalkozó szakember, ha az üzletben „Szakemberenként” számláznak — design 16.7 / 10.4): a saját
     // számlázója (titkosított kulcs, sosem megy ki a kliensre) és a saját Stripe Connect fiókja (a webhook állítja)

@@ -86,7 +86,7 @@ const toEdit = (m: TeamMemberVM): StaffEditValue => ({
   name: m.name, position: m.position === 'Tulajdonos' && m.owner ? '' : m.position, phone: m.phone, email: m.email, birthday: m.birthday?.slice(0, 10) ?? '', joinDate: m.joinDate ?? '',
   taxId: m.taxId ?? '', taxNumber: m.taxNumber ?? '', address: m.address ?? '',
   bookable: m.bookable, buffer: m.buffer, minLead: m.minLead, serviceIds: m.serviceIds,
-  payType: m.payType, payRate: m.payRate != null ? String(m.payRate) : '', weeklyTarget: m.weeklyTarget, tipEligible: m.tipEligible,
+  payType: m.payType, payRate: m.payRate != null ? String(m.payRate) : '', weeklyTarget: m.weeklyTarget, annualLeave: m.annualLeave, tipEligible: m.tipEligible,
   bio: m.bio, socialLinks: m.socialLinks, hours: null, documents: m.documents,
 })
 
@@ -336,6 +336,8 @@ export function TeamView({ restaurant = false, businessId, members, services = [
     const common = {
       name: v.name.trim(), phone: v.phone || null, birthday: v.birthday || null, join_date: v.joinDate || null, address: v.address || null,
       tax_id: v.taxId || null, tax_number: v.taxNumber || null, weekly_hours: v.weeklyTarget, bio: v.bio || null,
+      // az éves szabadság-keret csak munkatársnál (a tulaj saját profiljában nincs ilyen mező)
+      ...(editM.id === 'owner' ? {} : { annual_leave_days: v.annualLeave ?? null }),
     }
     const docs = v.documents.filter((d) => d.fileId != null).map((d) => ({ label: d.label, file: d.fileId }))
     setSaving(true)

@@ -56,7 +56,7 @@ const TEAM_COLS: Record<string, [string[], (e: TeamMemberVM) => Cell[]]> = {
   days: [['Ledolgozott nap (hó)'], (e) => [e.month.daysWorked]], leave: [['Szabadság (nap)', 'Beteg (nap)'], (e) => [e.month.vacationDays, e.month.sickDays]],
   bookings: [['Foglalás (e hó)'], (e) => [e.month.bookings]], revenue: [['Bevétel (e hó, Ft)'], (e) => [e.month.revenue]], tips: [['Borravaló (e hó, Ft)'], (e) => [e.month.tips]],
   pay: [['Bér típusa', 'Bér (Ft)'], (e) => [e.payType === 'hourly' ? 'Órabér' : 'Napidíj', e.payRate ?? '']],
-  tax: [['Adóazonosító', 'Adószám', 'Lakcím'], (e) => [e.taxId ?? '', e.taxNumber ?? '', e.address ?? '']],
+  tax: [['TAJ-szám', 'Adószám', 'Lakcím'], (e) => [e.taxId ?? '', e.taxNumber ?? '', e.address ?? '']],
 }
 export function employeesCsv(list: TeamMemberVM[], fields: string[] = Object.keys(TEAM_COLS)): string {
   const keys = fields.filter((k) => TEAM_COLS[k])

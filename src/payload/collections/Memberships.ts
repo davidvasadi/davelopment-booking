@@ -140,7 +140,7 @@ export const Memberships: CollectionConfig = {
       admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } },
     },
     { name: 'address', type: 'text', label: 'Cím' },
-    { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'tax_id', type: 'text', label: 'TAJ-szám' },
     { name: 'tax_number', type: 'text', label: 'Adószám' },
     {
       name: 'join_date',
