@@ -41,11 +41,11 @@ export const dynamic = 'force-dynamic'
 export default async function RestaurantBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; reservation?: string; range?: string }>
+  searchParams: Promise<{ date?: string; reservation?: string; range?: string; t?: string }>
 }) {
   const { restaurant, capabilities } = await getOwnedRestaurant()
   requireAnyCapability(capabilities, ['bookings.view', 'bookings.manage'], '/restaurant')
-  const { date, reservation: reservationParam, range: rawRange } = await searchParams
+  const { date, reservation: reservationParam, range: rawRange, t: openToken } = await searchParams
   const range: BookingsRange = rawRange === 'week' ? 'week' : rawRange === 'month' ? 'month' : 'day'
 
   const payload = await getPayloadClient()
@@ -154,6 +154,7 @@ export default async function RestaurantBookingsPage({
           closeMin={closeMin}
           turnMinutes={turnMinutes}
           openReservationId={reservationParam}
+          openToken={openToken}
           activeCount={activeCount}
           cancelledCount={cancelledCount}
           dateFilter={dateFilterEl}

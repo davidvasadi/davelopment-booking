@@ -43,9 +43,9 @@ export const dynamic = 'force-dynamic'
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; booking?: string; range?: string }>
+  searchParams: Promise<{ date?: string; booking?: string; range?: string; t?: string }>
 }) {
-  const { date, booking: bookingParam, range: rawRange } = await searchParams
+  const { date, booking: bookingParam, range: rawRange, t: openToken } = await searchParams
   const range: BookingsRange = rawRange === 'week' ? 'week' : rawRange === 'month' ? 'month' : 'day'
 
   const { salon, capabilities, role, userId, userEmail } = await getOwnedSalon()
@@ -214,6 +214,7 @@ export default async function BookingsPage({
           closeMin={closeMin}
           invitedEmails={invitedEmails}
           openBookingId={bookingParam}
+          openToken={openToken}
           dateFilter={dateFilterEl}
           printButton={
             <BookingsMoreMenu key="print-btn" days={[selectedDate]} />

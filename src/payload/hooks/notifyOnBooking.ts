@@ -21,8 +21,12 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
       doc.status === 'cancelled' &&
       previousDoc?.status !== 'cancelled'
 
-    // Módosítás: frissítés, nem lemondás, és dátum/idő/hely változott.
-    const staffField = kind === 'salon' ? 'staff' : 'table'
+    // Módosítás: frissítés, nem lemondás, és dátum/idő/hely változott — szalonnál a szakember, étteremnél az asztal(ok)
+    // (a `tables` tömb — korábban a nem létező `table` mezőt nézte, így az asztalcsere nem számított) és a létszám.
+    const ids = (v: unknown) => (Array.isArray(v) ? v : v != null ? [v] : []).map((x) => String(relId(x as never) ?? '')).filter(Boolean).sort().join(',')
+    const placeChanged = kind === 'salon'
+      ? relId(doc.staff) !== relId(previousDoc?.staff)
+      : ids(doc.tables) !== ids(previousDoc?.tables) || doc.pax !== previousDoc?.pax
     const isModification =
       operation === 'update' &&
       !becameCancelled &&
@@ -30,7 +34,7 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
       (doc.date !== previousDoc?.date ||
         doc.start_time !== previousDoc?.start_time ||
         doc.end_time !== previousDoc?.end_time ||
-        relId(doc[staffField]) !== relId(previousDoc?.[staffField]))
+        placeChanged)
 
     if (!isNew && !becameCancelled && !isModification) return doc
 

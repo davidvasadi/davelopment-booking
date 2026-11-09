@@ -67,6 +67,9 @@ export function DashboardNav({
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // offline: az offline-jelző kör is a fejlécbe kerül — hogy kiférjen, addig az export (letöltés) ikon eltűnik
+  // (net nélkül úgysem működne)
+  const online = useOnline()
 
   // Mobilon a body háttere is krém legyen, hogy a notch + bottom safe area ne fehér legyen.
   useEffect(() => {
@@ -168,7 +171,7 @@ export function DashboardNav({
               komponense rendereli bele, amikor mountolva van). */}
           {pathname.startsWith(settingsHref) && <div id="settings-subnav-slot" className="relative flex shrink-0 items-center gap-2" />}
           {/* az oldal saját eszközei (a design szerint: 48px kerek gombok; a fő „+” sötét) — oldalanként egy lista */}
-          {pageTools.map((t) => <IconButton key={t.label} icon={t.icon} label={t.label} size="lg" variant={t.dark ? 'dark' : 'glass'} href={t.href} download={t.download} onClick={t.onClick} className={t.yellow ? 'text-ui-yellow' : undefined} />)}
+          {pageTools.filter((t) => online || t.icon !== Download).map((t) => <IconButton key={t.label} icon={t.icon} label={t.label} size="lg" variant={t.dark ? 'dark' : 'glass'} href={t.href} download={t.download} onClick={t.onClick} className={t.yellow ? 'text-ui-yellow' : undefined} />)}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
           {!isBackstage && (

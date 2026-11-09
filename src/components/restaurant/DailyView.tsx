@@ -20,7 +20,7 @@ import { MobileDayTimeline, hourRows } from '@/components/blocks/day-timeline'
 import { DayStrip } from '@/components/shared/BookingsDateNav'
 import { ResourceGrid, shortAlert, type GridMerged, type GridRow } from '@/components/shared/ResourceGrid'
 import { STATUS_LEGEND, statusBlockClass, statusCard } from '@/components/shared/statusColors'
-import { BlockLegend, BookingFacts, FloorPlan, TablePanel, tableShape, type FloorTable } from '@/components/blocks/booking'
+import { BlockLegend, BookingFacts, FloorPlan, SelectedTableStrip, TablePanel, tableShape, type FloorTable } from '@/components/blocks/booking'
 import { BookingList, statusOf } from '@/components/shared/BookingList'
 import { ReservationEditSheet, type EditTarget } from './ReservationEditSheet'
 import { OfflineBanner } from './OfflineBanner'
@@ -79,6 +79,8 @@ export interface DailyViewProps {
   turnMinutes: number
   /** Értesítésből érkezve ezt a foglalást nyitjuk meg automatikusan a sheet-ben. */
   openReservationId?: string
+  /** az értesítés kattintásának időbélyege (?t=) — minden kattintás újra megnyitja ugyanazt a foglalást is */
+  openToken?: string
   /** Fejléc-alcím + KPI-csík értékei (a server komponens számolja). */
   activeCount: number
   cancelledCount: number
@@ -200,13 +202,16 @@ export function DailyView(props: DailyViewProps) {
   // kattintasz (új id), újra megnyílik — ugyanarra viszont nem nyílik fel feleslegesen.
   const lastOpenedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!openReservationId || lastOpenedRef.current === openReservationId) return
+    // kulcs: id + a kattintás időbélyege — így ugyanarra az értesítésre újra kattintva (pl. szerkesztés után a még
+    // jóváhagyásra váróra) is megnyílik, a mentés utáni frissítés viszont nem nyitja fel újra
+    const key = openReservationId ? `${openReservationId}|${props.openToken ?? ''}` : null
+    if (!key || lastOpenedRef.current === key) return
     const r = props.reservations.find((x) => String(x.id) === String(openReservationId))
     if (r) {
-      lastOpenedRef.current = openReservationId
+      lastOpenedRef.current = key
       setOpened(r)
     }
-  }, [openReservationId, props.reservations])
+  }, [openReservationId, props.openToken, props.reservations])
 
   const router = useRouter()
   // Kattintás egy foglalásra: a megnyitott foglalás lapja (design 6.7); a vázlat egyből a szerkesztőben nyílik.
@@ -724,6 +729,15 @@ function FloorView({
   const [atMin, setAtMin] = useState(initialMin)
   const [live, setLive] = useState(isTodayView)
   const [selId, setSelId] = useState<string | null>(null)
+  // telefonon az asztal adatlapja felugró lapként nyílik (koppintásra), desktopon a terem mellett áll
+  const [wide, setWide] = useState(true)
+  const stripRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const on = () => setWide(mq.matches)
+    on(); mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
   const [busy, setBusy] = useState(false)
 
   // ÉLŐ: ha be van kapcsolva és ma van, ~fél percenként a valós időre ugrik.
@@ -819,7 +833,7 @@ function FloorView({
   }
 
   return (
-    <div className="grid gap-[5px] lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-[5px] lg:grid-cols-[minmax(0,1fr)_300px]">{/* mobilon is a képernyő szélességéhez szorítva (különben a tartalom kinyújtja) */}
       <FloorPlan
         rooms={['Mind', ...roomEntries.map((e) => e.name)]}
         room={roomIdx + 1}
@@ -827,7 +841,15 @@ function FloorView({
         meta={<>{roomTables.length} asztal · {seats} hely · <span className="text-ui-text">{roomTables.length ? Math.round((busyHere / roomTables.length) * 100) : 0}% telt</span></>}
         tables={floor}
         bar={false}
-        onPick={setSelId}
+        onPick={(id) => {
+          setSelId(id)
+          if (wide) return
+          // telefonon: foglalt asztalra koppintva rögtön a foglalás ablaka nyílik (késés, gombok); szabadnál a terem
+          // alatti sor frissül, és odagördülünk, hogy látszódjon
+          const o = occupantOf(id)
+          if (o) onEdit(o)
+          else requestAnimationFrame(() => stripRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+        }}
         time={{ min: openMin, max: closeMin, value: Math.max(openMin, Math.min(atMin, closeMin)) }}
         onTime={(m) => { setLive(false); setAtMin(m) }}
         timeExtra={isTodayView && (
@@ -837,7 +859,7 @@ function FloorView({
         )}
         legend={<BlockLegend alerts={false} items={[['ui-hatch', 'Szabad'], ['border-[1.5px] border-ui-dark', 'Hamarosan'], ['bg-ui-dark', 'Foglalt'], ['bg-ui-yellow', 'Függő'], ['bg-ui-bad-bg', 'Késik']]} />}
       />
-      {sel && ss && (
+      {sel && ss && wide && (
         <TablePanel
           name={sel.name}
           sub={`${roomNameOf(sel)} · ${sel.capacity} fő`}
@@ -857,6 +879,16 @@ function FloorView({
           busy={busy}
           onAdd={canManage ? () => onCreate(minutesToHHMM(Math.ceil(atMin / 15) * 15), sel.id) : undefined}
         />
+      )}
+      {!wide && sel && ss && (
+        // mobil (design 6.19): a terem alatt egy sorban a kijelölt asztal — koppintásra a foglalás nyílik a szokásos
+        // foglalás-ablakban, szabad asztalnál az új foglalás
+        <div ref={stripRef} className="scroll-mb-28"><SelectedTableStrip
+          title={occ ? `${sel.name} · ${occ.customer_name} · ${occ.pax} fő` : `${sel.name} · ${roomNameOf(sel)} · ${sel.capacity} fő`}
+          pill={occ ? { status: STATUS[ss.st].tone, label: ss.left != null ? `${ss.left}'` : STATUS[ss.st].label } : { status: 'neutral', label: STATUS[ss.st].label }}
+          meta={[occ ? `${occ.start_time}–${occ.end_time}${occ.occasion ? ` · ${occ.occasion}` : ''}` : 'Koppints ide új foglaláshoz', ...upcomingOf(String(sel.id)).filter((r) => r !== occ).slice(0, 1).map((r) => `utána ${r.start_time} ${r.customer_name}`)].join(' · ')}
+          onClick={occ ? () => onEdit(occ) : canManage ? () => onCreate(minutesToHHMM(Math.ceil(atMin / 15) * 15), sel.id) : undefined}
+        /></div>
       )}
     </div>
   )
@@ -926,6 +958,7 @@ function RestaurantBookingDrawer({ r, date, canManage, consentEnabled = false, o
           service={tables.length ? tables.join(' + ') : 'Nincs asztalhoz rendelve'}
           detail={`${r.pax} fő · ${r.start_time}–${r.end_time}`}
           price={r.deposit_amount_huf ? `${r.deposit_amount_huf.toLocaleString("hu-HU")} Ft előleg` : ""}
+          lead={tables.length ? <span className="flex h-11 min-w-11 shrink-0 items-center justify-center rounded-ui-control bg-white px-2.5 text-ui-body font-medium text-ui-text">{tables.join(' + ')}</span> : undefined}
           img={null}
           name={tables[0] ?? '?'}
           rows={([

@@ -8,7 +8,7 @@ import { PopupModal } from '@/components/ui/popup-modal'
 import { AttentionBar, PendingApproval } from '@/components/blocks/booking'
 import { setBookingStatus } from './ApprovalActions'
 
-type Pending = { id: string; name: string; when: string; createdAt: string; service: string; detail: string; price: string; staffName?: string; img?: string | null; rows: [string, string][] }
+type Pending = { id: string; name: string; when: string; createdAt: string; service: string; detail: string; price: string; staffName?: string; img?: string | null; table?: string; rows: [string, string][] }
 type Data = { pending: Pending[]; pendingTotal?: number; paymentDue: { count: number; oldest?: { name: string; when: string } }; prefs: { pendingPopup: boolean; paymentBar: boolean }; kind?: 'salon' | 'restaurant' }
 
 // az élő frissítés (SSE: booking-changed / notification-changed) azonnal szól; az időzített lekérdezés csak tartalék

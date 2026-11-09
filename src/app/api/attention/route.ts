@@ -35,10 +35,12 @@ export async function GET() {
   const today = ymdLocal(new Date())
 
   if (active.type === 'restaurant') {
-    const r = await payload.find({ collection: 'reservations', where: { and: [{ restaurant: { equals: active.id } }, { status: { equals: 'pending' } }, { date: { greater_than_equal: today } }] }, sort: 'createdAt', limit: 100, depth: 0, overrideAccess: true })
+    const r = await payload.find({ collection: 'reservations', where: { and: [{ restaurant: { equals: active.id } }, { status: { equals: 'pending' } }, { date: { greater_than_equal: today } }] }, sort: 'createdAt', limit: 100, depth: 1, overrideAccess: true })
+    // a foglaláskor kiosztott asztal(ok) neve — a jóváhagyó lapon az avatar helyén (javasolt asztal)
+    const tableName = (x: Reservation) => (x.tables ?? []).map((t) => (typeof t === 'object' && t ? (t as { name?: string }).name : null)).filter(Boolean).join(' + ')
     const pending = (r.docs as Reservation[]).map((x) => ({
       id: String(x.id), name: x.customer_name || 'Vendég', when: `${dayLabel(x.date.slice(0, 10))} · ${x.start_time}`, createdAt: x.createdAt,
-      service: `${x.pax} fő`, detail: x.occasion ?? 'asztalfoglalás', price: '', staffName: undefined, img: null,
+      service: `${x.pax} fő`, detail: tableName(x) ? `${x.occasion ?? 'asztalfoglalás'} · javasolt asztal` : (x.occasion ?? 'asztalfoglalás'), price: '', staffName: undefined, img: null, table: tableName(x) || undefined,
       rows: ([['Telefon', x.customer_phone], ['Megjegyzés', x.notes]] as [string, string | null | undefined][]).filter((y): y is [string, string] => !!y[1]),
     }))
     return NextResponse.json({ ...empty, pending, pendingTotal: r.totalDocs, prefs, kind: 'restaurant' })

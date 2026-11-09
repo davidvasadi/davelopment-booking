@@ -11,11 +11,11 @@ export const OccBadge = ({ occ }: { occ: Occ }) => <span title={OCC[occ].l}><Ico
 
 /** Egy foglalás adatai (megnyitott foglalás 6.7, popup 6.8 desktop és mobil): szolgáltatás-sor avatarral és árral,
  *  alatta címke–érték sorok. `ok`: zöld érték (pl. fizetett előleg). */
-export function BookingFacts({ service, detail, price, who = 'viktoria', img, name, rows, ok = [], compact = false, className = '' }: { service: string; detail: string; price: string; who?: string; /** élő adat: a munkatárs képe és neve (a monogramhoz) — a `who` mintafotó helyett */ img?: string | null; name?: string; rows: [string, string][]; ok?: string[]; compact?: boolean; className?: string }) {
+export function BookingFacts({ service, detail, price, who = 'viktoria', img, name, lead, rows, ok = [], compact = false, className = '' }: { service: string; detail: string; price: string; who?: string; /** élő adat: a munkatárs képe és neve (a monogramhoz) — a `who` mintafotó helyett */ img?: string | null; name?: string; /** az avatar helyett (pl. étteremnél az asztal) */ lead?: React.ReactNode; rows: [string, string][]; ok?: string[]; compact?: boolean; className?: string }) {
   const src = img !== undefined ? img : `/landing/funkciok/csapat/avatar/${who}.webp`
   return (
     <div className={className}>
-      <ListRow filled className="bg-ui-cell" leading={<Avatar size={compact ? 'sm' : 'md'} src={src} name={name} />} title={service} meta={detail} trailing={<span className={`${compact ? 'text-ui-body' : 'text-ui-title'} font-light text-ui-text`}>{price}</span>} />
+      <ListRow filled className="bg-ui-cell" leading={lead ?? <Avatar size={compact ? 'sm' : 'md'} src={src} name={name} />} title={service} meta={detail} trailing={<span className={`${compact ? 'text-ui-body' : 'text-ui-title'} font-light text-ui-text`}>{price}</span>} />
       <div className="mt-1">
         {rows.map(([k, v]) => (
           <ListRow key={k} className="px-0" title={<span className="text-ui-muted">{k}</span>} trailing={<MarqueeText className={`max-w-[220px] text-ui-body ${ok.includes(k) ? 'text-ui-ok' : 'text-ui-text'}`}>{v}</MarqueeText>} />
@@ -139,23 +139,28 @@ export function FloorPlan({ className = '', compact = false, rooms = ['Terem', '
   return (
     <Card className={className}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented size={compact ? 'sm' : 'md'} options={rooms} active={room} onSelect={onRoom} />
+        {/* sok teremnél a választó oldalra görgethető (telefonon nem lóg ki) */}
+        <div className="min-w-0 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"><Segmented size={compact ? 'sm' : 'md'} options={rooms} active={room} onSelect={onRoom} /></div>
         {!compact && meta && <Meta>{meta}</Meta>}
       </div>
-      <div className={`relative mt-4 overflow-hidden rounded-ui-inner bg-white/50 ${compact ? 'h-[230px]' : 'h-[320px]'}`}>
+      {/* reszponzív: az asztalok mérete a terem szélességéhez igazodik (container query — cqw), így telefonon arányosan
+          kisebbek, nem csúsznak egymásra és nem lógnak ki; 760 px felett a teljes méret */}
+      <div className={`relative mt-4 overflow-hidden rounded-ui-inner bg-white/50 ${compact ? 'h-[230px]' : 'h-[clamp(220px,42vw,320px)]'}`} style={{ containerType: 'inline-size' }}>
         {bar && <>
           {/* pult és bejárat */}
-          <div className={`absolute right-3 top-3 flex items-center justify-center rounded-ui-inner text-ui-label text-ui-muted ui-hatch-cell ${compact ? 'h-[36px] w-[64px]' : 'h-[64px] w-[120px]'}`}>Pult</div>
+          <div className={`absolute right-3 top-3 flex items-center justify-center rounded-ui-inner text-ui-label text-ui-muted ui-hatch-cell ${compact ? 'h-[36px] w-[64px]' : 'h-[min(64px,8.4cqw)] w-[min(120px,15.8cqw)]'}`}>Pult</div>
           <div className="absolute bottom-0 left-1/2 h-1.5 w-20 -translate-x-1/2 rounded-t-full bg-ui-dark/30" />
         </>}
         {tables.map((t) => {
           const cls = `absolute flex flex-col items-center justify-center text-ui-meta ${t.round ? 'rounded-full' : 'rounded-ui-inner'} ${FLOOR_TONE[t.st]} ${t.sel ? 'ring-[3px] ring-ui-yellow ring-offset-2 ring-offset-ui-cell' : ''}`
-          const style = { left: `${t.x}%`, top: `${t.y}%`, width: t.w * k, height: t.h * k }
+          // telefonon is legalább 34 px (kényelmesen koppintható)
+          const size = (px: number) => (compact ? px * k : `max(${Math.min(px, 34)}px, min(${px}px, ${(px / 7.6).toFixed(2)}cqw))`)
+          const style = { left: `${t.x}%`, top: `${t.y}%`, width: size(t.w), height: size(t.h), fontSize: compact ? undefined : 'clamp(9px, 1.6cqw, 12px)' }
           const inner = (
             <>
               <span className="font-medium">{t.n}</span>
-              {t.sub && !compact && <span className="text-ui-label opacity-70">{t.sub}</span>}
-              {t.left != null && <span className="absolute -right-2 -top-2" title={`foglalt, még ${t.left} perc`}><StatusPill status={t.st === 'late' ? 'bad' : 'warn'}>{t.left}&apos;</StatusPill></span>}
+              {t.sub && !compact && <span className="text-ui-label opacity-70 max-sm:hidden">{t.sub}</span>}
+              {t.left != null && <span className="absolute -right-2 -top-2 max-sm:-top-4 max-sm:origin-bottom-right max-sm:scale-75" title={`foglalt, még ${t.left} perc`}><StatusPill status={t.st === 'late' ? 'bad' : 'warn'}>{t.left}&apos;</StatusPill></span>}
             </>
           )
           return onPick
@@ -168,7 +173,7 @@ export function FloorPlan({ className = '', compact = false, rooms = ['Terem', '
         <span className="text-ui-meta text-ui-muted">{hm(time.min)}</span>
         <div className="relative h-2 flex-1 rounded-full bg-white/70">
           <span className="absolute inset-y-0 left-0 rounded-full bg-ui-dark" style={{ width: `${tpct}%` }} />
-          <span className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `${tpct}%` }}><Pill tone="yellow" className="shadow-ui-float">{hm(time.value)}</Pill></span>
+          <span className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `clamp(24px, ${tpct}%, calc(100% - 24px))` }}><Pill tone="yellow" className="shadow-ui-float">{hm(time.value)}</Pill></span>
           {onTime && <input type="range" min={time.min} max={time.max} step={5} value={time.value} onChange={(e) => onTime(Number(e.target.value))} aria-label="Időpont a napon belül" className="absolute -inset-y-3 inset-x-0 h-8 w-full cursor-pointer opacity-0" />}
         </div>
         <span className="text-ui-meta text-ui-muted">{hm(time.max)}</span>
@@ -236,7 +241,7 @@ export function PendingApproval({ className = '', arrived, queue, data, onApprov
   /** magától nyílt (beérkezéskor): „Épp most érkezett” */ arrived?: string
   /** több vár egyszerre: hányadik / hány, lapozóval */ queue?: { i: number; n: number; onPrev?: () => void; onNext?: () => void }
   /** élőben a foglalás; nélküle a minta */
-  data?: { name: string; when: string; service: string; detail: string; price: string; img?: string | null; staffName?: string; rows: [string, string][] }
+  data?: { name: string; when: string; service: string; detail: string; price: string; img?: string | null; staffName?: string; /** étterem: a kiosztott (javasolt) asztal — az avatar helyén */ table?: string; rows: [string, string][] }
   onApprove?: () => void; onDecline?: () => void; onClose?: () => void; busy?: boolean
   /** a tartalom (név, időpont, adatok) burka — élőben a lapozás csúszó animációja; a keret és a gombok állnak */
   wrap?: (body: React.ReactNode) => React.ReactNode
@@ -263,7 +268,7 @@ export function PendingApproval({ className = '', arrived, queue, data, onApprov
           <div>
             <div className="mt-5 text-ui-num font-light leading-tight text-ui-text">{d.name}</div>
             <div className="mt-1 text-ui-body text-ui-muted">{d.when}</div>
-            <BookingFacts className="mt-4" service={d.service} detail={d.detail} price={d.price} img={data ? d.img ?? null : undefined} name={d.staffName} rows={d.rows} />
+            <BookingFacts className="mt-4" service={d.service} detail={d.detail} price={d.price} img={data ? d.img ?? null : undefined} name={d.staffName} lead={data?.table ? <span className="flex h-11 min-w-11 shrink-0 items-center justify-center rounded-ui-control bg-white px-2.5 text-ui-body font-medium text-ui-text">{data.table}</span> : undefined} rows={d.rows} />
           </div>
         )
         return wrap ? <div className="overflow-hidden">{wrap(body)}</div> : body
@@ -278,11 +283,23 @@ export function PendingApproval({ className = '', arrived, queue, data, onApprov
 }
 
 /** A kijelölt asztal egy sorban (mobil terem-nézet, landing): asztal, vendég, létszám, hátralévő perc, ki jön utána. */
-export function SelectedTableStrip({ className = '' }: { className?: string }) {
+export function SelectedTableStrip({ className = '', title = 'T5 · Varga Péter · 5 fő', pill = { status: 'warn', label: "90'" }, meta = '19:00–21:00 · Születésnap · utána 21:30 Kiss Réka', onClick }: {
+  className?: string
+  title?: string
+  pill?: { status: 'ok' | 'warn' | 'bad' | 'pending' | 'neutral' | 'confirmed'; label: string } | null
+  meta?: string
+  /** élőben: a foglalás (vagy szabad asztalnál az új foglalás) megnyitása */
+  onClick?: () => void
+}) {
+  const body = (
+    <>
+      <div className="flex items-center justify-between gap-2"><MarqueeText className="text-ui-body text-ui-text">{title}</MarqueeText>{pill && <StatusPill status={pill.status}>{pill.label}</StatusPill>}</div>
+      <Meta className="text-ui-label">{meta}</Meta>
+    </>
+  )
   return (
     <Card tone="white" pad="sm" className={className}>
-      <div className="flex items-center justify-between"><span className="text-ui-body text-ui-text">T5 · Varga Péter · 5 fő</span><StatusPill status="warn">90&apos;</StatusPill></div>
-      <Meta className="text-ui-label">19:00–21:00 · Születésnap · utána 21:30 Kiss Réka</Meta>
+      {onClick ? <button type="button" onClick={onClick} className="block w-full text-left outline-none">{body}</button> : body}
     </Card>
   )
 }
@@ -319,17 +336,19 @@ export function GuestLookupDemo() {
 }
 
 /** Net nélkül (új, a design 2.13-ban is): a módosítások a telefonon várnak, és magától elmennek, amint van net. */
-export function OfflineQueue() {
+/** `compact`: egyszerűbb, kisebb (a landing kis szórt képei között): csak a jelzés és két váró módosítás. */
+export function OfflineQueue({ compact = false }: { compact?: boolean } = {}) {
+  const rows = ([[Check, 'Kiss Réka megérkezett', 'ma 11:04 · Géllakk'], [Plus, 'Új foglalás · Tóth Bence', 'ma 15:30 · Férfi vágás'], [X, 'Lemondás · Nagy Dóra', 'holnap 10:00 · Hajvágás']] as const).slice(0, compact ? 2 : 3)
   return (
-    <Card tone="white" className="w-full max-w-[400px]">
-      <Note warn icon={WifiOff}>Nincs internet — a módosítások a telefonodon várnak, és magától elküldjük őket, amint visszajön a net.</Note>
-      <Meta className="mt-4">Elküldésre vár · 3</Meta>
-      <div className="mt-1.5 space-y-1">
-        {([[Check, 'Kiss Réka megérkezett', 'ma 11:04 · Géllakk'], [Plus, 'Új foglalás · Tóth Bence', 'ma 15:30 · Férfi vágás'], [X, 'Lemondás · Nagy Dóra', 'holnap 10:00 · Hajvágás']] as const).map(([I, t, d]) => (
-          <ListRow key={t} filled leading={<IconCircle tone="cell" size="sm" icon={I} />} title={t} meta={d} trailing={<StatusPill status="warn">vár</StatusPill>} />
+    <Card tone="white" className={`w-full ${compact ? 'max-w-[300px]' : 'max-w-[400px]'}`}>
+      <Note warn icon={WifiOff}>{compact ? 'Nincs internet — elküldjük, amint visszajön.' : 'Nincs internet — a módosítások a telefonodon várnak, és magától elküldjük őket, amint visszajön a net.'}</Note>
+      {!compact && <Meta className="mt-4">Elküldésre vár · 3</Meta>}
+      <div className={`${compact ? 'mt-2' : 'mt-1.5'} space-y-1`}>
+        {rows.map(([I, t, d]) => (
+          <ListRow key={t} filled leading={<IconCircle tone="cell" size="sm" icon={I} />} title={t} meta={compact ? undefined : d} trailing={<StatusPill status="warn">vár</StatusPill>} />
         ))}
       </div>
-      <Toast className="mt-4" title="Újra van net">3 módosítás elküldve</Toast>
+      {!compact && <Toast className="mt-4" title="Újra van net">3 módosítás elküldve</Toast>}
     </Card>
   )
 }

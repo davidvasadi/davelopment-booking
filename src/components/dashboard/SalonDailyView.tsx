@@ -130,6 +130,8 @@ export interface SalonDailyViewProps {
   isClosedToday?: boolean
   /** Értesítésből érkezve ezt a foglalást nyitjuk meg automatikusan. */
   openBookingId?: string
+  /** az értesítés kattintásának időbélyege (?t=) — minden kattintás újra megnyitja ugyanazt a foglalást is */
+  openToken?: string
   /** A toolbar-ba ágyazott dátum-navigátor (server komponensből). */
   dateFilter: React.ReactNode
   /** A toolbar-ba ágyazott nap-nyomtatás gomb (server komponensből). */
@@ -176,10 +178,11 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   // Értesítésből érkezve (?booking=) automatikusan megnyitjuk a szerkesztőt.
   const lastOpenedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!openBookingId || lastOpenedRef.current === openBookingId) return
+    const key = openBookingId ? `${openBookingId}|${props.openToken ?? ''}` : null
+    if (!key || lastOpenedRef.current === key) return
     const b = props.bookings.find((x) => String(x.id) === String(openBookingId))
-    if (b) { lastOpenedRef.current = openBookingId; setOpened(b) }
-  }, [openBookingId, props.bookings])
+    if (b) { lastOpenedRef.current = key; setOpened(b) }
+  }, [openBookingId, props.openToken, props.bookings])
 
   // Kattintás egy foglalásra: a megnyitott foglalás lapja (design 6.7); a vázlat egyből a szerkesztőben nyílik.
   const [opened, setOpened] = useState<Booking | null>(null)
