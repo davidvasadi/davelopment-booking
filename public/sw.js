@@ -7,7 +7,7 @@
  *  - API kérések: NEM cache-eljük (a foglalás-adat változékony; offline a kliens
  *    a már betöltött adatból + lokális vázlatokból dolgozik).
  */
-const CACHE = 'davelopment-booking-v2'
+const CACHE = 'davelopment-booking-v3'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -110,18 +110,18 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = (event.notification.data && event.notification.data.url) || '/'
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // Ha már nyitva van egy ablak, azt fókuszáljuk és odanavigáljuk.
-      for (const client of clients) {
-        if ('focus' in client) {
-          client.focus()
-          if ('navigate' in client) client.navigate(target).catch(() => {})
-          return
-        }
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+      // Ha már nyitva van az app: fókusz, és ÜZENETBEN kérjük, hogy nyissa meg a célt (az iOS-es / Safari-s ablakon
+      // nincs WindowClient.navigate — korábban ezért csak előjött az app, de nem töltötte be az értesítés tárgyát).
+      const client = clients.find((c) => c.url.startsWith(self.location.origin)) || clients[0]
+      if (client) {
+        try { await client.focus() } catch (_) {}
+        client.postMessage({ type: 'OPEN_URL', url: target })
+        return
       }
-      // Különben új ablak.
+      // Különben új ablak a célra.
       if (self.clients.openWindow) return self.clients.openWindow(target)
     }),
   )

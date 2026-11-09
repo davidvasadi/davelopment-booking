@@ -51,7 +51,7 @@ export const notifyOnVoucher: CollectionAfterChangeHook = async ({ req, doc, ope
 
     try {
       const ownerId = relId((place as { owner?: unknown }).owner)
-      const url = kind === 'restaurant' ? '/restaurant/vouchers' : '/dashboard/vouchers'
+      const url = `${kind === 'restaurant' ? '/restaurant/vouchers' : '/dashboard/vouchers'}?voucher=${doc.id}`
       await sendPushToUsers(req.payload, [ownerId], {
         title: `${title} · ${place.name ?? ''}`.trim().replace(/ ·\s*$/, ''),
         body,

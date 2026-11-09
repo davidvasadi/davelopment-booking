@@ -410,13 +410,13 @@ function NotificationRow({ n, onOpen, onRemove, onHandled }: { n: Notification; 
       </button>
       <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
         {!n.read && (
-          <span className="absolute h-2 w-2 rounded-full bg-ui-yellow transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+          <span className="absolute h-2 w-2 rounded-full bg-ui-yellow transition-all duration-150 ease-out [@media(hover:hover)]:group-hover:scale-50 [@media(hover:hover)]:group-hover:opacity-0 [@media(hover:none)]:hidden" />
         )}
         <button
           type="button"
           aria-label="Értesítés törlése"
           onClick={onRemove}
-          className="absolute inset-0 flex items-center justify-center rounded-full text-ui-muted opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-ui-cell hover:text-ui-text group-hover:opacity-100 group-hover:scale-100"
+          className="absolute inset-0 flex items-center justify-center rounded-full text-ui-muted opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-ui-cell hover:text-ui-text [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:scale-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:scale-100"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -454,13 +454,13 @@ function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: 
         </div>
         <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
           {!n.read && (
-            <span className="absolute h-2 w-2 rounded-full bg-ui-yellow transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+            <span className="absolute h-2 w-2 rounded-full bg-ui-yellow transition-all duration-150 ease-out [@media(hover:hover)]:group-hover:scale-50 [@media(hover:hover)]:group-hover:opacity-0 [@media(hover:none)]:hidden" />
           )}
           <span
             role="button"
             aria-label="Értesítés törlése"
             onClick={(e) => { e.stopPropagation(); onRemove() }}
-            className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full text-ui-muted opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-ui-cell hover:text-ui-text group-hover:opacity-100 group-hover:scale-100"
+            className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full text-ui-muted opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-ui-cell hover:text-ui-text [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:scale-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:scale-100"
           >
             <X className="h-3.5 w-3.5" />
           </span>

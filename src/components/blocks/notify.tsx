@@ -112,7 +112,7 @@ export function NotificationsInbox({ groups = SAMPLE_INBOX, total = 5, unread = 
                 </div>
                 <span className="flex shrink-0 items-center gap-1">
                   {r.unread && <span aria-label="Olvasatlan" className="h-2 w-2 rounded-full bg-ui-yellow" />}
-                  <IconButton icon={X} label="Értesítés törlése" size="sm" variant="cell" onClick={r.onRemove} className="opacity-60 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" />
+                  <IconButton icon={X} label="Értesítés törlése" size="sm" variant="cell" onClick={r.onRemove} className="opacity-60 transition-opacity [@media(hover:hover)]:sm:opacity-0 [@media(hover:hover)]:sm:group-hover:opacity-100" />
                 </span>
               </div>
             ))}
