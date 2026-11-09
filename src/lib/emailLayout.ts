@@ -108,6 +108,41 @@ const HERO_ICONS: Record<Exclude<HeroIcon, 'logo'>, { color: string; bg: string;
   },
 }
 
+// ── Állapot-pill (design: E-mailek terve — a cím fölött) ──────────────────────
+export type EmailStatus = { label: string; tone: 'ok' | 'bad' | 'warn' | 'pending' | 'neutral' }
+const STATUS_TONE: Record<EmailStatus['tone'], { bg: string; fg: string; dot: string }> = {
+  ok:      { bg: '#E8F3D9', fg: '#4F7A12', dot: '#74AA19' },
+  bad:     { bg: '#FBE4E0', fg: '#B8442F', dot: '#D9604A' },
+  warn:    { bg: '#FDEFD5', fg: '#9A6410', dot: '#E3A33B' },
+  pending: { bg: '#FFF1C2', fg: '#6B5410', dot: '#E6B800' },
+  neutral: { bg: '#EEEEEE', fg: '#3B3B3B', dot: '#9A9A9A' },
+}
+/** kis pill pöttyel; a színe sötét módban is marad (lib/emailDark) */
+export function statusPill(st: EmailStatus): string {
+  const c = STATUS_TONE[st.tone]
+  const inner = `<span style="color:${c.dot};font-size:10px;line-height:1;vertical-align:1px">&#9679;</span>&nbsp;<span style="color:${c.fg};font-size:12px;font-weight:600">${escapeHtml(st.label)}</span>`
+  return `<span style="display:inline-block;${keepBg(c.bg)};border-radius:999px">${keepContent(c.bg, inner, { pad: '5px 11px', radius: '999px' })}</span>`
+}
+/** A vendég-levelek állapot-pillje a levél nyelvén (design: E-mailek terve). */
+const STATUS_TEXT: Record<string, Record<string, string>> = {
+  confirmed: { hu: 'Megerősítve', en: 'Confirmed', de: 'Bestätigt', fr: 'Confirmé', es: 'Confirmado', it: 'Confermato' },
+  reminder: { hu: 'Emlékeztető', en: 'Reminder', de: 'Erinnerung', fr: 'Rappel', es: 'Recordatorio', it: 'Promemoria' },
+  cancelled: { hu: 'Lemondva', en: 'Cancelled', de: 'Storniert', fr: 'Annulé', es: 'Cancelado', it: 'Annullato' },
+  declined: { hu: 'Elutasítva', en: 'Declined', de: 'Abgelehnt', fr: 'Refusé', es: 'Rechazado', it: 'Rifiutato' },
+  modified: { hu: 'Módosítva', en: 'Changed', de: 'Geändert', fr: 'Modifié', es: 'Modificado', it: 'Modificato' },
+  feedback: { hu: 'Visszajelzés', en: 'Feedback', de: 'Feedback', fr: 'Avis', es: 'Opinión', it: 'Feedback' },
+}
+const STATUS_KIND_TONE: Record<string, EmailStatus['tone']> = { confirmed: 'ok', reminder: 'neutral', cancelled: 'bad', declined: 'bad', modified: 'warn', feedback: 'neutral' }
+export function emailStatus(kind: keyof typeof STATUS_TEXT, locale?: string | null): EmailStatus {
+  const l = locale && locale in STATUS_TEXT[kind] ? locale : 'hu'
+  return { label: STATUS_TEXT[kind][l], tone: STATUS_KIND_TONE[kind] }
+}
+
+/** sárga dátum-pill (a terv „Időpont” pillje) */
+function datePillHtml(text: string): string {
+  return `<span style="display:inline-block;${keepBg(COLORS.accent)};border-radius:999px">${keepContent(COLORS.accent, `<span style="color:#3B3B3B;font-size:13px;font-weight:600;white-space:nowrap">${escapeHtml(text)}</span>`, { pad: '7px 14px', radius: '999px' })}</span>`
+}
+
 // ── Dátum-formázás ──────────────────────────────────────────────────────────────
 
 const LOCALE_TAG: Record<string, string> = {
@@ -128,10 +163,10 @@ export function infoRow(icon: DetailIcon, label: string, value: string): string 
   // az ikon-oszlop kikerült: SVG volt, amit a Gmail nem mutat (üres behúzás maradt), és a design táblázatában sincs.
   // Az `icon` paraméter marad, hogy a hívókat ne kelljen átírni.
   void icon
-  const borderCell = `border-bottom:1px solid ${COLORS.border}`
+  const borderCell = `border-bottom:1px dashed rgba(59,59,59,0.18)`
   return `<tr>
-    <td style="${borderCell};padding:13px 10px 13px 20px;color:${COLORS.textSoft};font-size:13px;vertical-align:middle">${label}</td>
-    <td style="${borderCell};padding:13px 20px 13px 0;color:${COLORS.text};font-size:13px;font-weight:600;text-align:right;vertical-align:middle;word-break:break-word;overflow-wrap:anywhere">${value}</td>
+    <td style="${borderCell};padding:12px 10px 12px 16px;color:${COLORS.textSoft};font-size:13px;vertical-align:middle">${label}</td>
+    <td style="${borderCell};padding:12px 16px 12px 0;color:${COLORS.text};font-size:13px;font-weight:500;text-align:right;vertical-align:middle;word-break:break-word;overflow-wrap:anywhere">${value}</td>
   </tr>`
 }
 
@@ -139,8 +174,8 @@ export function infoRow(icon: DetailIcon, label: string, value: string): string 
 
 export function detailsCard(rows: string): string {
   return `<tr>
-    <td style="background:${COLORS.surface};padding:24px 28px 0">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.muted};border:1px solid ${COLORS.border};border-radius:18px;overflow:hidden;border-collapse:separate">
+    <td style="background:${COLORS.surface};padding:20px 24px 0">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.muted};border-radius:18px;overflow:hidden;border-collapse:separate;padding:2px 0">
         ${rows}
       </table>
     </td>
@@ -191,8 +226,10 @@ export function brandHeroBlock(opts: {
   subtitle: string
   formattedDate?: string | null
   time?: string | null
+  /** állapot-pill a cím fölött (pl. Megerősítve / Emlékeztető) — a hívó adja, a levél nyelvén */
+  status?: EmailStatus | null
 }): string {
-  const { brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl, icon, title, subtitle, formattedDate, time } = opts
+  const { brandName, brandLogoUrl, brandLogoHeight, brandCoverUrl, icon, title, subtitle, formattedDate, time, status } = opts
   const def = HERO_ICONS[icon === 'logo' ? 'bell' : icon]
   const alt = escapeHtml(brandName)
   // A hírlevélnél nem egy állapot-ikon (harang/pipa) kell a badge-be, hanem az üzlet SAJÁT
@@ -204,36 +241,15 @@ export function brandHeroBlock(opts: {
   // 1–2. Borító + logó egyben (a logó a KÉPEN ül, a kép látszik mögötte).
   const brandTop = brandTopRow(brandCoverUrl, brandLogoUrl, alt, brandLogoHeight)
 
-  // 3. Glass dátum-pill (fehér háttéren, kékes glass-hatással)
-  const datePill = (formattedDate && time && icon !== 'cancel')
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:22px auto 0">
-        <tr>
-          <td style="padding:11px 22px;background:${COLORS.glassBg};border:1px solid ${COLORS.glassBorder};border-radius:999px;text-align:center">
-            <span style="color:${COLORS.textSoft};font-size:12px;white-space:nowrap">${escapeHtml(formattedDate)}</span>
-            <span style="color:${COLORS.border};margin:0 8px">·</span>
-            <span style="color:${COLORS.text};font-size:13px;font-weight:700;letter-spacing:-0.2px;white-space:nowrap">${escapeHtml(time)}</span>
-          </td>
-        </tr>
-      </table>`
-    : ''
-
-  // A badge-kör csak állapot-ikonoknál (success/cancel/bell) kell — a logó a brandTopRow-ban
-  // MÁR megjelent egyszer, egy második, sárga körbe zsugorított másolat csak felesleges
-  // ismétlés (és kis/nem-négyzetes logóknál csúnyán néz ki a kényszerített kör-háttérben).
-  const iconBadge = icon === 'logo' ? '' : `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px">
-        <tr>
-          <td style="width:56px;height:56px;border-radius:18px;background:${def.bg};text-align:center;vertical-align:middle">
-            ${iconSvg}
-          </td>
-        </tr>
-      </table>`
-
-  // 4. Fehér hero szekció
+  void iconSvg
+  // 3. A terv fejrésze (design: E-mailek): balra zárva az állapot-pill, alatta a vékony cím, egy mondat, és a sárga
+  //    dátum-pill. Az ikon-négyzet nincs (a Gmail az SVG-t nem mutatja).
+  const datePill = (formattedDate && time && icon !== 'cancel') ? `<div style="margin-top:16px">${datePillHtml(`${formattedDate} · ${time}`)}</div>` : ''
   const heroSection = `<tr>
-    <td style="background:${COLORS.surface};padding:32px 32px 28px;text-align:center">
-      ${iconBadge}
-      <h1 style="margin:0 0 7px;font-size:27px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.1">${escapeHtml(title)}</h1>
-      <p style="margin:0 auto;max-width:320px;color:${COLORS.textFaint};font-size:14px;line-height:1.55">${escapeHtml(subtitle)}</p>
+    <td style="background:${COLORS.surface};padding:28px 24px 0;text-align:left">
+      ${status ? `<div style="margin:0 0 12px">${statusPill(status)}</div>` : ''}
+      <h1 style="margin:0 0 6px;font-size:26px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.15">${escapeHtml(title)}</h1>
+      <p style="margin:0;color:${COLORS.textSoft};font-size:14px;line-height:1.55">${escapeHtml(subtitle)}</p>
       ${datePill}
     </td>
   </tr>`
@@ -253,14 +269,15 @@ function brandHeader(opts: {
   return brandTopRow(brandCoverUrl, brandLogoUrl, escapeHtml(brandName), brandLogoHeight)
 }
 
-export function heroBlock(opts: { icon: Exclude<HeroIcon, 'logo'>; title: string; subtitle: string }): string {
+export function heroBlock(opts: { icon: Exclude<HeroIcon, 'logo'>; title: string; subtitle: string; status?: EmailStatus | null }): string {
   // a cím fölötti ikon-négyzet kikerült: SVG volt, amit a Gmail nem mutat (üres négyzet maradt), és a design
   // (E-mailek) sem tartalmazza. Az `icon` paraméter marad, hogy a hívókat ne kelljen átírni.
   void opts.icon
   return `<tr>
-    <td style="background:${COLORS.surface};padding:28px 32px 0;text-align:center">
-      <h1 style="margin:0 0 7px;font-size:27px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.1">${opts.title}</h1>
-      <p style="margin:0 auto;max-width:340px;color:${COLORS.textFaint};font-size:14px;line-height:1.55">${opts.subtitle}</p>
+    <td style="background:${COLORS.surface};padding:28px 24px 0;text-align:left">
+      ${opts.status ? `<div style="margin:0 0 12px">${statusPill(opts.status)}</div>` : ''}
+      <h1 style="margin:0 0 6px;font-size:26px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.15">${opts.title}</h1>
+      <p style="margin:0;color:${COLORS.textSoft};font-size:14px;line-height:1.55">${opts.subtitle}</p>
     </td>
   </tr>`
 }
@@ -272,7 +289,7 @@ export function introBlock(intro: string | null | undefined, vars: Record<string
   if (!text) return ''
   const html = renderTemplate(text, vars).replace(/\n/g, '<br>')
   return `<tr>
-    <td style="background:${COLORS.surface};padding:22px 28px 0">
+    <td style="background:${COLORS.surface};padding:20px 24px 0">
       <p style="margin:0;color:${COLORS.text};font-size:14px;line-height:1.65">${html}</p>
     </td>
   </tr>`
@@ -287,7 +304,7 @@ export function richContentBlock(html: string | null | undefined): string {
   const trimmed = html?.trim()
   if (!trimmed) return ''
   return `<tr>
-    <td style="background:${COLORS.surface};padding:22px 28px 0">
+    <td style="background:${COLORS.surface};padding:20px 24px 0">
       <div style="color:${COLORS.text};font-size:14px;line-height:1.65">${trimmed}</div>
     </td>
   </tr>`
@@ -328,10 +345,6 @@ export function calendarBlock(opts: {
 
   const calSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B3B3B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:7px"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>`
 
-  // Hint: ha közvetlen .ics-t kap, tájékoztatás hogy Google nélkül megy.
-  const hintText = icsUrl
-    ? 'Megnyitás után a naptárad automatikusan felveszi az időpontot — Google-fiók nélkül.'
-    : escapeHtml(t(locale, 'email.ics.hint'))
 
   // Útvonaltervezés gomb — footer-sötét háttér (COLORS.ink), világos szöveg (COLORS.footerText).
   let dirBtn = ''
@@ -340,16 +353,15 @@ export function calendarBlock(opts: {
     const mapsUrl = /^https?:\/\//i.test(dirClean)
       ? dirClean
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dirClean)}`
-    const pinSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${COLORS.footerText}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:6px"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`
-    dirBtn = `<!--[if mso]></td><td style="width:10px;font-size:0">&nbsp;</td><td style="vertical-align:middle"><![endif]-->${keepButton({ href: mapsUrl, bg: COLORS.ink, label: `${pinSvg}${escapeHtml(t(locale, 'email.footer.directions'))}`, font: `color:${COLORS.footerText};font-size:12px;font-weight:600;letter-spacing:-0.1px`, pad: '12px 18px', style: 'margin-left:8px;vertical-align:middle' })}`
+    const pinSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${COLORS.text}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:6px"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`
+    dirBtn = `<!--[if mso]></td><td style="width:10px;font-size:0">&nbsp;</td><td style="vertical-align:middle"><![endif]-->${keepButton({ href: mapsUrl, bg: COLORS.muted, label: `${pinSvg}${escapeHtml(t(locale, 'email.footer.directions'))}`, font: `color:${COLORS.text};font-size:13px;font-weight:600;letter-spacing:-0.1px`, pad: '12px 20px', style: 'margin-left:6px;vertical-align:middle' })}`
   }
 
   return `<tr>
-    <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+    <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
       <!--[if mso]><table style="display:inline-table;border-collapse:collapse"><tr><td style="vertical-align:middle"><![endif]-->
-      ${keepButton({ href: calUrl, bg: COLORS.accent, label: `${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}`, font: 'color:#3B3B3B;font-size:13px;font-weight:600;letter-spacing:-0.1px', pad: '12px 24px', style: 'vertical-align:middle' })}${dirBtn}
+      ${keepButton({ href: calUrl, bg: COLORS.accent, label: `${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}`, font: 'color:#3B3B3B;font-size:13px;font-weight:600;letter-spacing:-0.1px', pad: '12px 22px', style: 'vertical-align:middle' })}${dirBtn}
       <!--[if mso]></td></tr></table><![endif]-->
-      <p style="margin:10px 0 0;color:${COLORS.textFaint};font-size:11px">${hintText}</p>
     </td>
   </tr>`
 }
@@ -360,7 +372,7 @@ export function cancelBlock(cancelUrl: string | null, locale: Locale = 'hu'): st
   if (!cancelUrl) return ''
   const link = `<a href="${cancelUrl}" style="color:${COLORS.textSoft};text-decoration:underline">${t(locale, 'email.cancelLink.label')}</a>`
   return `<tr>
-    <td style="background:${COLORS.surface};padding:14px 28px 0;text-align:center">
+    <td style="background:${COLORS.surface};padding:16px 24px 0;text-align:left">
       <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancelLink.text', { link })}</p>
     </td>
   </tr>`
@@ -427,8 +439,8 @@ export function footerInfoBlock(opts: {
   const inner = [termsPart, contactPart].filter(Boolean).join('<div style="height:14px;line-height:14px;font-size:0">&nbsp;</div>')
 
   return `<tr>
-    <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:left">
-      <div style="border-top:1px solid ${COLORS.border};padding-top:18px">
+    <td style="background:${COLORS.surface};padding:24px 24px 0;text-align:left">
+      <div style="border-top:1px dashed rgba(59,59,59,0.18);padding-top:16px">
         ${inner}
       </div>
     </td>

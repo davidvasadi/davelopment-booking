@@ -15,6 +15,7 @@ import {
   renderSubject,
   escapeHtml,
   COLORS,
+  emailStatus,
 } from './emailLayout'
 import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
@@ -471,7 +472,7 @@ export async function sendVoucherPaymentLinkEmail(data: { restaurant: Restaurant
       subtitle: `${data.restaurant.name} elküldte a fizetési linket${data.typeName ? ` (${escapeHtml(data.typeName)})` : ''} — ${formatPrice(data.amountHuf, 'HUF')}.`,
     })}
     <tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
         <a href="${data.url}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:999px;letter-spacing:-0.1px">Fizetés</a>
       </td>
     </tr>
@@ -523,6 +524,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
       brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'success',
+      status: emailStatus('confirmed', locale),
       title: t(locale, 'email.confirm.title'),
       subtitle: t(locale, 'email.greeting', { name: reservation.customer_name }),
       formattedDate: formatBookingDate(reservation.date, locale),
@@ -547,6 +549,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
           : null,
         directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
       })}
+      ${cancelBlock(cancelUrl, locale)}
       ${footerInfoBlock({
         hasTerms: hasTerms(restaurant),
         bookingUrl: `${APP_URL}/${restaurant.slug}/terms`,
@@ -555,8 +558,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
         address: restaurant.email_show_address ? contactAddress(restaurant) : null,
         directionsAddress: null,
         locale,
-      })}
-      ${cancelBlock(cancelUrl, locale)}`}
+      })}`}
       ${bottomSpacer()}
     `,
   })
@@ -586,12 +588,25 @@ function notificationHtml(data: ReservationEmailData): string {
   `)
 }
 
+/** Az üzlet elérhetősége a levél alján (design: E-mailek terve) — a tulaj beállításai szerint mit mutat. */
+function contactInfo(restaurant: Restaurant, locale: Parameters<typeof footerInfoBlock>[0]['locale']): string {
+  return footerInfoBlock({
+    hasTerms: false,
+    phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
+    email: restaurant.email_show_email ? restaurant.email : null,
+    address: restaurant.email_show_address ? contactAddress(restaurant) : null,
+    directionsAddress: null,
+    locale,
+  })
+}
+
 function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'bell',
+      status: emailStatus('reminder', locale),
       title: 'Közeleg a foglalásod',
       subtitle: `Kedves ${reservation.customer_name}, csak hogy emlékeztessünk: hamarosan várunk!`,
     })}
@@ -611,6 +626,7 @@ function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): str
       directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
     })}
     ${cancelBlock(cancelUrl, locale)}`}
+    ${contactInfo(restaurant, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -623,15 +639,17 @@ function feedbackHtml(data: ReservationEmailData): string {
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'bell',
+      status: emailStatus('feedback', (reservation as { locale?: string }).locale),
       title: 'Milyen volt nálunk?',
       subtitle: `Kedves ${reservation.customer_name}, reméljük jól érezted magad. Mondd el a véleményed!`,
     })}
     ${introBlockFromJson(restaurant.feedback_email_intro, emailVars(data))}
     ${hasBookingBlock(restaurant.feedback_email_intro) ? '' : `<tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
         <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
     </tr>`}
+    ${contactInfo(restaurant, normalizeLocale((reservation as { locale?: string }).locale))}
     ${bottomSpacer()}
   `)
 }
@@ -642,11 +660,13 @@ function cancellationHtml(data: ReservationEmailData): string {
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'cancel',
+      status: emailStatus('cancelled', locale),
       title: t(locale, 'email.cancel.title'),
       subtitle: t(locale, 'email.cancel.body'),
     })}
     ${introBlockFromJson(restaurant.cancel_email_intro, emailVars(data))}
     ${hasBookingBlock(restaurant.cancel_email_intro) ? '' : detailsCard(detailRows(data))}
+    ${contactInfo(restaurant, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -657,15 +677,17 @@ function declineHtml(data: ReservationEmailData): string {
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'cancel',
+      status: emailStatus('declined', locale),
       title: t(locale, 'email.decline.title'),
       subtitle: t(locale, 'email.decline.body'),
     })}
     ${detailsCard(detailRows(data))}
     <tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
         <a href="${APP_URL}/${restaurant.slug}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${t(locale, 'email.decline.cta')}</a>
       </td>
     </tr>
+    ${contactInfo(restaurant, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -685,6 +707,7 @@ function modificationHtml(data: ReservationEmailData): string {
       brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'bell',
+      status: emailStatus('modified', locale),
       title: 'Foglalásod módosítva',
       subtitle: `Kedves ${reservation.customer_name}, az alábbi foglalás adatai megváltoztak.`,
       formattedDate: formatBookingDate(reservation.date, locale),

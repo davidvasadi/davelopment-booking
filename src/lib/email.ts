@@ -15,6 +15,7 @@ import {
   renderSubject,
   escapeHtml,
   COLORS,
+  emailStatus,
 } from './emailLayout'
 import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
@@ -507,7 +508,7 @@ export async function sendVoucherPaymentLinkEmail(data: { salon: Salon; purchase
       subtitle: `${data.salon.name} elküldte a fizetési linket${data.typeName ? ` (${escapeHtml(data.typeName)})` : ''} — ${formatPrice(data.amountHuf, 'HUF')}.`,
     })}
     <tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
         <a href="${data.url}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:999px;letter-spacing:-0.1px">Fizetés</a>
       </td>
     </tr>
@@ -608,6 +609,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
       brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'success',
+      status: emailStatus('confirmed', locale),
       title: t(locale, 'email.confirm.title'),
       subtitle: t(locale, 'email.greeting', { name: booking.customer_name }),
       formattedDate: formatBookingDate(booking.date, locale),
@@ -629,6 +631,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
           : null,
         directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
       })}
+      ${cancelBlock(cancelUrl, locale)}
       ${footerInfoBlock({
         hasTerms: hasTerms(salon),
         bookingUrl: `${APP_URL}/${salon.slug}/terms`,
@@ -637,8 +640,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
         address: salon.email_show_address ? salonAddress(salon) : null,
         directionsAddress: null,
         locale,
-      })}
-      ${cancelBlock(cancelUrl, locale)}`}
+      })}`}
       ${bottomSpacer()}
     `,
   })
@@ -668,12 +670,25 @@ function notificationHtml(data: BookingEmailData): string {
   `)
 }
 
+/** Az üzlet elérhetősége a levél alján (design: E-mailek terve) — a tulaj beállításai szerint mit mutat. */
+function contactInfo(salon: Salon, locale: Parameters<typeof footerInfoBlock>[0]['locale']): string {
+  return footerInfoBlock({
+    hasTerms: false,
+    phone: salon.email_show_phone ? (salon.email_contact_phone?.trim() || salon.phone) : null,
+    email: salon.email_show_email ? salon.email : null,
+    address: salon.email_show_address ? salonAddress(salon) : null,
+    directionsAddress: null,
+    locale,
+  })
+}
+
 function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   return wrap(salon, `
     ${heroBlock({
       icon: 'bell',
+      status: emailStatus('reminder', locale),
       title: 'Közeleg a foglalásod',
       subtitle: `Kedves ${booking.customer_name}, csak hogy emlékeztessünk: hamarosan találkozunk!`,
     })}
@@ -690,6 +705,7 @@ function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string 
       directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
     })}
     ${cancelBlock(cancelUrl, locale)}`}
+    ${contactInfo(salon, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -702,15 +718,17 @@ function feedbackHtml(data: BookingEmailData): string {
   return wrap(salon, `
     ${heroBlock({
       icon: 'bell',
+      status: emailStatus('feedback', (booking as { locale?: string }).locale),
       title: 'Milyen volt nálunk?',
       subtitle: `Kedves ${booking.customer_name}, reméljük elégedett voltál a látogatásoddal. Mondd el a véleményed!`,
     })}
     ${introBlockFromJson(salon.feedback_email_intro, emailVars(data))}
     ${hasBookingBlock(salon.feedback_email_intro) ? '' : `<tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
         <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
     </tr>`}
+    ${contactInfo(salon, normalizeLocale((booking as { locale?: string }).locale))}
     ${bottomSpacer()}
   `)
 }
@@ -728,6 +746,7 @@ function cancellationHtml(data: BookingEmailData): string {
   return wrap(salon, `
     ${heroBlock({
       icon: 'cancel',
+      status: emailStatus('cancelled', locale),
       title: t(locale, 'email.cancel.title'),
       subtitle: t(locale, 'email.cancel.body'),
     })}
@@ -736,6 +755,7 @@ function cancellationHtml(data: BookingEmailData): string {
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
       <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancel.hint')}</p>
     </td></tr>`}
+    ${contactInfo(salon, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -751,15 +771,17 @@ function declineHtml(data: BookingEmailData): string {
   return wrap(salon, `
     ${heroBlock({
       icon: 'cancel',
+      status: emailStatus('declined', locale),
       title: t(locale, 'email.decline.title'),
       subtitle: t(locale, 'email.decline.body'),
     })}
     ${detailsCard(rows)}
     <tr>
-      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      <td style="background:${COLORS.surface};padding:20px 24px 0;text-align:left">
         <a href="${APP_URL}/${salon.slug}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${t(locale, 'email.decline.cta')}</a>
       </td>
     </tr>
+    ${contactInfo(salon, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -779,6 +801,7 @@ function modificationHtml(data: BookingEmailData): string {
       brandLogoUrl: logoUrl, brandLogoHeight: logoH,
       brandCoverUrl: coverUrl,
       icon: 'bell',
+      status: emailStatus('modified', locale),
       title: 'Foglalásod módosítva',
       subtitle: `Kedves ${escapeHtml(booking.customer_name)}, az alábbi foglalás adatai megváltoztak.`,
       formattedDate: formatBookingDate(booking.date, locale),
