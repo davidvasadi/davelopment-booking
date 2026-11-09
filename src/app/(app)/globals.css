@@ -370,3 +370,9 @@ html:has([data-auth-dark]) body { background-color: #120D0B; }
   }
 }
 
+
+/* Főoldali hero belépő (cím, gomb, telefon) — tiszta CSS, hogy a JS betöltése előtt is lejátsszon és látszódjon
+   (framer-motion `initial` esetén a szerver opacity:0-val küldte, és csak hidratálás után jelent meg). */
+@keyframes ui-hero-rise { from { opacity: 0; transform: translateY(var(--rise, 24px)); } to { opacity: 1; transform: none; } }
+.ui-hero-rise { animation: ui-hero-rise .8s cubic-bezier(.22, 1, .36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .ui-hero-rise { animation: none; } }

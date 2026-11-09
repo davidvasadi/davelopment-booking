@@ -539,11 +539,11 @@ export function ConceptLightHero({ trialDays = 14 }: { trialDays?: number }) {
       <div className="relative z-20 px-4 py-2.5 lg:px-5"><div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="concept2-hero-nav" variant="plain" login={false} /></div></div>
       <NavOnScrollUp />
       <div className="relative z-20 mx-auto mt-[clamp(0.5rem,4vh,4rem)] max-w-[900px] px-4 text-center">
-        <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-          className="text-[clamp(2rem,min(5.4vw,7.6vh),76px)] font-medium leading-[1.02] tracking-[-0.045em]">Kezeld a naptárad.<br />Foglaljanak azonnal.<br /><span className="text-ui-muted">Építsd az üzleted.</span></motion.h1> {/* ui-allow: hero H1 */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mt-[clamp(1rem,3.5vh,2rem)] flex justify-center">
+        {/* belépő: CSS (ui-hero-rise), nem framer — így a JS betöltése előtt is megjelenik (gyors első kép, LCP) */}
+        <h1 className="ui-hero-rise text-[clamp(2rem,min(5.4vw,7.6vh),76px)] font-medium leading-[1.02] tracking-[-0.045em]">Kezeld a naptárad.<br />Foglaljanak azonnal.<br /><span className="text-ui-muted">Építsd az üzleted.</span></h1> {/* ui-allow: hero H1 */}
+        <div className="ui-hero-rise mt-[clamp(1rem,3.5vh,2rem)] flex justify-center" style={{ animationDelay: '.15s', ['--rise' as string]: '12px' }}>
           <HeroButton href="/register" label={`Próbáld ki ${trialDays} napig ingyen`} />
-        </motion.div>
+        </div>
       </div>
       {/* a telefon a hegyek elől emelkedik ki; fölötte, mögüle becsúszik két értesítés */}
       {/* a telefon a gomb ALATT, sima elrendezésben (nem az aljához rögzítve) — így semmilyen ablakmagasságnál nem csúszik a gombra; az alja kilóg, a szekció levágja */}
@@ -554,8 +554,8 @@ export function ConceptLightHero({ trialDays = 14 }: { trialDays?: number }) {
           <motion.div style={{ y: phoneY }} className="relative">
           {/* homályos sáv csak a telefon tetején, az értesítések alján: innen bukkannak elő (a chipek fölött, a telefon alatt) */}
           <div className="pointer-events-none absolute -inset-x-[14%] top-0 z-[5] h-[50px] rounded-[50%] bg-white/60 blur-xl" />
-          <motion.img initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 90, damping: 18, delay: 0.25 }}
-            src="/landing/hero/foglalasok-idovonal-davelopment-booking.webp" alt="davelopment booking — a Foglalások nap-idővonala telefonon" className="relative z-10 w-full drop-shadow-[0_30px_60px_rgba(0,0,0,.35)]" /> {/* ui-allow: telefon-árnyék */}
+          <img fetchPriority="high" style={{ animationDelay: '.25s', ['--rise' as string]: '80px' }}
+            src="/landing/hero/foglalasok-idovonal-davelopment-booking.webp" alt="davelopment booking — a Foglalások nap-idővonala telefonon" className="ui-hero-rise relative z-10 w-full drop-shadow-[0_30px_60px_rgba(0,0,0,.35)]" /> {/* ui-allow: telefon-árnyék */}
         </motion.div></div>
       </div>
     </section>
