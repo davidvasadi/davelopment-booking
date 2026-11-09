@@ -1,10 +1,13 @@
 'use client'
 
+import { ChevronRight, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { motion, useInView, animate } from 'framer-motion'
+import { RevealText } from '@/components/landing/Motion'
 import { EASE, SPRING_QUICK, staggerContainer, fadeUp, buttonHover } from '@/lib/motion'
-import { ArrowRight } from 'lucide-react'
 import { Grain } from '@/components/landing/Grain'
+import { featurePath } from '@/lib/landingFeatures'
 
 const cardV = {
   hidden: { opacity: 0, scale: 0.94 },
@@ -92,7 +95,7 @@ export function TeamSection({
   subtitle,
 }: {
   /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
-  title?: React.ReactNode
+  title?: string
   subtitle?: string
 } = {}) {
   const cImg = useCard()
@@ -109,16 +112,17 @@ export function TeamSection({
         transition={SPRING_QUICK}
         className="flex flex-col gap-6 mb-12 lg:mb-14"
       >
-        <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
+        <span className="inline-flex self-start items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]">
           Csapat
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
-          <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink max-w-2xl">
-            {title ?? (<>Az egész csapat,<br className="hidden sm:block" /> egy képernyőn.</>)}
-          </h2>
-          <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
+          <RevealText text={title ?? 'Az egész csapat,\negy képernyőn.'} className="font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink max-w-2xl" />
+          <div className="flex max-w-sm flex-col gap-3 lg:pb-1">
+          <p className="text-[16px] leading-[1.6] text-brand-ink/55">
             {subtitle ?? 'Beosztások, teljesítmény, kommunikáció — mindenki látja, ami rá tartozik.'}
           </p>
+          <Link href={featurePath('/funkciok/naptar')} className="inline-flex items-center gap-1 text-[15px] font-semibold text-brand-ink">Részletek <ChevronRight className="h-4 w-4" strokeWidth={2.2} /></Link>
+          </div>
         </div>
       </motion.div>
 
@@ -190,9 +194,7 @@ export function TeamSection({
             (Próbáld ki)
           </motion.span>
           <motion.div variants={imgV} className="relative flex flex-col gap-4">
-            <h3 className="font-semibold text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.05em] text-white">
-              Adj hozzáférést minden munkatársnak.
-            </h3>
+            <RevealText as="h3" text="Adj hozzáférést minden munkatársnak." className="font-semibold text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.05em] text-white" />
             <p className="text-[16px] leading-[1.6]" style={{ color: 'rgba(255,255,255,.5)' }}>
               5 perc alatt mindenki a saját nézetén dolgozik — nincs IT, nincs telepítés.
             </p>

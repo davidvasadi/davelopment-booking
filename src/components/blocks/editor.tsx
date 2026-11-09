@@ -1,6 +1,9 @@
-import { ArrowRight, ChevronLeft, ChevronRight, Eye, Settings, X, type LucideIcon } from 'lucide-react'
-import { Avatar, IconButton, IconCircle, ListRow, Pill, MarqueeText } from '@/components/ui-kit'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Bold, ChevronLeft, ChevronRight, Eye, Italic, Link2, List, Settings, X, type LucideIcon } from 'lucide-react'
+import { Avatar, IconButton, IconCircle, ListRow, Pill, MarqueeText, SheetHandle } from '@/components/ui-kit'
+import { EditorPublishBar as PublishBar } from './editor-publish-bar'
 import { Ring } from './charts'
+import { LiveStage } from './public'
+import { FitCard } from '@/components/landing/FitCard'
 import { BIZ_LOGO, PoweredBy } from './brand'
 // a közzétételi sáv állapotot tart (nyelv-menü) — külön kliens-fájlban, hogy ez a fájl szerver-oldalon is használható maradjon
 export { EditorPublishBar } from './editor-publish-bar'
@@ -19,54 +22,22 @@ export function BrowserBar() {
 
 /** A foglalóoldal desktop előnézete böngésző-keretben: borító, bemutatkozás, a kijelölt szakasz (sárga keret + lebegő
  *  mini-eszköztár), csapat, rejtett szakasz jelölése. */
-export function BookingPagePreview({ className = '' }: { className?: string }) {
+/** A foglalóoldal-szerkesztő előnézete a landing / design mockjaiban: a VALÓDI élő oldal (LiveStage) a helyben
+ *  szerkesztéssel (21.6.3) — a kijelölt leírás sárga kerettel, fölötte a gyors-sáv. Korábban egy kézzel rajzolt, régi
+ *  előnézet volt; mostantól a szerkesztő változásait magától követi. `mobile`: a telefonos nézet. */
+/** a landing-mock háttere: fodrászstúdió (Pexels, Emirhan Sayar) */
+const NY_SALON = '/design/boritokep-szalon-ny.webp'
+
+export function BookingPagePreview({ mobile = false, className = '' }: { mobile?: boolean; className?: string }) {
   return (
     <div className={className}>
-    <div className="h-full overflow-hidden rounded-ui-card bg-white">
-      <BrowserBar />
-      {/* oldal */}
-      <div className="relative h-[150px]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/landing/teamsection/munkatarsak-davelopment-booking.jpg" alt="" className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <div className="absolute bottom-3 left-5 flex items-end gap-3 text-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={BIZ_LOGO} alt="" className="h-12 w-auto shrink-0" />
-          <span><span className="block text-ui-title font-medium leading-tight">Fodrászat Budapest</span><span className="block text-ui-label text-white/80">VI. ker., Andrássy út 12 · ★ 4,9 (128)</span></span>
-        </div>
-        <Pill tone="yellow" className="absolute bottom-3 right-5">Időpontot foglalok</Pill>
-      </div>
-      <div className="space-y-4 p-5">
-        <p className="max-w-[520px] text-ui-meta leading-relaxed text-ui-muted">Belvárosi szalon 2012 óta: vágás, festés, balayage és köröm. Kedd–Szombat, este 8-ig.</p>
-        {/* kijelölt szakasz */}
-        <div className="relative rounded-ui-inner border-2 border-dashed border-ui-yellow p-3">
-          <span className="absolute -top-4 left-3 flex items-center gap-1 rounded-full bg-ui-dark p-1 text-white shadow-ui-float">
-            <span className="px-2 text-ui-label">Szolgáltatások</span>
-            {[ArrowRight, ArrowRight, Eye, Settings].map((I, i) => <span key={i} /* ui-allow: szerkesztő mikro-vezérlő */ className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-white/10"><I className={`h-3 w-3 ${i === 0 ? '-rotate-90' : i === 1 ? 'rotate-90' : ''}`} /></span>)}
-          </span>
-          <div className="mb-2 mt-1 text-ui-body font-medium text-ui-dark">Szolgáltatások</div>
-          <div className="grid grid-cols-2 gap-2">
-            {[['Női hajvágás', '60 p', '11 900 Ft'], ['Balayage', '150 p', '48 000 Ft'], ['Festés', '90 p', '22 000 Ft'], ['Géllakk', '60 p', '8 500 Ft']].map(([n, d, p]) => (
-              <div key={n} /* ui-allow: a vendég-oldal előnézete, nem dashboard-elem */ className="flex items-center justify-between rounded-ui-control bg-ui-cell px-3 py-2 text-ui-label"><span className="text-ui-dark">{n}<span className="ml-1.5 text-ui-muted">{d}</span></span><span className="text-ui-dark">{p}</span></div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-2 text-ui-body font-medium text-ui-dark">Csapat</div>
-          <div className="flex gap-3">
-            {['viktoria', 'csaba', 'szabina', 'dave'].map((a) => (
-              <span key={a} className="flex flex-col items-center gap-1 text-ui-label text-ui-muted">
-                <Avatar size="lg" src={`/landing/funkciok/csapat/avatar/${a}.webp`} />
-                {({ viktoria: 'Viktória', csaba: 'Csaba', szabina: 'Szabina', dave: 'Dávid' } as Record<string, string>)[a]}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-ui-control border border-dashed border-ui-grey px-3 py-2.5 text-ui-label text-ui-muted">Értékelések — rejtett szakasz (a vendég nem látja)</div>
-        {/* a foglalóoldal alján mindig: a rendszer jele (terjedés) */}
-        <div className="flex justify-center border-t border-dashed border-ui-divider pt-3"><PoweredBy /></div>
-      </div>
-    </div>
+      {mobile
+        ? <FitCard w={360} className="overflow-hidden rounded-ui-card"><LiveStage mobile photo={NY_SALON} sel="desc" quick={<DescQuickBar />} /></FitCard>
+        // desktopon ráközelítve: az oldal bal alsó része (név, a kijelölt leírás a gyors-sávval, a foglalás gomb) — az
+        // egész oldal kicsinyítve túl apró lenne
+        // desktopon az egész oldal, ahogy az élő szerkesztőben látszik (Dave képe, 2026-11-08): kijelölve az üzlet neve a
+        // gyors-sávval, jobbra az üveges foglaló kártya, alul a közzétételi sáv
+        : <FitCard w={1440}><div className="flex w-[1440px] flex-col items-center gap-0.5"><div className="w-full"><LiveStage photo={NY_SALON} sel="name" card="glass" quick={<NameQuickBar />} /></div><div><PublishBar changes={6} langs={[{ code: 'hu', active: true }, { code: 'en', active: false }]} /></div></div></FitCard>}
     </div>
   )
 }
@@ -215,3 +186,54 @@ export function EditorPanel({ title, onClose, note, children }: { title: string;
     </>
   )
 }
+
+/** Minta-gyors-sáv a leírás szerkesztéséhez (félkövér, dőlt, link, szín) — a landing mockjai (borító, „Saját weboldal”)
+ *  ezzel mutatják a helyben szerkesztést (21.6.3), ugyanazzal, mint a /design. */
+/** Az üzlet neve kijelölve (élő szerkesztő): félkövér, dőlt, szín, fel / le a sorrendben. */
+export function NameQuickBar() {
+  return (
+    <EditorQuickBar name="Üzlet neve">
+      <QuickTool icon={Bold} label="Félkövér" /><QuickTool icon={Italic} label="Dőlt" /><QuickColor fill="bg-white" /><QuickTool icon={ArrowUp} label="Feljebb" /><QuickTool icon={ArrowDown} label="Lejjebb" />
+    </EditorQuickBar>
+  )
+}
+
+export function DescQuickBar({ settings = false }: { settings?: boolean }) {
+  return (
+    <EditorQuickBar settings={settings} name="Leírás">
+      <QuickTool icon={Bold} label="Félkövér" on /><QuickTool icon={Italic} label="Dőlt" /><QuickTool icon={Link2} label="Link" /><QuickColor fill="bg-white/70" />
+    </EditorQuickBar>
+  )
+}
+
+/** A mobilos szerkesztő kerete (design 21.6.4): fent vissza, „Foglalóoldal”, a lépés-váltó és az Elemek; alatta az élő
+ *  oldal (`children`); alul a közzétételi sáv, ha van módosítás. `sheet`: felcsúszó lap (mögötte az oldal elmosva),
+ *  `pop`: felugró (pl. színminták). A /design és a landing mockja is ezt mutatja. */
+export function MobileEditorFrame({ step, steps, children, sheet, pop, changes = 0 }: { step: number; steps: { label: string }[]; children: React.ReactNode; sheet?: { k: string; t: string; body: React.ReactNode }; pop?: React.ReactNode; changes?: number }) {
+  return (
+    <div className="relative h-[940px] w-[390px] overflow-hidden rounded-ui-container bg-ui-page p-[5px]">
+      <div className="flex items-center gap-2 px-2 py-3">
+        <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" size="sm" />
+        <span className="shrink-0 text-ui-title font-normal text-ui-text">Foglalóoldal</span>
+        <EditorStepSwitch compact className="min-w-0 flex-1" active={step} steps={steps} />
+        <IconButton icon={List} label="Elemek" variant="dark" size="sm" />
+      </div>
+      {/* saját réteg: a lap belső rétegei (pl. a felcsúszó foglaló) nem kerülnek a közzétételi sáv fölé */}
+      <div className="relative z-0 flex justify-center">{children}</div>
+      {pop}
+      {sheet && <>
+        <div className="absolute inset-0 z-30 backdrop-blur-sm" />
+        <div className="absolute inset-x-0 bottom-0 z-40 rounded-t-ui-card bg-white p-5 pb-8 shadow-ui-popup">
+          <SheetHandle className="-mt-2 pb-3" />
+          <div className="text-ui-label text-ui-muted">{sheet.k}</div>
+          <div className="mt-0.5 text-ui-sub font-light text-ui-text">{sheet.t}</div>
+          <div className="mt-3">{sheet.body}</div>
+        </div>
+      </>}
+      {!sheet && changes > 0 && <div className="absolute inset-x-0 bottom-5 z-20 flex justify-center px-3"><PublishBar compact langs={[{ code: 'hu', active: true }, { code: 'en', active: false }]} changes={changes} /></div>}
+    </div>
+  )
+}
+
+/** A szalon foglaló-lépései a mockokhoz (a /design 21.6 mintája). */
+export const SALON_EDITOR_STEPS = [{ label: 'Oldal' }, { label: 'Szolgáltatás' }, { label: 'Szakember' }, { label: 'Időpont' }, { label: 'Adatok' }, { label: 'Kész' }]

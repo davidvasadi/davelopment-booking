@@ -659,15 +659,27 @@ export function featureGroupBySlug(slug: string): FeatureGroup | undefined {
   return FEATURE_GROUPS.find((g) => g.slug === slug)
 }
 
+/** Élesek-e már a /funkciok oldalak. Amíg false: élesben (build) minden funkció-link a főoldal
+ *  funkció-szekciójára visz és a sitemap/llms.txt sem sorolja fel őket (ne legyen 404); fejlesztés
+ *  közben (npm run dev) a linkek már az aloldalakra mutatnak. Ha kész: true, és mehet a push. */
+export const FEATURE_PAGES_PUBLIC = false
+export const featurePagesOn = FEATURE_PAGES_PUBLIC || process.env.NODE_ENV === 'development'
+const FEATURES_FALLBACK = '/#funkciok'
+
+/** Egy /funkciok… útvonal — vagy, amíg az oldalak nem élesek, a főoldal funkció-szekciója. */
+export function featurePath(path: string): string {
+  return featurePagesOn ? path : FEATURES_FALLBACK
+}
+
 /** A csoport-oldal címe (amíg nincs kész, a főoldal funkció-szekciója). */
 export function groupHref(g: FeatureGroup): string {
-  return g.ready ? `/funkciok/${g.slug}` : '/#hogyan'
+  return g.ready && featurePagesOn ? `/funkciok/${g.slug}` : FEATURES_FALLBACK
 }
 
 /** Hova visz egy funkció menüpontja: a csoport-oldal megfelelő szakaszára. */
 export function featureHref(f: LandingFeature): string {
   const g = FEATURE_GROUPS.find((gr) => gr.items.some((i) => i.slug === f.slug))
-  return g?.ready ? `/funkciok/${g.slug}#${f.slug}` : '/#hogyan'
+  return g?.ready && featurePagesOn ? `/funkciok/${g.slug}#${f.slug}` : FEATURES_FALLBACK
 }
 
 /** A csoport borítóképe: a külön borító (mockup), amíg nincs — az első funkcióképe. Ezt használja

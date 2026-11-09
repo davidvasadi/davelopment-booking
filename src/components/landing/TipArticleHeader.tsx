@@ -40,7 +40,8 @@ export function TipArticleHeader({ tip }: { tip: Tip }) {
         <p className="text-[17px] leading-[1.6] text-brand-ink/60">{tip.excerpt}</p>
       </motion.div>
 
-      <motion.div variants={inner} className="relative h-[240px] rounded-[16px] overflow-hidden" style={{ background: '#f7f7f7' }}>
+      {/* fehér háttér: a borítók (a rendszer mobilnézete telefonkeretben) fehérek — így egybefolynak */}
+      <motion.div variants={inner} className="relative h-[240px] rounded-[16px] overflow-hidden sm:h-[340px]" style={{ background: '#ffffff' }}>
         <img
           src={tip.image}
           alt={tip.title}
@@ -65,7 +66,7 @@ export function TipArticleHeader({ tip }: { tip: Tip }) {
         <div className="flex items-center gap-3">
           <img src="/icons/favico_dark.svg" alt="" className="h-10 w-10 rounded-[8px]" />
           <div>
-            <p className="text-[14px] font-medium text-brand-ink leading-tight">[davelopment]® Booking</p>
+            <p className="text-[14px] font-medium text-brand-ink leading-tight">[davelopment]© Booking</p>
             <p className="text-[13px] text-brand-ink/45 leading-tight">Csapat</p>
           </div>
         </div>

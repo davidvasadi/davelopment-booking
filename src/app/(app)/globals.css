@@ -228,7 +228,24 @@ html:has([data-auth-dark]) body { background-color: #120D0B; }
   /* A fejléc nagyítójáról / szűrőjéről nyíló mező rugós (bounce) megjelenése — minden oldalon ugyanez. */
   @keyframes ui-pop-in { from { opacity: 0; transform: translateY(-10px) scale(.94); } to { opacity: 1; transform: none; } }
   .ui-pop-in { animation: ui-pop-in .5s cubic-bezier(.34, 1.56, .64, 1) both; transform-origin: top center; }
-  @media (prefers-reduced-motion: reduce) { .ui-grow-y, .ui-ring-draw, .ui-draw-x, .ui-slide-in, .ui-pop-in { animation: none; } }
+  /* Vonaldiagram belépője (landing hero): a görbe balról jobbra kirajzolódik, utána a kijelölt pont és a címke beúszik. */
+  @keyframes ui-reveal-x { from { clip-path: inset(-20% 100% -20% 0); } to { clip-path: inset(-20% 0 -20% 0); } }
+  .ui-reveal-x { animation: ui-reveal-x 1.4s cubic-bezier(.33, 1, .68, 1) both; }
+  @keyframes ui-fade-up { from { opacity: 0; translate: 0 6px; } to { opacity: 1; translate: 0 0; } }
+  .ui-fade-up { animation: ui-fade-up .45s cubic-bezier(.33, 1, .68, 1) both; animation-delay: var(--d, 0ms); }
+  /* Hőtérkép kiemelt pöttyei (landing hero): lassú, egymáshoz képest eltolt pulzálás — a késleltetést a --d adja. */
+  /* Végtelen fotó-szalag (landing iparágak): rámutatva megáll — a felemelt kép alatt kiíródik az iparág. */
+  @keyframes ui-photo-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .ui-photo-marquee { animation: ui-photo-marquee 140s linear infinite; }
+  .ui-photo-marquee:hover, .ui-photo-marquee:focus-within { animation-play-state: paused; }
+  @media (prefers-reduced-motion: reduce) { .ui-photo-marquee { animation: none; } }
+  /* belépő: a kártya elemei egymás után beúsznak (a gyerekek gyerekei, sorrendben) — landing widgetek */
+  .ui-rise-kids > * > * { animation: ui-fade-up .5s cubic-bezier(.33, 1, .68, 1) both; }
+  .ui-rise-kids > * > *:nth-child(2) { animation-delay: 120ms; } .ui-rise-kids > * > *:nth-child(3) { animation-delay: 220ms; } .ui-rise-kids > * > *:nth-child(4) { animation-delay: 320ms; }
+  .ui-rise-kids > * > *:nth-child(5) { animation-delay: 420ms; } .ui-rise-kids > * > *:nth-child(6) { animation-delay: 520ms; } .ui-rise-kids > * > *:nth-child(7) { animation-delay: 620ms; } .ui-rise-kids > * > *:nth-child(8) { animation-delay: 720ms; }
+  @keyframes ui-dot-pulse { 0%, 100% { scale: 1; opacity: 1; } 50% { scale: 1.12; opacity: .45; } }
+  .ui-dot-pulse { animation: ui-dot-pulse 1.6s ease-in-out infinite; animation-delay: var(--d, 0ms); }
+  @media (prefers-reduced-motion: reduce) { .ui-grow-y, .ui-ring-draw, .ui-draw-x, .ui-slide-in, .ui-pop-in, .ui-reveal-x, .ui-fade-up, .ui-dot-pulse { animation: none; } }
   @keyframes ui-pop-item { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .ui-stagger [data-stagger] > * { animation: ui-pop-item .38s cubic-bezier(.2,.9,.3,1.15) both; }
   .ui-stagger [data-stagger] > *:nth-child(1) { animation-delay: 60ms; }

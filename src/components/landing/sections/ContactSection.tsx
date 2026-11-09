@@ -1,121 +1,92 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { Clock, Mail, Zap, HelpCircle } from 'lucide-react'
-import { FadeUp } from '@/components/landing/Motion'
+import { ArrowUpRight, Clock, Mail, Phone, Zap } from 'lucide-react'
+import { Reveal, RevealText } from '@/components/landing/Motion'
 import { ContactForm } from '@/components/landing/ContactForm'
-import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
 import { GoogleRatingBadge } from '@/components/landing/GoogleRatingBadge'
-import { EASE } from '@/lib/motion'
-import { CONTACT_EMAIL } from '@/lib/brand'
+import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_TEL, SUPPORT_HOURS_TEXT, SUPPORT_RESPONSE_TEXT } from '@/lib/brand'
 
-// Stagger a szülőn triggerel, a gyerekek egymás után úsznak fel — ugyanaz a minta, mint a
-// TipsTeaser fejlécénél/kártyáinál.
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
-} as const
-
-const item = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
-} as const
-
-const INFO_CARDS = [
-  {
-    icon: Clock,
-    title: 'Ügyfélszolgálat',
-    body: 'Hétfőtől péntekig, 10:00–15:00 · +36 30 362 8377',
-    href: 'tel:+36303628377',
-  },
-  {
-    icon: Mail,
-    title: 'Email',
-    body: CONTACT_EMAIL,
-    href: `mailto:${CONTACT_EMAIL}`,
-  },
-  {
-    icon: Zap,
-    title: 'Válaszidő',
-    body: 'Munkaidőben jellemzően néhány órán belül válaszolunk.',
-  },
-  {
-    icon: HelpCircle,
-    title: 'Gyors válaszok',
-    body: 'Nézd meg a GYIK-et — sok kérdésre már ott is megtalálod a választ.',
-    href: '#gyik',
-  },
-]
-
+/**
+ * Kapcsolat-blokk (főoldal + /kapcsolat): balra címke, nagy cím, rövid szöveg és alul az
+ * elérhetőségek; jobbra világos kártyán az űrlap témaválasztóval. Az elérhetőségek a
+ * `src/lib/brand.ts`-ből jönnek (ugyanaz, mint a strukturált adatban). A /kapcsolat oldalon a
+ * cím H1 (`asPage`), a főoldalon H2.
+ */
 export function ContactSection({
   googleRating,
+  asPage = false,
 }: {
   /** Cache-elt Google Cégem-pontszám (lásd src/lib/google-rating.ts) — null, ha még nincs cron-adat. */
   googleRating?: { rating: number; userRatingCount: number } | null
+  asPage?: boolean
 }) {
+  const details = [
+    { icon: Phone, label: 'Telefon', value: CONTACT_PHONE, href: `tel:${CONTACT_PHONE_TEL}` },
+    { icon: Mail, label: 'Email', value: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` },
+    { icon: Clock, label: 'Ügyfélszolgálat', value: SUPPORT_HOURS_TEXT },
+    { icon: Zap, label: 'Válaszidő', value: SUPPORT_RESPONSE_TEXT },
+  ]
+
+  // a címsor-szint igazodik: oldalon H1 → H2, főoldalon H2 → H3
+  const FormHeading = asPage ? 'h2' : 'h3'
+
   return (
-    <section id="kapcsolat" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28">
-      <FadeUp>
-        <div className="relative rounded-[30px] overflow-hidden min-h-[880px] lg:min-h-[680px]">
-          <AuthVideoBg />
-          <motion.div
-            variants={stagger}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.3 }}
-            className="relative flex h-full flex-col lg:flex-row"
-          >
-            {/* Bal — form, teljesen átlátszó a videón (pontosan a register-wizard mobil mintája) */}
-            <div className="flex w-full flex-col justify-center px-6 py-14 lg:w-[44%] lg:px-12 lg:py-16">
-              <motion.span variants={item} className="inline-flex self-start items-center rounded-full bg-white/10 px-4 py-2 font-onest text-[13px] tracking-[-0.02em] text-white/70 backdrop-blur-[10px] mb-5">
-                Kapcsolat
-              </motion.span>
-              <motion.h2 variants={item} className="font-semibold text-white text-[clamp(2rem,3.5vw,2.75rem)] leading-[1.05] tracking-[-0.04em] mb-7">
-                Kérdésed van?
-              </motion.h2>
-              <motion.div variants={item}>
-                <ContactForm />
-              </motion.div>
-              {googleRating && (
-                <motion.div variants={item} className="mt-6">
-                  <GoogleRatingBadge
-                    rating={googleRating.rating}
-                    userRatingCount={googleRating.userRatingCount}
-                    className="text-white/70"
-                  />
-                </motion.div>
-              )}
-            </div>
+    <section id="kapcsolat" className={`mx-auto max-w-7xl scroll-mt-[88px] px-4 lg:px-5 ${asPage ? 'pb-14 pt-8 lg:pb-20 lg:pt-12' : 'py-20 lg:py-28'}`}>
+      <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12">
+        {/* Bal: szöveg + elérhetőségek */}
+        <div className="flex flex-col justify-between gap-10">
+          <div className="flex flex-col gap-5">
+            <Reveal>
+              <span className="inline-flex items-center gap-2 rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]">
+                <span aria-hidden className="h-2 w-2 rounded-[2px] bg-brand-accent" /> Kapcsolat
+              </span>
+            </Reveal>
+            <RevealText
+              as={asPage ? 'h1' : 'h2'}
+              text="Beszéljünk a foglalásaidról."
+              delay={0.1}
+              className="max-w-[14ch] font-semibold text-[clamp(2rem,3.8vw,48px)] leading-[1] tracking-[-0.05em] text-brand-ink"
+            />
+            <Reveal delay={0.25} className="max-w-md text-[16px] leading-[1.6] text-brand-ink/60">
+              Kérdésed van az árakról, a beállításról vagy egy funkcióról? Írj nekünk, vagy hívj ügyfélszolgálati időben — magyarul, személyesen válaszolunk.
+            </Reveal>
+          </div>
 
-            {/* Jobb — nagy cím + 4 nagyobb infókártya 2x2 */}
-            <div className="flex w-full flex-col justify-center gap-12 px-6 py-14 lg:w-[56%] lg:px-14 lg:py-16">
-              <div>
-                <motion.h3 variants={item} className="font-semibold text-white text-[clamp(2.5rem,5.5vw,4.5rem)] leading-[0.98] tracking-[-0.04em]">
-                  Beszéljünk.
-                </motion.h3>
-                <motion.p variants={item} className="mt-5 text-white/60 text-[16px] leading-[1.6] max-w-sm">
-                  Írj nekünk kérdés, probléma vagy visszajelzés esetén — ide kerül minden, amit a formon keresztül küldesz.
-                </motion.p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {INFO_CARDS.map(({ icon: Icon, title, body, href }) => {
-                  const Cmp = motion[href ? 'a' : 'div']
-                  return (
-                    <Cmp key={title} variants={item} {...(href ? { href } : {})} className="flex items-start gap-4">
-                      <Icon className="h-6 w-6 shrink-0 text-white" strokeWidth={1.6} />
-                      <div>
-                        <p className="text-[15px] font-semibold text-white">{title}</p>
-                        <p className="mt-1 text-[13.5px] text-white/55 leading-[1.5]">{body}</p>
-                      </div>
-                    </Cmp>
-                  )
-                })}
-              </div>
-            </div>
-          </motion.div>
+          <Reveal delay={0.3} className="flex flex-col gap-1">
+            {details.map(({ icon: Icon, label, value, href }) => {
+              const inner = (
+                <>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white text-brand-ink">
+                    <Icon aria-hidden className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12.5px] text-brand-ink/45">{label}</span>
+                    <span className={`block text-brand-ink ${href ? 'text-[clamp(1.1rem,1.6vw,22px)] font-medium tracking-[-0.02em]' : 'text-[15px]'}`}>{value}</span>
+                  </span>
+                  {href && <ArrowUpRight aria-hidden className="h-4 w-4 text-brand-ink/30 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-ink" />}
+                </>
+              )
+              return href ? (
+                <a key={label} href={href} className="group -mx-3 flex items-center gap-3.5 rounded-[14px] px-3 py-2.5 transition-colors hover:bg-white/70">{inner}</a>
+              ) : (
+                <div key={label} className="flex items-center gap-3.5 py-2.5">{inner}</div>
+              )
+            })}
+            {googleRating && (
+              <GoogleRatingBadge rating={googleRating.rating} userRatingCount={googleRating.userRatingCount} className="mt-3 text-brand-ink/60" />
+            )}
+          </Reveal>
         </div>
-      </FadeUp>
+
+        {/* Jobb: űrlap-kártya */}
+        <Reveal delay={0.12} className="rounded-[26px] bg-white p-6 sm:p-8 lg:p-10">
+          <FormHeading className="text-[clamp(1.5rem,2.4vw,30px)] font-semibold tracking-[-0.04em] text-brand-ink">Írj nekünk</FormHeading>
+          <p className="mb-6 mt-2 max-w-lg text-[15px] leading-[1.6] text-brand-ink/55">
+            Mondd el röviden, milyen üzleted van és mire keresel megoldást — a válaszban konkrét javaslattal jelentkezünk.
+          </p>
+          <ContactForm />
+        </Reveal>
+      </div>
     </section>
   )
 }

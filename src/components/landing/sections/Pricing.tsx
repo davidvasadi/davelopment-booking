@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { RevealText } from '@/components/landing/Motion'
 import { SPRING_QUICK, SPRING_SNAPPY, EASE, buttonHover } from '@/lib/motion'
 import { ftFmt, type LandingPricing } from '@/components/landing/types'
-import { businessMonthlyFee, monthlyEmailCapForTier } from '@/lib/tier'
+import { planCards, PLAN_META, REGISTER_HREF, CONTACT_EMAIL, type Segment } from '@/lib/pricingContent'
 import { NotchedPricingCard } from '@/components/dashboard/NotchedPricingCard'
 import { HeroButton } from '@/components/landing/HeroButton'
 
@@ -15,93 +18,31 @@ import { HeroButton } from '@/components/landing/HeroButton'
  * csak a havi email-keret (a kártyák `sub`-ja) tér el köztük, nincs önálló hírlevél-fizetés.
  */
 
-type Segment = 'salon' | 'restaurant'
-
-const REGISTER_HREF: Record<Segment, string> = {
-  salon: '/register',
-  restaurant: '/register-restaurant',
-}
-
-function segmentLadder(seg: Segment, pricing: LandingPricing) {
-  const noun = seg === 'restaurant' ? 'Étterem' : 'Szalon'
-  const starterCap = monthlyEmailCapForTier(pricing, 'starter')
-  const proCap = monthlyEmailCapForTier(pricing, 'pro')
-  const starterFee = businessMonthlyFee(pricing, seg, 1, 'starter')
-  const proFee = businessMonthlyFee(pricing, seg, 1, 'pro')
-
-  // A Starter funkcionálisan MEGEGYEZIK a Próval — az egyetlen valós különbség a havi
-  // hírlevél-email-keret, ezért ugyanaz a feat-lista, csak az utolsó sor kerete tér el.
-  const baseFeats = seg === 'salon'
-    ? [
-      'Saját foglaló oldal, ami éjjel-nappal hoz neked időpontot',
-      'Csapat-jogosultságkezelés — ki mit láthat és módosíthat',
-      'Vendég-előleg beszedése foglaláskor (Stripe)',
-      'Automata számlázás a saját Számlázz.hu/Billingo fiókodból',
-      'Ajándékutalvány-értékesítés a foglaló oldaladon',
-      'Élő analitika + vendég-térkép — lásd, honnan jönnek',
-      'Emlékeztetők, várólista, értékelés-kérés — automatikusan',
-      'Tiltólista — nemkívánt vendégek kizárása a foglalásból',
-      'Naptár-feed — szinkronizálható Google/Apple Naptárba',
-      'Digitális beleegyező nyilatkozat a foglalónál',
-      'Egyedi kérdések bekérése foglaláskor',
-      'CSV-exportálás — foglalások, bevétel',
-    ]
-    : [
-      'Interaktív asztaltérkép, valós idejű kapacitással',
-      'Csoportos foglalás és előleg-kezelés egy helyen',
-      'Csapat-jogosultságkezelés — ki mit láthat és módosíthat',
-      'Automata számlázás a saját Számlázz.hu/Billingo fiókodból',
-      'Ajándékutalvány-értékesítés a foglaló oldaladon',
-      'Élő analitika + vendég-térkép — lásd, honnan jönnek',
-      'Napi forgalom- és vendégjelentés',
-      'Tiltólista — nemkívánt vendégek kizárása a foglalásból',
-      'Naptár-feed — szinkronizálható Google/Apple Naptárba',
-      'Digitális beleegyező nyilatkozat a foglalónál',
-      'Egyedi kérdések bekérése foglaláskor',
-      'CSV-exportálás — foglalások, bevétel',
-    ]
-  const starterFeats = [
-    ...baseFeats.map((label) => ({ label, included: true })),
-    { label: `Hírlevél-küldés — ${starterCap.toLocaleString('hu-HU')} email/hó`, included: true },
-  ]
-  const proFeats = [
-    ...baseFeats.map((label) => ({ label, included: true })),
-    { label: `Hírlevél-küldés — ${proCap.toLocaleString('hu-HU')} email/hó`, included: true },
-  ]
-
-  // Egyedi: díjcsomag megegyezés alapján, ezért nincs kiírt keret-szám — a hírlevél-küldés
-  // korlátlanként kommunikálva (a valós plafont a `pricing-settings` global magasra állítja).
-  const customFeats = [
-    { label: 'Minden a Próból', included: true },
-    { label: 'Több telephely egy fiókban', included: true },
-    { label: 'Egyedi fejlesztés az igényeidre', included: true },
-    { label: 'Testreszabott foglaló + arculat', included: true },
-    { label: 'Dedikált kapcsolattartó', included: true },
-    { label: 'Prioritásos támogatás & SLA', included: true },
-    { label: 'Korlátlan hírlevél-küldés', included: true },
-    { label: 'API-hozzáférés egyedi integrációkhoz', included: true },
-    { label: 'Egyedi riportok és exportálás', included: true },
-    { label: 'Rugalmas, egyedi fizetési feltételek', included: true },
-  ]
-
-  return { noun, starterFee, proFee, starterFeats, proFeats, customFeats }
-}
+// A tartalom (csomagnevek, funkciólisták, alcímek) a közös forrásból jön: `src/lib/pricingContent.ts`.
 
 export function Pricing({
   pricing,
   segment: fixedSegment,
+  title = 'Egyszerű, tiszta árazás.',
+  compact = false,
 }: {
   pricing: LandingPricing
   /** Iparági landingeknél a szegmens fix (pl. mindig "salon") — ilyenkor nincs értelme a
    *  szakember/étterem váltónak, azt el is rejtjük. Homepage-en marad az interaktív toggle. */
   segment?: Segment
+  /** Az /arak oldalon más a szekció címe (ott a H1 már az „Árak”). */
+  title?: string
+  /** Az /arak oldal sűrűbb ritmusa: kisebb térköz és cím (a főoldal változatlan). */
+  compact?: boolean
 }) {
   const [internalActive, setInternalActive] = useState<Segment>(fixedSegment ?? 'salon')
+  // a kapszula csak váltáskor csússzon (betöltéskor a fejléc beúszik — ne kövesse külön)
+  const [touched, setTouched] = useState(false)
   const active = fixedSegment ?? internalActive
-  const { noun, starterFee, proFee, starterFeats, proFeats, customFeats } = segmentLadder(active, pricing)
+  const { noun, starterFee, proFee, starterFeats, proFeats, customFeats } = planCards(active, pricing)
 
   return (
-    <section id="arazas" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28 flex flex-col gap-12">
+    <section id="arazas" className={`mx-auto max-w-7xl px-4 lg:px-5 flex flex-col ${compact ? 'py-10 lg:py-14 gap-8' : 'py-20 lg:py-28 gap-12'}`}>
 
       {/* Header */}
       <motion.div
@@ -111,13 +52,11 @@ export function Pricing({
         transition={SPRING_QUICK}
         className="flex flex-col gap-6"
       >
-        <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
+        <span className="inline-flex self-start items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]">
           Árak
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
-          <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink">
-            Egyszerű, tiszta árazás.
-          </h2>
+          <RevealText text={title} className={`font-semibold tracking-[-0.05em] text-brand-ink ${compact ? 'text-[clamp(2rem,4.2vw,52px)] leading-[0.98]' : 'text-[clamp(2rem,4.2vw,52px)] leading-[0.98]'}`} />
           <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
             Válaszd ki, melyik passzol a vállalkozásodhoz. Mindegyik {pricing.trial_days} napig ingyenes, kártya nélkül.
           </p>
@@ -126,7 +65,7 @@ export function Pricing({
         {/* Üzlettípus-váltó — a "Látod mi történik" szekció pill-mintája, saját layoutId-val.
             Iparági landingnél a szegmens fix, ott nincs értelme a váltónak. */}
         {!fixedSegment && (
-          <div className="flex items-center gap-1 self-start rounded-full bg-white p-2.5">
+          <div className="flex items-center gap-1 self-start rounded-full bg-white p-1.5">
             {(['salon', 'restaurant'] as const).map((seg) => {
               const label = seg === 'salon' ? 'Szakembereknek' : 'Éttermeknek'
               const isActive = active === seg
@@ -134,16 +73,16 @@ export function Pricing({
                 <motion.button
                   key={seg}
                   type="button"
-                  onClick={() => setInternalActive(seg)}
+                  onClick={() => { setTouched(true); setInternalActive(seg) }}
                   variants={buttonHover}
                   initial="rest"
                   whileHover="hover"
-                  className="relative rounded-full px-5 py-3 text-[15px] font-onest font-light tracking-[-0.04em] transition-colors duration-200 sm:px-6 sm:py-4 sm:text-[17px]"
+                  className="relative rounded-full px-4 py-2 text-[14.5px] font-onest font-normal tracking-[-0.03em] transition-colors duration-200 sm:px-5 sm:py-2.5 sm:text-[15px]"
                   style={{ color: isActive ? '#ffffff' : '#3B3B3B' }}
                 >
                   {isActive && (
                     <motion.span
-                      layoutId="pricing-seg-pill"
+                      layoutId={touched ? 'pricing-seg-pill' : undefined}
                       className="absolute inset-0 rounded-full bg-brand-ink"
                       transition={SPRING_SNAPPY}
                     />
@@ -168,12 +107,12 @@ export function Pricing({
         >
           <NotchedPricingCard
             featured={false}
-            badgeLabel="Belépő"
-            dotColor="#A8A496"
-            title="Starter"
+            badgeLabel={PLAN_META.starter.badge}
+            dotColor={PLAN_META.starter.dot}
+            title={PLAN_META.starter.title}
             priceMain={ftFmt(starterFee).replace(/\s*Ft$/, '')}
             priceUnit="Ft / hó"
-            sub={active === 'salon' ? '1 munkatárs/naptár' : 'A legfontosabb alapok'}
+            sub={PLAN_META.starter.sub[active]}
             extra={active === 'salon' ? (
               <p className="text-[12px] font-medium text-ink-soft">
                 + {ftFmt(pricing.salon_extra_staff_huf)}/hó minden további munkatársért.
@@ -185,12 +124,12 @@ export function Pricing({
 
           <NotchedPricingCard
             featured
-            badgeLabel="Népszerű"
-            dotColor="#F1CE45"
-            title="Pro"
+            badgeLabel={PLAN_META.pro.badge}
+            dotColor={PLAN_META.pro.dot}
+            title={PLAN_META.pro.title}
             priceMain={ftFmt(proFee).replace(/\s*Ft$/, '')}
             priceUnit="Ft / hó"
-            sub={active === 'salon' ? 'Fodrász, masszőr, kozmetikus, edzőterem' : 'Asztaltérkép, csoportok, előleg'}
+            sub={PLAN_META.pro.sub[active]}
             extra={active === 'salon' ? (
               <p className="text-[12px] font-medium text-white/50">
                 + {ftFmt(pricing.salon_extra_staff_huf)}/hó minden további munkatársért.
@@ -202,16 +141,16 @@ export function Pricing({
 
           <NotchedPricingCard
             featured={false}
-            badgeLabel="Vállalati"
-            dotColor="#1D1C19"
-            title="Egyedi"
+            badgeLabel={PLAN_META.egyedi.badge}
+            dotColor={PLAN_META.egyedi.dot}
+            title={PLAN_META.egyedi.title}
             priceMain="Árajánlat"
             priceUnit=""
-            sub="veled egyeztetve alakítjuk ki"
+            sub={PLAN_META.egyedi.sub[active]}
             feats={customFeats}
             cta={
               <HeroButton
-                href={`mailto:hello@davelopment.hu?subject=Egyedi%20${encodeURIComponent(noun.toLowerCase())}%20csomag`}
+                href={`mailto:${CONTACT_EMAIL}?subject=Egyedi%20${encodeURIComponent(noun.toLowerCase())}%20csomag`}
                 label="Kapcsolatfelvétel"
                 variant="dark"
               />
@@ -219,6 +158,12 @@ export function Pricing({
           />
         </motion.div>
       </AnimatePresence>
+
+      {/* a kártyák csak a kulcspontokat mutatják — a teljes lista az /arak táblázatában */}
+      <Link href={compact ? '#osszehasonlitas' : '/arak#osszehasonlitas'} className="group inline-flex items-center gap-1.5 self-center text-[15px] font-semibold text-brand-ink">
+        Minden funkció összehasonlítása
+        <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.2} />
+      </Link>
     </section>
   )
 }

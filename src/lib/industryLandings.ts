@@ -47,6 +47,9 @@ export type IndustryLanding = {
   /** 2-3 rokon iparág slugja — belső linkelés a landing alján ("Kapcsolódó iparágak"), hogy a
    *  Google topikus klaszterként lássa a 13 oldalt, ne 13 elszigetelt lapként. */
   relatedSlugs: string[]
+  /** Egyedi szakmai blokk (400–500 szó): a szakma konkrét helyzete és hogy a rendszer mit old
+   *  meg benne — ettől lesz az oldal valóban egyedi, nem cserélt szavas sablon (SEO: nem doorway). */
+  deepDive?: { label: string; title: string; intro: string; scenes: { time: string; title: string; body: string }[] }
 }
 
 export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
@@ -563,7 +566,184 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
     seoTitle: 'Éttermi Asztalfoglaló Rendszer Valós Idejű Kapacitással | davelopment booking',
     seoDescription:
       'Éttermi online asztalfoglaló rendszer valós idejű kapacitáskezeléssel, csoportos foglalással és napi borravaló-elosztással. Próbáld ki ingyen, bankkártya nélkül.',
-    relatedSlugs: ['csapatkezeles-kisvallalkozasoknak', 'barber-idopontfoglalas', 'fodrasz-idopontfoglalas'],
+    relatedSlugs: ['kavezo-asztalfoglalas', 'pizzeria-asztalfoglalas', 'fine-dining-asztalfoglalas'],
+    deepDive: {
+      label: 'Éttermeknek',
+      title: 'Egy péntek este, foglalásokkal.',
+      intro:
+        'Hétköznap egy étterem elboldogul egy füzettel. Péntek este nem. Így néz ki ugyanez az este, amikor a foglalások maguktól érkeznek, és a terem minden asztala egy képernyőn van.',
+      scenes: [
+        { time: '14:20', title: 'Megtelik a nagyterem, mire kinyitsz', body: 'Délután fél háromra a 18 asztalból 13 foglalt. A vendégek este, a kanapéról foglaltak, a rendszer pedig csak oda engedte őket, ahol tényleg elférnek.' },
+        { time: '17:05', title: 'Egy 12 fős céges vacsora előleggel', body: 'Egy cég 12 főre foglal hétfőre. Foglaláskor előleget fizetnek, ami a te Stripe-fiókodba érkezik. Ha mégsem jönnek, nem te maradsz egy üres hosszú asztallal.' },
+        { time: '19:40', title: 'Telefonon kérnek egy kétfős asztalt', body: 'A napi idősávon látod, hogy a 7-es asztal 20:30-ig szabad. Rákattintasz, beírod a nevet, kész. A következő online foglaló már nem kapja meg ugyanazt.' },
+        { time: '20:15', title: 'A 4-es asztal évfordulót ünnepel', body: 'Foglaláskor jelezték, ezért a napi nézetben ott a kis ikon a nevük mellett. A felszolgáló tudja, mielőtt leülnek, a desszert gyertyával érkezik.' },
+      ],
+    },
+  },
+
+  // ── Kávézó / brunch — reggeli és hétvégi csúcs, sok kis asztal, gyors forgás; a
+  // napi idősáv, az emlékeztető és a hétvégi előleg a legerősebb, valós érv.
+  'kavezo-asztalfoglalas': {
+    slug: 'kavezo-asztalfoglalas',
+    segment: 'restaurant',
+    heroTitle: 'Online asztalfoglalás kávézóknak és brunch-helyeknek.',
+    heroSubtitle:
+      'A hétvégi brunch-csúcs ne a telefon mellett teljen: a vendégek maguk foglalnak asztalt, te pedig egy idősávon látod, mikor telik meg a hely.',
+    howItWorksTitle: 'Indulj el kávézóként 3 lépésben.',
+    howItWorksSubtitle: 'Asztalok, nyitvatartás, link — és már foglalhatnak is',
+    howItWorksSteps: [
+      { title: 'Vedd fel az asztalaid', body: 'Add meg a termeket és az asztalokat a férőhelyekkel — a rendszer ebből számolja a szabad helyeket.' },
+      { title: 'Tedd ki a foglalási linket', body: 'Instagramra, Google-profilra, a kirakatba QR-kóddal — a vendég pár koppintással foglal.' },
+      { title: 'Kezeld a csúcsot', body: 'A hétvégi reggeleken egy idősávon látod, ki mikor érkezik és melyik asztal szabadul fel.' },
+    ],
+    segmentToggleTitle: 'Látod mi történik a kávézódban.',
+    segmentToggleSubtitle: 'Tedd nyugodtabbá a hétvégi csúcsot',
+    calendarTitle: 'Minden asztal, egy idősávon.',
+    calendarSubtitle: 'Érkezések, létszám, felszabaduló asztalok — húzd át, kattints, kész.',
+    teamTitle: 'A pult és a felszolgálók, egy képernyőn.',
+    teamSubtitle: 'Beosztás, jogosultságok, napi borravaló-elosztás — mindenki látja, ami rá tartozik.',
+    ctaTitle: 'Legyen telt ház a hétvégi brunch-on is.',
+    testimonialsJoinLine: 'Csatlakozz a kávézókhoz és brunch-helyekhez, akik már minket használnak.',
+    faqItems: [
+      {
+        q: 'Érdemes foglalást bevezetni egy kávézóban?',
+        a: 'Hétköznap sokszor nem kell, de a hétvégi brunch-idősávban igen: a foglalással előre látod a forgalmat, nem kell embereket elküldeni, és a sétálóvendégeknek is pontosan tudod mondani, mikor szabadul fel asztal.',
+      },
+      {
+        q: 'Kérhetek előleget csak a hétvégi foglalásokra?',
+        a: 'Az előleg bekapcsolható, és a pénz a saját Stripe-fiókodba érkezik. Így a csúcsidős foglalásoknál is van biztosítékod arra, hogy a vendég valóban megjelenik.',
+      },
+      {
+        q: 'Mi van, ha valaki késik vagy nem jön?',
+        a: 'A vendég automatikus emlékeztetőt kap a foglalás előtt, ami csökkenti az elmaradásokat. A napi idősávon az asztalt egy mozdulattal áthelyezed vagy felszabadítod.',
+      },
+    ],
+    seoTitle: 'Online Asztalfoglalás Kávézóknak és Brunch-helyeknek | davelopment booking',
+    seoDescription:
+      'Asztalfoglaló rendszer kávézóknak és brunch-helyeknek: hétvégi csúcs kezelése, napi idősáv, előleg és emlékeztetők. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['etterem-asztalfoglalas', 'pizzeria-asztalfoglalas', 'fine-dining-asztalfoglalas'],
+    deepDive: {
+      label: 'Kávézóknak',
+      title: 'Egy szombat délelőtt a pult mögül.',
+      intro:
+        'Hétköznap reggel a kávézó csendes. Szombaton tíz és egy között mindenki egyszerre akar leülni. Ez a három óra dönti el a hetet, és nem a telefon mellett kellene eltelnie.',
+      scenes: [
+        { time: '08:30', title: 'Nyitás előtt már látod a délelőttöt', body: 'Kinyitod a telefont: 10 és 12 között a 14 asztalból 11 foglalt, a legtöbb kétfős. Tudod, hány ember kell a pultba, és mennyi croissant-t érdemes kisütni.' },
+        { time: '10:15', title: 'Sor áll az ajtóban', body: 'Egy pár megkérdezi, mikor lesz hely. Ránézel az idősávra: a 3-as asztal 10:45-kor szabadul. Nem tippelsz, pontos időt mondasz nekik.' },
+        { time: '11:00', title: 'Valaki nem jön el', body: 'A hétvégi brunch-foglalásokhoz előleget kérsz, ezért ez ritka. Ha mégis előfordul, az asztalt egy mozdulattal felszabadítod, és jöhet a következő vendég az ajtóból.' },
+        { time: '12:30', title: 'Egy utalvány, ami magát adja el', body: 'Két vendég a foglalóoldalon ajándékutalványt vesz a barátjuknak. Te közben a pult mögött vagy, a fizetés és a kód magától megy.' },
+      ],
+    },
+  },
+
+  // ── Pizzéria — családi és csoportos foglalások, születésnapok; az alkalmak, a csoportos
+  // előleg és a hétvégi esti kapacitás a legerősebb, valós érv.
+  'pizzeria-asztalfoglalas': {
+    slug: 'pizzeria-asztalfoglalas',
+    segment: 'restaurant',
+    heroTitle: 'Online asztalfoglalás pizzériáknak.',
+    heroSubtitle:
+      'Családi vacsorák, szülinapok, baráti társaságok — a vendégek maguk foglalnak, a nagy asztalokat pedig előleggel véded.',
+    howItWorksTitle: 'Indulj el pizzériaként 3 lépésben.',
+    howItWorksSubtitle: 'Asztalok, link, csapat — és jöhetnek a foglalások',
+    howItWorksSteps: [
+      { title: 'Vedd fel a termeket és asztalokat', body: 'A nagy, összetolható asztalokat is — a rendszer a férőhelyek alapján kínál időpontot.' },
+      { title: 'Oszd meg a foglalási linket', body: 'Google-profil, Facebook, weboldal — a vendég létszámot és időpontot választ, app nélkül.' },
+      { title: 'Készülj a nagy társaságokra', body: 'Látod az alkalmat (pl. születésnap) és a létszámot, a nagy asztalnál előleget kérhetsz.' },
+    ],
+    segmentToggleTitle: 'Látod mi történik a pizzériádban.',
+    segmentToggleSubtitle: 'Tedd nyugodtabbá a pénteki estét',
+    calendarTitle: 'Minden asztal és társaság, egy idősávon.',
+    calendarSubtitle: 'Létszám, alkalom, érkezés — húzd át, kattints, kész.',
+    teamTitle: 'A konyha és a terem, egy képernyőn.',
+    teamSubtitle: 'Beosztás, jogosultságok, napi borravaló-elosztás — mindenki látja, ami rá tartozik.',
+    ctaTitle: 'Legyen tele a pizzéria — üres foglalások nélkül.',
+    testimonialsJoinLine: 'Csatlakozz a pizzériákhoz, akik már minket használnak.',
+    faqItems: [
+      {
+        q: 'Hogyan kezelem a szülinapi és csoportos foglalásokat?',
+        a: 'A vendég foglaláskor megadhatja a létszámot és az alkalmat (például születésnap), így előre látod és felkészülhetsz rá. A nagyobb társaságoknál előleget is kérhetsz.',
+      },
+      {
+        q: 'Mi történik, ha egy nagy társaság nem jön el?',
+        a: 'Ezt előzi meg az előleg: foglaláskor kártyával fizetik, a pénz a saját Stripe-fiókodba érkezik. Az automatikus emlékeztető pedig a foglalás előtt figyelmeztet.',
+      },
+      {
+        q: 'Felvehetem a telefonos foglalásokat is ugyanide?',
+        a: 'Igen. A napi idősávon a szabad helyre kattintva felveszed a telefonos foglalást, így minden foglalás egy helyen van, és nem fordulhat elő dupla foglalás.',
+      },
+    ],
+    seoTitle: 'Online Asztalfoglalás Pizzériáknak Előleggel | davelopment booking',
+    seoDescription:
+      'Asztalfoglaló rendszer pizzériáknak: csoportos és szülinapi foglalások, alkalmak, előleg a nagy asztalokra, napi idősáv. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['etterem-asztalfoglalas', 'kavezo-asztalfoglalas', 'fine-dining-asztalfoglalas'],
+    deepDive: {
+      label: 'Pizzériáknak',
+      title: 'Egy szülinap péntek este hétkor.',
+      intro:
+        'Egy pizzéria estéit a nagy társaságok viszik: családok, osztálytalálkozók, gyerekszülinapok. Egy ilyen asztal egész estére foglalt, ezért ha nem jönnek el, az a legdrágább üres hely a teremben.',
+      scenes: [
+        { time: 'Kedd', title: 'Bejön a foglalás: 14 fő, szülinap', body: 'Egy anyuka online foglal péntek hétre, 14 főre, és bejelöli, hogy születésnap. Foglaláskor előleget fizet. Te már kedden tudod, hogy két asztalt kell összetolni.' },
+        { time: 'Csütörtök', title: 'Emlékeztető megy ki', body: 'Péntek előtt a vendég automatikus emlékeztetőt kap. Ha valami változott, most szól, nem pénteken fél hétkor.' },
+        { time: 'Péntek 18:40', title: 'A konyha is látja', body: 'A napi nézetben a társaság mellett ott a szülinapi ikon. A konyha tudja, hogy hétkor tizennégy pizza indul egyszerre, és lesz egy torta is.' },
+        { time: 'Péntek 21:10', title: 'Visszajönnek-e?', body: 'A vendégkártyán látod, hogy ez a család már harmadszor ünnepel nálatok. Legközelebb a hírlevél viszi el nekik az új menüt.' },
+      ],
+    },
+  },
+
+  // ── Fine dining — magas átlagár, kevés asztal: a no-show itt a legdrágább; az előleg, a
+  // kézi jóváhagyás, az alkalmak és a vendégkártya a legerősebb, valós érv.
+  'fine-dining-asztalfoglalas': {
+    slug: 'fine-dining-asztalfoglalas',
+    segment: 'restaurant',
+    heroTitle: 'Online asztalfoglalás fine dining éttermeknek.',
+    heroSubtitle:
+      'Kevés asztal, magas átlagár — itt minden elmaradt foglalás számít. Előleg vagy kézi jóváhagyás, alkalmak és vendégkártya egy rendszerben.',
+    howItWorksTitle: 'Indulj el 3 lépésben.',
+    howItWorksSubtitle: 'Asztalok, szabályok, link — a foglalások a te feltételeiddel érkeznek',
+    howItWorksSteps: [
+      { title: 'Állítsd be a termet és az asztalokat', body: 'A férőhelyekkel együtt — a rendszer csak valóban szabad időpontot kínál fel.' },
+      { title: 'Határozd meg a szabályokat', body: 'Kérj előleget foglaláskor — vagy előleg nélkül hagyd jóvá te magad minden foglalást.' },
+      { title: 'Ismerd meg a vendégeidet', body: 'A vendégkártyán látod a korábbi látogatásokat, az alkalmat és a megjegyzéseidet.' },
+    ],
+    segmentToggleTitle: 'Látod mi történik az éttermedben.',
+    segmentToggleSubtitle: 'Minden asztal, minden vendég — átláthatóan',
+    calendarTitle: 'Az egész este, asztalonként.',
+    calendarSubtitle: 'Érkezések, alkalmak, létszám — egy idősávon, asztalonként.',
+    teamTitle: 'A teljes személyzet, egy képernyőn.',
+    teamSubtitle: 'Beosztás, jogosultságok, napi borravaló-elosztás — mindenki látja, ami rá tartozik.',
+    ctaTitle: 'Minden asztal, a te feltételeiddel.',
+    testimonialsJoinLine: 'Csatlakozz az éttermekhez, akik már minket használnak.',
+    faqItems: [
+      {
+        q: 'Kérhetek előleget minden foglalásnál?',
+        a: 'Igen. Bekapcsolhatod, hogy a vendég foglaláskor kártyával előleget fizessen — a pénz a saját Stripe-fiókodba érkezik, a platform sosem fér hozzá a kártyaadatokhoz.',
+      },
+      {
+        q: 'Jóváhagyhatom a foglalásokat, mielőtt véglegesek lesznek?',
+        a: 'Igen, előleg nélküli foglalásnál beállíthatod, hogy a foglalások jóváhagyásra várjanak: egy koppintással elfogadod őket az értesítésből, és a vendég automatikusan megkapja a visszaigazolást. Ha előleget kérsz, a foglalás a sikeres fizetéssel magától megerősítődik.',
+      },
+      {
+        q: 'Látom, ha egy vendég különleges alkalomra érkezik?',
+        a: 'Igen, a vendég megadhatja az alkalmat (például évforduló vagy születésnap), ez a napi nézetben jelölve látszik, a vendégkártyán pedig a korábbi látogatásait és a megjegyzéseidet is látod.',
+      },
+    ],
+    seoTitle: 'Asztalfoglaló Rendszer Fine Dining Éttermeknek Előleggel | davelopment booking',
+    seoDescription:
+      'Online asztalfoglalás fine dining éttermeknek: előleg vagy kézi jóváhagyás, alkalmak és vendégkártya — kevesebb no-show. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['etterem-asztalfoglalas', 'pizzeria-asztalfoglalas', 'kavezo-asztalfoglalas'],
+    deepDive: {
+      label: 'Fine dining',
+      title: 'Két hely, kilenc fogás, egy foglalás.',
+      intro:
+        'Egy fine dining étteremben a konyha napokkal előre dolgozik, minden tányér számolva van. Egy meg nem jelenő kétfős foglalás itt nem üres szék, hanem kidobott alapanyag és egy egész este bevétele.',
+      scenes: [
+        { time: 'Hétfő', title: 'Foglalás előleggel', body: 'Egy pár szombatra foglal két helyet a kóstolómenüre, és foglaláskor előleget fizet. A pénz a te fiókodba megy. A konyha szombatra már velük számol.' },
+        { time: 'Szerda', title: 'Kiderül, hogy évforduló', body: 'A foglalásnál jelezték az alkalmat. A napi nézetben ez látszik, a sommelier és a felszolgáló is tud róla, mielőtt a vendég szólna.' },
+        { time: 'Szombat 19:30', title: 'Ismerős vendég érkezik', body: 'A vendégkártyán látod, hogy tavaly is itt voltak, és hogy a hölgy nem eszik kagylót. Ezt nem kell újra megkérdezni.' },
+        { time: 'Előleg nélkül?', title: 'Akkor te döntesz', body: 'Ha egy estére nem kérsz előleget, a foglalások jóváhagyásra várnak, és az értesítésből egy koppintással fogadod el őket. A vendég csak ezután kap visszaigazolást.' },
+      ],
+    },
   },
 
   // ── Csapatkezelés — nem egy konkrét szakma, hanem egy funkció-szög: azoknak szól, akik
@@ -630,5 +810,8 @@ export const INDUSTRY_SHORT_LABEL: Record<string, string> = {
   'pilates-idopontfoglalas': 'Pilates stúdió',
   'joga-idopontfoglalas': 'Jóga stúdió',
   'etterem-asztalfoglalas': 'Étterem',
+  'kavezo-asztalfoglalas': 'Kávézó / brunch',
+  'pizzeria-asztalfoglalas': 'Pizzéria',
+  'fine-dining-asztalfoglalas': 'Fine dining',
   'csapatkezeles-kisvallalkozasoknak': 'Csapatkezelés',
 }

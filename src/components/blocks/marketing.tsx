@@ -44,9 +44,9 @@ export function CampaignEmailCard({ restaurant = false, className = '' }: { rest
 
 /** 13.6: kiküldött kampány eredménye — megnyitás-arány csík, szűrő, címzettenként megnyitva / nem. `mobile`: keskeny helyre
  *  (telefon, landing-kép, borító) — teljes szélességű váltó rövid feliratokkal, a lapozó felirat nélkül. */
-export type RecipientRow = { key: string; name: string; meta: string; opened: boolean }
-export function CampaignResults({ more, mobile = false, title = 'Őszi frissítés −15%', sentAt = 'Kiküldve Okt. 14. 10:00', opened = 239, total = 412, rows = ([['Kovács Anna', 'Okt. 14. 10:12', true], ['Tóth Bence', 'Okt. 14. 18:40', true], ['Gál Zsófia', '', false], ['Lukas Gruber', 'Okt. 15. 08:05', true]] as const).map(([n, t, o]) => ({ key: n, name: n, meta: o ? `megnyitotta ${t}` : 'még nem nyitotta meg', opened: o })), filter = 0, onFilter, query, onQuery, onCopy, page = 1, pages = 42, label = '1–10 / 412', onPage, className = '' }: { /** görgetésre töltés a lapozó előtt */ more?: React.ReactNode;
-  mobile?: boolean; title?: string; sentAt?: string; opened?: number; total?: number; rows?: RecipientRow[]
+export type RecipientRow = { key: string; name: string; meta: string; opened: boolean; /** a levélből foglalt (landing-minta) */ booked?: string }
+export function CampaignResults({ more, mobile = false, booked, title = 'Őszi frissítés −15%', sentAt = 'Kiküldve Okt. 14. 10:00', opened = 239, total = 412, rows = ([['Kovács Anna', 'Okt. 14. 10:12', true], ['Tóth Bence', 'Okt. 14. 18:40', true], ['Gál Zsófia', '', false], ['Lukas Gruber', 'Okt. 15. 08:05', true]] as const).map(([n, t, o]) => ({ key: n, name: n, meta: o ? `megnyitotta ${t}` : 'még nem nyitotta meg', opened: o })), filter = 0, onFilter, query, onQuery, onCopy, page = 1, pages = 42, label = '1–10 / 412', onPage, className = '' }: { /** görgetésre töltés a lapozó előtt */ more?: React.ReactNode;
+  mobile?: boolean; title?: string; sentAt?: string; opened?: number; total?: number; /** ebből foglalás (a megnyitók közül) — a sávon külön, sötéten */ booked?: number; rows?: RecipientRow[]
   filter?: number; onFilter?: (i: number) => void; query?: string; onQuery?: (q: string) => void; onCopy?: () => void
   page?: number; pages?: number; label?: string; onPage?: (p: number) => void; className?: string
 }) {
@@ -59,7 +59,11 @@ export function CampaignResults({ more, mobile = false, title = 'Őszi frissít�
       <Button variant="cell" size="sm" icon={Pencil} onClick={onCopy}>Másolat új kampányként</Button>
     </div>
     {/* 0% / 100%-nál egy szegmens (különben a két felirat egymásra csúszik, és egy üres sárga sáv is látszana) */}
-    <SegmentBar joined className="mt-5" segments={pct <= 0 ? [{ label: `${opened} megnyitotta · ${not} nem nyitotta meg`, value: '', weight: 100, tone: 'muted' }]
+    <SegmentBar joined className="mt-5" segments={booked && pct > 0 && pct < 100 ? [
+        { label: `${booked} foglalt`, value: '', weight: Math.max(16, Math.round((booked / total) * 100)), tone: 'dark' },
+        { label: `${opened} megnyitotta · ${pct}%`, value: '', weight: Math.max(18, pct - Math.round((booked / total) * 100)), tone: 'yellow' },
+        { label: `${not} nem`, value: '', weight: Math.max(14, 100 - pct), tone: 'muted' },
+      ] : pct <= 0 ? [{ label: `${opened} megnyitotta · ${not} nem nyitotta meg`, value: '', weight: 100, tone: 'muted' }]
       : pct >= 100 ? [{ label: `${opened} megnyitotta · 100%`, value: '', weight: 100, tone: 'yellow' }]
       : [
         { label: `${opened} megnyitotta · ${pct}%`, value: '', weight: Math.max(18, pct), tone: 'yellow' },
@@ -73,7 +77,7 @@ export function CampaignResults({ more, mobile = false, title = 'Őszi frissít�
     </div>
     <div className="mt-2">
       {rows.length ? rows.map((r) => (
-        <ListRow key={r.key} title={r.name} meta={r.meta} trailing={<StatusPill status={r.opened ? 'ok' : 'bad'}>{r.opened ? 'Megnyitotta' : 'Nem nyitotta meg'}</StatusPill>} />
+        <ListRow key={r.key} title={r.name} meta={r.meta} trailing={r.booked ? <Pill tone="dark" size="sm">Foglalt · {r.booked}</Pill> : <StatusPill status={r.opened ? 'ok' : 'bad'}>{r.opened ? 'Megnyitotta' : 'Nem nyitotta meg'}</StatusPill>} />
       )) : <Meta className="px-3 py-6 text-center">Nincs ilyen címzett.</Meta>}
     </div>
     {more}
@@ -105,7 +109,7 @@ export function OpenRateCard({ pct = 58, series = [47, 52, 49, 61, 51, 58], avgS
 
 export type CampaignItem = { id: string; title: string; status: 'sent' | 'scheduled' | 'draft' | 'auto'; when: string; stats?: [string, string, number][]; note?: string }
 const C_STATUS = { sent: 'Kiküldve', scheduled: 'Ütemezve', draft: 'Piszkozat', auto: 'Automatikus' } as const
-const SAMPLE_CAMPAIGNS: CampaignItem[] = [
+export const SAMPLE_CAMPAIGNS: CampaignItem[] = [
   { id: 'a', title: 'Őszi frissítés −15%', status: 'sent', when: 'Okt. 14. 10:00 · 412 címzett', stats: [['Megnyitás', '58%', 58], ['Kattintás', '14%', 14], ['Foglalás', '23', 46]] },
   { id: 'b', title: 'Advent: utalvány', status: 'scheduled', when: 'Nov. 28. 09:00 · 418 címzett', note: 'Még 26 nap · Feliratkozottak' },
   { id: 'c', title: 'Új munkatárs: Szabina', status: 'sent', when: 'Szept. 2. 09:30 · 398 címzett', stats: [['Megnyitás', '61%', 61], ['Kattintás', '9%', 9], ['Foglalás', '11', 22]] },

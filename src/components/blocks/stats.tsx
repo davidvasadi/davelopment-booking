@@ -31,7 +31,8 @@ export const SAMPLE_STATS: StatsVM = {
   },
   hours: {
     hours: [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], peak: 'Péntek 17–19', closedPct: 47,
-    grid: Array.from({ length: 7 }, (_, di) => Array.from({ length: 11 }, (_, hi) => (di === 6 ? 0 : Math.min(1, ((di * 7 + hi * 3) % 10) / 10 + (di === 4 && hi > 7 ? 0.4 : 0) + (hi > 7 ? 0.15 : 0))))),
+    // vegyes (nem átlós) minta: determinisztikus „zaj” + esti és péntek esti csúcs
+    grid: Array.from({ length: 7 }, (_, di) => Array.from({ length: 11 }, (_, hi) => { if (di === 6) return 0; const n = Math.sin(di * 12.9898 + hi * 78.233) * 43758.5453; const r = n - Math.floor(n); return Math.min(1, r * 0.95 + (hi > 6 ? 0.18 : 0) + (di === 4 && hi > 7 ? 0.45 : 0) + (di === 5 && hi < 4 ? 0.25 : 0)) })),
     created: [{ name: 'Reggel (6–10)', value: '14%', pct: 14 }, { name: 'Napközben (10–18)', value: '39%', pct: 39 }, { name: 'Este (18–23)', value: '41%', pct: 41, lead: 'hi' }, { name: 'Éjjel (23–6)', value: '6%', pct: 6 }],
   },
   source: { online: 68, phone: 22, walkIn: 10, delta: 9, leadDays: 4.2, avgValue: 9950, cancelPct: 10, tableTime: null },
@@ -125,7 +126,7 @@ export function StatUtilCard({ util = SAMPLE_STATS.util, restaurant = false, onO
 }
 
 /** Mikor foglalnak: nap × óra pont-mátrix (sárga = csúcs). */
-export function StatHoursCard({ hours = SAMPLE_STATS.hours, onOpen, className = '' }: { hours?: StatsVM['hours']; onOpen?: () => void; className?: string }) {
+export function StatHoursCard({ hours = SAMPLE_STATS.hours, onOpen, animate = false, className = '' }: { hours?: StatsVM['hours']; onOpen?: () => void; /** landing: a kiemelt (sárga) pöttyök eltolva pulzálnak */ animate?: boolean; className?: string }) {
   const days = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
   const rows = hours.grid.map((r, i) => [days[i], r] as const).filter(([d, r]) => d !== 'V' || r.some((v) => v > 0))
   return (
@@ -136,7 +137,7 @@ export function StatHoursCard({ hours = SAMPLE_STATS.hours, onOpen, className = 
         {rows.map(([d, r]) => (
           <Fragment key={d}>
             <span>{d}</span>
-            {r.map((v, hi) => <span key={hi} className={`mx-auto aspect-square w-full max-w-[18px] rounded-full ${v > 0.85 ? 'bg-ui-yellow' : v > 0.5 ? 'bg-white/35' : 'bg-white/10'}`} />)}
+            {r.map((v, hi) => <span key={hi} className={`mx-auto aspect-square w-full max-w-[18px] rounded-full ${v > 0.85 ? `bg-ui-yellow ${animate ? 'ui-dot-pulse' : ''}` : v > 0.5 ? 'bg-white/35' : 'bg-white/10'}`} style={animate && v > 0.85 ? { ['--d' as string]: `${((d.length * 13 + hi * 7) % 11) * 140}ms` } : undefined} />)}
           </Fragment>
         ))}
       </div>
@@ -185,7 +186,7 @@ export function StatSourceCard({ source: src, restaurant = false, onOpen, classN
 
 /** Bevétel alakulása: most (sárga) és az előző időszak (szaggatott); a pontra mutatva az adott nap / hét összege. */
 /** A Bevétel (étteremnél Vendégszám) világos vonal-grafikonja — a kártya és a részletes lap is ezt rajzolja. */
-function RevenueChart({ revenue, unit = 'Ft', className = '' }: { revenue: NonNullable<StatsVM['revenue']>; unit?: string; className?: string }) {
+function RevenueChart({ revenue, unit = 'Ft', drawIn = false, className = '' }: { revenue: NonNullable<StatsVM['revenue']>; unit?: string; /** belépő: a görbe kirajzolódik (landing) */ drawIn?: boolean; className?: string }) {
   const [hover, setHover] = useState<number | null>(null)
   const now = revenue.now.length > 1 ? revenue.now : [revenue.now[0] ?? 0, revenue.now[0] ?? 0]
   const prev = revenue.prev.slice(0, now.length)
@@ -207,12 +208,12 @@ function RevenueChart({ revenue, unit = 'Ft', className = '' }: { revenue: NonNu
           <div className="pointer-events-auto relative flex-1 cursor-crosshair touch-pan-y" onPointerMove={pick} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null) }}>
             <span className="absolute inset-y-0 w-[7%] -translate-x-1/2 rounded-full bg-white transition-[left] duration-200" style={{ left: `${Math.min(96.5, Math.max(3.5, x(sel)))}%` }} />
             {[100, 75, 50, 25, 0].map((v) => <span key={v} className="absolute inset-x-0 border-t border-ui-divider" style={{ top: `${v}%` }} />)}
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={`absolute inset-0 h-full w-full overflow-visible ${drawIn ? 'ui-reveal-x' : ''}`}>
               {prev.length > 1 && <path d={smooth(prev, 100, 100, 0, top)} fill="none" stroke="var(--ui-dark)" strokeWidth="1.5" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
               <path d={smooth(now, 100, 100, 0, top)} fill="none" stroke="var(--ui-yellow)" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
-            <span className="absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-ui-dark bg-ui-yellow transition-all duration-200" style={{ left: `${x(sel)}%`, top: `${yy(now[sel])}%` }} />
-            <span className="absolute transition-all duration-200" style={{ left: `${x(sel)}%`, top: `${yy(now[sel])}%`, transform: `translate(${tx}, calc(-100% - 12px))` }}>
+            <span className={`absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-ui-dark bg-ui-yellow transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ left: `${x(sel)}%`, top: `${yy(now[sel])}%`, ['--d' as string]: '1100ms' }} />
+            <span className={`absolute transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ ['--d' as string]: '1250ms', left: `${x(sel)}%`, top: `${yy(now[sel])}%`, transform: `translate(${tx}, calc(-100% - 12px))` }}>
               <Pill tone="dark" size="sm">{nf(now[sel])} {unit} <span className="text-white/50">· {revenue.points[sel] ?? ''}</span></Pill>
             </span>
           </div>
@@ -224,11 +225,11 @@ function RevenueChart({ revenue, unit = 'Ft', className = '' }: { revenue: NonNu
 }
 
 /** `title` / `unit`: étteremnél ugyanez a forma a vendégszám alakulására („Vendégszám alakulása”, fő). */
-export function StatRevenueCard({ revenue: rv, title = 'Bevétel alakulása', unit = 'Ft', onOpen, className = '' }: { revenue?: NonNullable<StatsVM['revenue']>; title?: string; unit?: string; onOpen?: () => void; className?: string }) {
+export function StatRevenueCard({ revenue: rv, title = 'Bevétel alakulása', unit = 'Ft', onOpen, animate = false, className = '' }: { revenue?: NonNullable<StatsVM['revenue']>; title?: string; unit?: string; onOpen?: () => void; /** landing: a görbe belépő-animációja */ animate?: boolean; className?: string }) {
   const revenue = rv ?? (unit === 'Ft' ? SAMPLE_STATS.revenue! : SAMPLE_REST.paxTrend!)
   return (
     <StatCard title={title} extra={<Legend items={[['bg-ui-yellow', 'Most'], ['bg-ui-dark', 'Előző']]} />} onOpen={onOpen} className={`min-h-[280px] ${className}`}>
-      <RevenueChart revenue={revenue} unit={unit} />
+      <RevenueChart revenue={revenue} unit={unit} drawIn={animate} />
     </StatCard>
   )
 }
@@ -246,7 +247,7 @@ export function StatTopCard({ top = SAMPLE_STATS.top!, onOpen, className = '' }:
 
 /** Kártya-méretű élő sötét vonal-grafikon (No-show, Vendégek): a pontra mutatva az adott nap / hét értéke; alul az első és az
  *  utolsó dátum. */
-function CardTrend({ trend: tIn, fmt }: { trend?: { now: number[]; prev: number[]; ticks: string[]; points: string[] }; fmt: (v: number) => string }) {
+function CardTrend({ trend: tIn, fmt, drawIn = false }: { trend?: { now: number[]; prev: number[]; ticks: string[]; points: string[] }; fmt: (v: number) => string; drawIn?: boolean }) {
   // védelem: régebbi (frissítés előtti) szerver-adatban még nincs alakulás — ilyenkor üres vonal, nem hiba
   const trend = tIn ?? { now: [0, 0], prev: [], ticks: [], points: [] }
   const now = trend.now.length > 1 ? trend.now : [trend.now[0] ?? 0, trend.now[0] ?? 0]
@@ -256,7 +257,7 @@ function CardTrend({ trend: tIn, fmt }: { trend?: { now: number[]; prev: number[
   const pick = (e: React.PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); setHover(Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (now.length - 1))) }
   return (
     <div className="pointer-events-auto mt-auto cursor-crosshair touch-pan-y" onPointerMove={pick} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null) }}>
-      <DarkLineChart now={now} prev={trend.prev.slice(0, now.length)} sel={sel} min={0} max={max} h={80} label={`${fmt(now[sel] ?? 0)} · ${trend.points[sel] ?? ''}`} ticks={[trend.ticks[0] ?? '', trend.ticks[trend.ticks.length - 1] ?? '']} />
+      <DarkLineChart drawIn={drawIn} now={now} prev={trend.prev.slice(0, now.length)} sel={sel} min={0} max={max} h={80} label={`${fmt(now[sel] ?? 0)} · ${trend.points[sel] ?? ''}`} ticks={[trend.ticks[0] ?? '', trend.ticks[trend.ticks.length - 1] ?? '']} />
     </div>
   )
 }
@@ -289,14 +290,14 @@ export function StatNoShowCard({ noShow = SAMPLE_STATS.noShow, onOpen, className
 }
 
 /** Vendégek: sötét kártya, az új vendégek alakulása (most és az előző időszak); a belföldi / külföldi bontás a lapján. */
-export function StatGuestsCard({ guests = SAMPLE_STATS.guests, onOpen, className = '' }: { guests?: StatsVM['guests']; onOpen?: () => void; className?: string }) {
+export function StatGuestsCard({ guests = SAMPLE_STATS.guests, onOpen, animate = false, className = '' }: { guests?: StatsVM['guests']; onOpen?: () => void; /** landing: a görbe belépő-animációja */ animate?: boolean; className?: string }) {
   return (
     <StatCard dark title="Vendégek" sub={`${nf(guests.fresh)} új az időszakban`} onOpen={onOpen} className={className}>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="text-ui-num font-light leading-none">{nf(guests.total)}</span>
         <span className="text-ui-meta text-white/50">vendég</span>
       </div>
-      <CardTrend trend={guests.trend} fmt={(v) => `${v} új`} />
+      <CardTrend trend={guests.trend} fmt={(v) => `${v} új`} drawIn={animate} />
     </StatCard>
   )
 }
@@ -326,17 +327,17 @@ export function StatReviewsCard({ reviews = SAMPLE_STATS.reviews, className = ''
 /* ── 5.4 étterem-kártyák ── */
 
 /** Napcsík (Crextio naptár-csík): fent oszloponként felirat + nagy szám, alatta összefüggő sávok több oszlopon át. */
-export function BlockStrip({ cols, blocks, weights, className = '' }: Strip & { className?: string }) {
+export function BlockStrip({ cols, blocks, weights, animate = false, className = '' }: Strip & { /** belépő: a blokkok alulról felnőnek, a számok beúsznak (landing) */ animate?: boolean; className?: string }) {
   const tone = { hatch: 'ui-hatch ui-hatch-text font-medium text-ui-text', yellow: 'bg-ui-yellow text-ui-dark', dark: 'bg-ui-dark text-white', off: 'ui-hatch-cell text-ui-label text-ui-muted' }
   // arányos oszlopok (pl. a társaságok százaléka szerint), különben egyformák
   const template = weights ? weights.map((w) => `minmax(0, ${w}fr)`).join(' ') : `repeat(${cols.length}, minmax(0, 1fr))`
   return (
     <Card tone="cell" inner className={className}>
       <div className="grid gap-1.5 text-center" style={{ gridTemplateColumns: template }}>
-        {cols.map(([l, v]) => <div key={l} className="min-w-0"><MarqueeText className="text-ui-label text-ui-muted">{l}</MarqueeText><MarqueeText className="mt-1 text-ui-title font-light text-ui-text">{v}</MarqueeText></div>)}
+        {cols.map(([l, v], i) => <div key={l} className={`min-w-0 ${animate ? 'ui-fade-up' : ''}`} style={animate ? { ['--d' as string]: `${300 + i * 90}ms` } : undefined}><MarqueeText className="text-ui-label text-ui-muted">{l}</MarqueeText><MarqueeText className="mt-1 text-ui-title font-light text-ui-text">{v}</MarqueeText></div>)}
       </div>
       <div className="mt-3 grid h-14 gap-1.5" style={{ gridTemplateColumns: template }}>
-        {blocks.map((b, i) => <div key={`${b.text}-${i}`} className={`flex min-w-0 items-center justify-center overflow-hidden rounded-ui-inner px-1 text-center text-ui-label leading-tight ${tone[b.tone]}`} style={{ gridColumn: `span ${b.span}` }}>{b.text}</div>)}
+        {blocks.map((b, i) => <div key={`${b.text}-${i}`} className={`flex min-w-0 items-center justify-center overflow-hidden rounded-ui-inner px-1 text-center text-ui-label leading-tight ${tone[b.tone]} ${animate ? 'ui-grow-y' : ''}`} style={{ gridColumn: `span ${b.span}`, ['--i' as string]: i * 3 }}>{b.text}</div>)}
       </div>
     </Card>
   )
@@ -344,11 +345,11 @@ export function BlockStrip({ cols, blocks, weights, className = '' }: Strip & { 
 
 /** Étterem — Létszám (a szalon Top szolgáltatásának helyén): hány fős társaságok jönnek, és van-e hozzá asztal — ugyanaz a
  *  napcsík, mint a részletes lapján. */
-export function RestPartyCard({ rest = SAMPLE_REST.rest!, onOpen, className = '' }: { rest?: NonNullable<StatsVM['rest']>; onOpen?: () => void; className?: string }) {
+export function RestPartyCard({ rest = SAMPLE_REST.rest!, onOpen, animate = false, className = '' }: { rest?: NonNullable<StatsVM['rest']>; onOpen?: () => void; /** belépő animáció (landing) */ animate?: boolean; className?: string }) {
   return (
     <StatCard title="Létszám" onOpen={onOpen} className={className}>
       <div className="mt-1 flex items-baseline gap-2"><span className="text-ui-num font-light leading-none text-ui-text">{rest.avgParty == null ? '—' : comma(rest.avgParty)}</span><span className="text-ui-meta text-ui-muted">fő átlagosan</span></div>
-      <BlockStrip className="mt-auto" {...rest.party} />
+      <BlockStrip className="mt-auto" animate={animate} {...rest.party} />
     </StatCard>
   )
 }

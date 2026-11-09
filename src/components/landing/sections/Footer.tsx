@@ -12,17 +12,17 @@ import { Grain } from '@/components/landing/Grain'
 import { SERVICES } from '@/components/landing/sections/Nav'
 
 /** Footer-link text-roll felirattal + nyíl-elfordulással (a Pricing/RollButton nyelve). */
-function FooterLink({ href, label }: { href: string; label: string }) {
+function FooterLink({ href, label, compact = false }: { href: string; label: string; compact?: boolean }) {
   const Cmp = href.startsWith('#') ? 'a' : Link
   return (
     <motion.div initial="rest" whileHover="hover" animate="rest" className="inline-flex">
-      <Cmp href={href} className="group inline-flex items-center gap-1.5 text-lg text-white/70 hover:text-white transition-colors">
+      <Cmp href={href} className={`group inline-flex items-center gap-1.5 text-white/70 hover:text-white transition-colors ${compact ? 'text-ui-body' : 'text-lg'}`}>
         {/* text-roll */}
-        <span className="overflow-hidden inline-block" style={{ height: '1.75rem' }}>
+        <span className="overflow-hidden inline-block" style={{ height: compact ? '1.3rem' : '1.75rem' }}>
           <motion.span
             className="flex flex-col"
-            style={{ lineHeight: '1.75rem' }}
-            variants={{ rest: { y: 0 }, hover: { y: '-1.5rem' } }}
+            style={{ lineHeight: compact ? '1.3rem' : '1.75rem' }}
+            variants={{ rest: { y: 0 }, hover: { y: compact ? '-1.3rem' : '-1.5rem' } }}
             transition={{ duration: 0.4, ease: EASE }}
           >
             <span className="block">{label}</span>
@@ -35,7 +35,7 @@ function FooterLink({ href, label }: { href: string; label: string }) {
           transition={{ duration: 0.4, ease: EASE }}
           className="inline-flex"
         >
-          <ArrowUpRight className="h-4 w-4" />
+          <ArrowUpRight className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
         </motion.span>
       </Cmp>
     </motion.div>
@@ -46,9 +46,9 @@ const NAV_LINKS = [
   { href: '/register', label: 'Időpontfoglaló rendszer' },
   { href: '#hogyan', label: 'Hogyan működik' },
   { href: '#velemenyek', label: 'Vélemények' },
-  { href: '#arazas', label: 'Árak' },
+  { href: '/arak', label: 'Árak' },
   { href: '#gyik', label: 'GYIK' },
-  { href: '#kapcsolat', label: 'Kapcsolat' },
+  { href: '/kapcsolat', label: 'Kapcsolat' },
   { href: '/login', label: 'Bejelentkezés' },
 ]
 // A saját iparági SEO-landingekre mutat (lásd `src/lib/industryLandings.ts`) — nem `/register`-re.
@@ -79,8 +79,11 @@ const LEGAL_LINKS = [
 export function Footer({
   trial_days,
   googleRating,
+  compact = false,
 }: {
   trial_days: number
+  /** tömörebb lábléc (új főoldal): kisebb linkek, címek, térközök és „Csatlakozz” felirat */
+  compact?: boolean
   /** Cache-elt Google Cégem-pontszám (lásd src/lib/google-rating.ts) — null, ha még nincs cron-adat. */
   googleRating?: { rating: number; userRatingCount: number } | null
 }) {
@@ -93,14 +96,14 @@ export function Footer({
       }}
     >
       <Grain opacity={0.18} />
-      <div className="relative mx-auto px-6 lg:px-10 pt-16 lg:pt-20 pb-12">
+      <div className={`relative mx-auto px-6 lg:px-10 ${compact ? 'pb-6 pt-10 lg:pt-12' : 'pt-16 lg:pt-20 pb-12'}`}>
         <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-[1.8fr_1fr_1fr_1fr] lg:gap-10">
           {/* Márka-blokk + CTA (egy oszlop lg-n, teljes sor sm/mobile-on) */}
           <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-6">
             <div>
-              <BrandLogo variant="dark" className="h-12" />
-              <p className="mt-4 text-4xl lg:text-5xl font-bold tracking-tight">Online Időpontfoglaló.</p>
-              <div className="text-white/70">
+              <BrandLogo variant="dark" className={compact ? 'h-9' : 'h-12'} />
+              <p className={`mt-4 font-bold tracking-tight ${compact ? 'text-2xl lg:text-3xl' : 'text-4xl lg:text-5xl'}`}>Online Időpontfoglaló.</p>
+              <div className={`text-white/70 ${compact ? 'text-ui-body' : ''}`}>
                 <p className="mt-4 tracking-tight">
                   Hagyd, hogy az ügyfeleid maguk foglaljanak – te csak a munkádra figyelj. Éttermeknek,
                   fodrászatoknak, kis vállalkozásoknak. Próbáld ki {trial_days} napig ingyen.
@@ -119,7 +122,7 @@ export function Footer({
               variants={buttonHover}
               initial="rest"
               whileHover="hover"
-              className="inline-flex self-start items-center gap-2.5 rounded-full bg-white py-2.5 pl-5 pr-2.5 font-onest font-medium text-base text-[#1d1c19]"
+              className={`inline-flex self-start items-center rounded-full bg-white font-onest font-medium text-[#1d1c19] ${compact ? 'gap-2 py-1.5 pl-4 pr-1.5 text-ui-row' : 'gap-2.5 py-2.5 pl-5 pr-2.5 text-base'}`}
             >
               Ingyenes regisztráció
               <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full overflow-hidden" style={{ background: '#f1ce45' }}>
@@ -164,16 +167,16 @@ export function Footer({
               className="text-xs text-white/40 hover:text-white/70 transition-colors"
             >
               Powered by <br />
-              <span className="font-bold text-white text-lg">[davelopment]®</span>
+              <span className="font-bold text-white text-lg">[davelopment]©</span>
             </a>
           </div>
 
           {/* Gyors linkek */}
           <div>
-            <p className="text-lg font-semibold uppercase tracking-wider mb-3 whitespace-nowrap">Gyors linkek</p>
+            <p className={`font-semibold uppercase tracking-wider mb-3 whitespace-nowrap ${compact ? 'text-ui-meta text-white/50' : 'text-lg'}`}>Gyors linkek</p>
             <ul className="space-y-1.5">
               {NAV_LINKS.map((l) => (
-                <li key={l.href}><FooterLink href={l.href} label={l.label} /></li>
+                <li key={l.href}><FooterLink href={l.href} label={l.label} compact={compact} /></li>
               ))}
             </ul>
             <p className="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-widest text-white/35">
@@ -181,27 +184,27 @@ export function Footer({
             </p>
             <ul className="space-y-1.5">
               {SERVICES.map((s) => (
-                <li key={s.label}><FooterLink href={s.href} label={s.label} /></li>
+                <li key={s.label}><FooterLink href={s.href} label={s.label} compact={compact} /></li>
               ))}
             </ul>
           </div>
 
           {/* Iparági linkek */}
           <div>
-            <p className="text-lg font-semibold uppercase tracking-wider mb-3 whitespace-nowrap">Kinek</p>
+            <p className={`font-semibold uppercase tracking-wider mb-3 whitespace-nowrap ${compact ? 'text-ui-meta text-white/50' : 'text-lg'}`}>Kinek</p>
             <ul className="space-y-1.5">
               {INDUSTRY_LINKS.map((l) => (
-                <li key={l.label}><FooterLink href={l.href} label={l.label} /></li>
+                <li key={l.label}><FooterLink href={l.href} label={l.label} compact={compact} /></li>
               ))}
             </ul>
           </div>
 
           {/* Jogi linkek */}
           <div>
-            <p className="text-lg font-semibold uppercase tracking-wider mb-3">Jogi</p>
+            <p className={`font-semibold uppercase tracking-wider mb-3 ${compact ? 'text-ui-meta text-white/50' : 'text-lg'}`}>Jogi</p>
             <ul className="space-y-1.5">
               {LEGAL_LINKS.map((l) => (
-                <li key={l.href}><FooterLink href={l.href} label={l.label} /></li>
+                <li key={l.href}><FooterLink href={l.href} label={l.label} compact={compact} /></li>
               ))}
             </ul>
           </div>

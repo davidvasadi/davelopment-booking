@@ -1,20 +1,24 @@
 'use client'
 
-import { useState, useEffect, useRef, useId } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useId } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion, AnimatePresence, animate, useInView } from 'framer-motion'
-import { ArrowRight, ChevronDown, ArrowUpRight } from 'lucide-react'
-import { EASE, SPRING_QUICK, SPRING_SNAPPY, buttonHover, popPanelCenter, popItem } from '@/lib/motion'
+import { useScrollHide } from '@/components/landing/useScrollHide'
+import { ArrowRight } from 'lucide-react'
+import { EASE, SPRING_QUICK, SPRING_SNAPPY, buttonHover } from '@/lib/motion'
 import { type LandingPricing } from '@/components/landing/types'
 import { BrandLogo } from '@/components/BrandLogo'
-import { MenuToggle, MobileMenu, SERVICES } from '@/components/landing/sections/Nav'
+import { FitCard } from '@/components/landing/FitCard'
+import { MenuToggle, MobileMenu } from '@/components/landing/sections/Nav'
+import { MegaPanel, MegaTrigger, useMegaMenu } from '@/components/landing/NavMegaMenu'
 
-const HERO_LINKS = [
-  { id: 'hogyan',     label: 'Hogyan működik' },
-  { id: 'arazas',     label: 'Árak' },
-  { id: 'tippek',     label: 'Blog' },
-  { id: 'kapcsolat',  label: 'Kapcsolat' },
+// A „Funkciók” és „Kinek” lenyíló (NavMegaMenu) előtt álló sima horgony-linkek.
+// `href` = külön aloldalra visz (nem a főoldali szekcióra görget)
+const HERO_LINKS: { id: string; label: string; href?: string }[] = [
+  { id: 'arazas',     label: 'Árak', href: '/arak' },
+  { id: 'tippek',     label: 'Tippek', href: '/tips' },
+  { id: 'kapcsolat',  label: 'Kapcsolat', href: '/kapcsolat' },
 ]
 const NAV_OFFSET = 60
 
@@ -395,45 +399,41 @@ const PAIRS: [CardFn, CardFn][] = [
 ]
 
 // ─── HeroNav — hero-ba épített navigáció (nem sticky) ────────────────────────
-function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' | 'light'; pillId?: string }) {
+export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'pill', login = true }: {
+  theme?: 'dark' | 'light'; pillId?: string
+  /** false: a Bejelentkezés link nélkül (pl. a 2. koncepció hero-ja) */
+  login?: boolean
+  /** `plain`: sötét, videó nélküli hero-kon — doboz nélküli, fehér szöveges linkek + fehér CTA (Optivio-minta) */
+  variant?: 'pill' | 'plain'
+}) {
+  const plain = variant === 'plain'
+  const onDark = theme === 'dark'
   const [active, setActive]     = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [mounted, setMounted]   = useState(false)
   const [togglePos, setTogglePos] = useState<{ top: number; right: number } | null>(null)
   const [logoPos, setLogoPos]     = useState<{ top: number; left: number } | null>(null)
   const [animatedOpen, setAnimatedOpen] = useState(false)
-  const [servicesOpen, setServicesOpen] = useState(false)
-  const [dropdownPos, setDropdownPos]   = useState<{ top: number; right: number } | null>(null)
   const toggleRef     = useRef<HTMLDivElement>(null)
   const logoRef       = useRef<HTMLDivElement>(null)
-  const servicesRef   = useRef<HTMLDivElement>(null)
-  const servicesBtnRef = useRef<HTMLButtonElement>(null)
   const pendingTarget = useRef<string | null>(null)
-
+  // Funkciók / Kinek lenyíló — a panel a menüsor alja alá kerül (mérve nyitáskor)
+  const mega = useMegaMenu()
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [megaTop, setMegaTop] = useState(0)
+  const pillRef = useRef<HTMLDivElement>(null)
+  // a panel helyét a kirajzolás ELŐTT mérjük (layout effect) — különben az első képkockán rossz
+  // helyen jelenne meg és a helyére ugrana
+  useLayoutEffect(() => {
+    if (mega.open && rowRef.current) setMegaTop(rowRef.current.getBoundingClientRect().bottom)
+  }, [mega.open])
   useEffect(() => {
-    if (!servicesOpen) return
-    const onMouse = (e: MouseEvent) => {
-      if (
-        servicesRef.current && !servicesRef.current.contains(e.target as Node) &&
-        servicesBtnRef.current && !servicesBtnRef.current.contains(e.target as Node)
-      ) setServicesOpen(false)
-    }
-    const onScroll = () => setServicesOpen(false)
-    document.addEventListener('mousedown', onMouse)
+    if (!mega.open) return
+    const onScroll = () => mega.setOpen(null)
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      document.removeEventListener('mousedown', onMouse)
-      window.removeEventListener('scroll', onScroll)
-    }
-  }, [servicesOpen])
-
-  const handleServicesToggle = () => {
-    if (!servicesOpen && servicesBtnRef.current) {
-      const r = servicesBtnRef.current.getBoundingClientRect()
-      setDropdownPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
-    }
-    setServicesOpen(o => !o)
-  }
+    return () => window.removeEventListener('scroll', onScroll)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mega.open])
 
   useEffect(() => setMounted(true), [])
 
@@ -472,7 +472,8 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
 
   const goTo = (id: string) => {
     const el = document.getElementById(id)
-    if (!el) return
+    // aloldalon (pl. /funkciok/...) nincs ilyen szekció → a főoldal megfelelő részére
+    if (!el) { window.location.href = `/#${id}`; return }
     setActive(id)
     pendingTarget.current = id
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - NAV_OFFSET, behavior: 'smooth' })
@@ -511,57 +512,54 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
 
   return (
     <>
-      <div className="flex w-full items-center justify-between gap-4">
+      <div ref={rowRef} className="flex w-full items-center justify-between gap-4">
         {/* Logó — ref a pozíció méréséhez */}
         <div ref={logoRef} className="shrink-0">
           <Link href="/" aria-label="davelopment booking">
-            <BrandLogo variant={theme === 'dark' ? 'dark' : 'light'} className="h-[26px]" />
+            <BrandLogo variant={theme === 'dark' ? 'dark' : 'light'} className={plain ? "h-[30px]" : "h-[26px]"} />
           </Link>
         </div>
 
         {/* Desktop pill menü + Szolgáltatások gomb */}
-        <div className="hidden min-[1033px]:flex items-center gap-0 rounded-full p-[3px]"
-          style={theme === 'dark'
-            ? { background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }
-            : { background: '#ffffff' }}>
-          {HERO_LINKS.map(({ id, label }) => {
-            const isActive = active === id
+        <div ref={pillRef} data-mega-root className={`hidden min-[1033px]:flex items-center gap-0 rounded-full p-[3px] ${plain ? 'ml-auto mr-2' : ''}`}
+          style={plain
+            ? undefined
+            : theme === 'dark'
+              ? { background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }
+              : { background: '#ffffff' }}>
+          {([['features', 'Funkciók'], ['studio', <>[davelopment]<span className="relative -top-[0.35em] ml-px text-[0.6em]">©</span></>]] as const).map(([id, label]) => (
+            <MegaTrigger
+              key={id}
+              id={id}
+              label={label}
+              mega={mega}
+              layoutId={pillId}
+              activeCls={plain ? (onDark ? 'bg-white/10' : 'bg-black/[0.06]') : 'bg-[#3b3b3b]'}
+              activeTextCls={plain && !onDark ? 'text-brand-ink' : 'text-white'}
+              inactiveTextCls={plain ? (onDark ? 'text-white/75 hover:text-white' : 'text-ui-text/90 hover:text-ui-text') : 'text-brand-ink'}
+              className={`px-3 py-2 font-onest text-[14px] leading-5 ${id === 'studio' ? 'font-bold' : 'font-medium'}`}
+            />
+          ))}
+          {HERO_LINKS.map(({ id, label, href }) => {
+            const isActive = active === id && !mega.open
             return (
-              <motion.a key={id} href={`#${id}`} onClick={(e) => onDesktopClick(e, id)}
+              <motion.a key={id} href={href ?? `#${id}`} onClick={href ? undefined : (e) => onDesktopClick(e, id)}
                 variants={buttonHover} initial="rest" whileHover="hover"
-                className={`relative flex items-center rounded-full px-[14px] py-[10px] font-onest font-medium text-[15px] leading-6 transition-colors ${isActive ? 'text-white' : 'text-brand-ink'}`}>
+                className={`relative flex items-center rounded-full px-3 py-2 font-onest font-medium text-[14px] leading-5 transition-colors ${plain ? (onDark ? (isActive ? 'text-white' : 'text-white/75 hover:text-white') : (isActive ? 'text-brand-ink' : 'text-ui-text/90 hover:text-ui-text')) : isActive ? 'text-white' : 'text-brand-ink'}`}>
                 {isActive && (
                   <motion.span aria-hidden layoutId={pillId}
                     transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-                    className="absolute inset-0 rounded-full bg-[#3b3b3b]" />
+                    className={`absolute inset-0 rounded-full ${plain ? (onDark ? 'bg-white/10' : 'bg-black/[0.06]') : 'bg-[#3b3b3b]'}`} />
                 )}
                 <span className="relative">{label}</span>
               </motion.a>
             )
           })}
-
-          {/* Elválasztó vonal */}
-          <span className="mx-1 h-4 w-px bg-brand-ink/15 shrink-0" />
-
-          {/* Szolgáltatások gomb — ref a pozíció méréséhez */}
-          <motion.button
-            ref={servicesBtnRef}
-            onClick={handleServicesToggle}
-            variants={buttonHover}
-            initial="rest"
-            whileHover="hover"
-            className="relative flex items-center gap-1 rounded-full px-[14px] py-[10px] font-onest font-medium text-[15px] leading-6 text-brand-ink"
-          >
-            Szolgáltatások
-            <motion.span animate={{ rotate: servicesOpen ? 180 : 0 }} transition={{ duration: 0.2, ease: EASE }}>
-              <ChevronDown className="h-3.5 w-3.5" strokeWidth={2.2} />
-            </motion.span>
-          </motion.button>
         </div>
 
         {/* CTA + Bejelentkezés (desktop) + mobil toggle */}
         <div className="flex items-center gap-2.5 shrink-0">
-          {theme === 'light' && (
+          {theme === 'light' && login && (
             <Link
               href="/login"
               className="hidden min-[1033px]:inline-flex text-[13px] font-medium text-brand-ink/45 hover:text-brand-ink/80 transition-colors px-1"
@@ -569,15 +567,28 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
               Bejelentkezés
             </Link>
           )}
-          <motion.a
-            href="/register"
-            variants={buttonHover}
-            initial="rest"
-            whileHover="hover"
-            className="hidden min-[1033px]:flex items-center rounded-full px-[14px] py-[13px] font-onest font-medium text-[15px] leading-6"
-            style={{ background: '#3b3b3b', color: '#ffffff' }}>
-            Próbáld ki ingyen
-          </motion.a>
+          {plain ? (
+            // sima gomb (nyíl-kör nélkül) — a nav-ban egyszerű, sötét kapszula
+            <motion.a
+              href="/register"
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              className={`hidden min-[1033px]:inline-flex items-center rounded-full px-4 py-2.5 font-onest text-[14px] font-medium leading-5 transition-opacity hover:opacity-90 ${onDark ? 'bg-white text-ui-text' : 'bg-ui-dark text-white'}`}
+            >
+              Próbáld ki ingyen
+            </motion.a>
+          ) : (
+            <motion.a
+              href="/register"
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              className="hidden min-[1033px]:flex items-center rounded-full px-4 py-2.5 font-onest font-medium text-[14px] leading-5"
+              style={{ background: '#3b3b3b', color: '#ffffff' }}>
+              Próbáld ki ingyen
+            </motion.a>
+          )}
           {/* Inline toggle — scrollozik a navval, referenciapontként szolgál */}
           <div ref={toggleRef}>
             <MenuToggle open={menuOpen} onClick={handleToggle} ghost ink={theme === 'light'} />
@@ -585,9 +596,11 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
         </div>
       </div>
 
+      <MegaPanel mega={mega} top={megaTop} anchorRef={pillRef} />
+
       {mounted && createPortal(
         <AnimatePresence>
-          {menuOpen && <MobileMenu active={active} onPick={onMobileClick} />}
+          {menuOpen && <MobileMenu active={active} onPick={onMobileClick} onClose={() => setMenuOpen(false)} />}
         </AnimatePresence>,
         document.body,
       )}
@@ -619,41 +632,22 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
         document.body,
       )}
 
-      {/* Portál Szolgáltatások dropdown — body-ra, hogy az overflow-hidden ne klippelje */}
-      {mounted && dropdownPos && createPortal(
-        <AnimatePresence>
-          {servicesOpen && (
-            <motion.div
-              ref={servicesRef}
-              initial="hidden"
-              animate="show"
-              exit="exit"
-              variants={popPanelCenter}
-              style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, zIndex: 70 }}
-              className="w-64 rounded-2xl bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.22)] ring-1 ring-black/5 overflow-hidden p-1.5"
-            >
-              {SERVICES.map((s) => (
-                <motion.a
-                  key={s.label}
-                  href={s.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setServicesOpen(false)}
-                  variants={popItem}
-                  whileHover={{ scale: 0.97 }}
-                  transition={{ duration: 0.1, ease: 'easeOut' }}
-                  className="group flex items-center justify-between rounded-[10px] px-3.5 py-2.5 text-[14px] font-medium text-brand-ink/70 transition-colors duration-100 hover:bg-[#3b3b3b] hover:text-white"
-                >
-                  {s.label}
-                  <ArrowUpRight className="h-3.5 w-3.5 opacity-40 transition-opacity duration-100 group-hover:opacity-80" />
-                </motion.a>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
     </>
+  )
+}
+
+// ─── Aloldal-fejléc ───────────────────────────────────────────────────────────
+/** Ugyanaz a menüsor (világos téma) az aloldalakra (pl. /funkciok) — ragadós; lefelé görgetéskor
+ *  elbújik, felfelé előjön (a lap tetején mindig látszik). */
+export function SiteNav() {
+  const y = useScrollHide({ revealAbove: 80 })
+  return (
+    <motion.div
+      className="sticky top-0 z-[60] bg-[#F7F7F7]/90 px-4 py-2.5 backdrop-blur-md lg:px-5"
+      style={{ y }}
+    >
+      <HeroNav theme="light" pillId="site-nav-pill" variant="plain" />
+    </motion.div>
   )
 }
 
@@ -662,8 +656,11 @@ export function Hero({
   pricing,
   title,
   subtitle,
+  miniPairs,
 }: {
   pricing: LandingPricing
+  /** A videó melletti mini-kártyák párjai a design-kártyákból (src/components/blocks) — megadva a régiek helyett. */
+  miniPairs?: [React.ReactNode, React.ReactNode][]
   /** Iparági landingeknél felülírja a homepage-alapértelmezett címet/alcímet (pl. fodrász-specifikus üzenet). */
   title?: React.ReactNode
   subtitle?: React.ReactNode
@@ -672,14 +669,17 @@ export function Hero({
   const [mounted, setMounted] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
   const heroInView = useInView(sectionRef, { once: false, amount: 0 })
+  // a fix menü a hero után a görgetést követve bújik el / jön elő (lefelé ki, felfelé vissza)
+  const navY = useScrollHide({ startHidden: true })
 
   useEffect(() => setMounted(true), [])
   useEffect(() => {
-    const t = setInterval(() => setPairIdx(i => (i + 1) % PAIRS.length), 5200)
+    const t = setInterval(() => setPairIdx(i => (i + 1) % (miniPairs?.length ?? PAIRS.length)), 5200)
     return () => clearInterval(t)
-  }, [])
+  }, [miniPairs?.length])
 
-  const [Top, Bottom] = PAIRS[pairIdx]
+  const [Top, Bottom] = PAIRS[pairIdx % PAIRS.length]
+  const kit = miniPairs?.[pairIdx % miniPairs.length]
 
   return (
     <>
@@ -691,11 +691,11 @@ export function Hero({
           {!heroInView && (
             <motion.div
               className="fixed inset-x-0 top-0 z-[60]"
-              initial={{ y: -80, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -80, opacity: 0 }}
-              transition={SPRING_SNAPPY}
-              style={{ background: '#F7F7F7' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ background: '#F7F7F7', y: navY }}
             >
               <div className="px-4 lg:px-5 py-2.5">
                 <HeroNav theme="light" pillId="fixed-nav-pill" />
@@ -825,16 +825,16 @@ export function Hero({
               variants={buttonHover}
               initial="rest"
               whileHover="hover"
-              className="inline-flex items-center gap-2.5 rounded-full py-2.5 pl-5 pr-2.5 font-onest font-medium text-base text-[#f5f5f5]"
-              style={{ background: '#2a2720', backdropFilter: 'blur(2px)' }}
+              className="inline-flex items-center gap-2.5 rounded-full bg-ui-dark py-2.5 pl-5 pr-2.5 font-onest font-medium text-base text-white"
+              style={{ backdropFilter: 'blur(2px)' }}
             >
               Bejelentkezés
-              <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full overflow-hidden" style={{ background: '#f1ce45' }}>
+              <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full overflow-hidden bg-ui-yellow">
                 <motion.div className="absolute flex" variants={{ rest: { x: 0 }, hover: { x: 36 } }} transition={{ duration: 0.28, ease: EASE }}>
-                  <ArrowRight className="h-[18px] w-[18px]" style={{ color: '#1d1c19' }} />
+                  <ArrowRight className="h-[18px] w-[18px] text-ui-dark" />
                 </motion.div>
                 <motion.div className="absolute flex" variants={{ rest: { x: -36 }, hover: { x: 0 } }} transition={{ duration: 0.28, ease: EASE }}>
-                  <ArrowRight className="h-[18px] w-[18px]" style={{ color: '#1d1c19' }} />
+                  <ArrowRight className="h-[18px] w-[18px] text-ui-dark" />
                 </motion.div>
               </span>
             </motion.a>
@@ -859,7 +859,7 @@ export function Hero({
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.18, duration: 0.4 }}
               >
-                <Top />
+                {kit ? <FitCard w={360} className="w-[230px]">{kit[0]}</FitCard> : <Top />}
               </motion.div>
 
               {/* Alsó kártya — balra (belül) */}
@@ -868,7 +868,7 @@ export function Hero({
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.28, duration: 0.4 }}
               >
-                <Bottom />
+                {kit ? <FitCard w={360} className="w-[230px]">{kit[1]}</FitCard> : <Bottom />}
               </motion.div>
             </motion.div>
           </AnimatePresence>

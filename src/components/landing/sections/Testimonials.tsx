@@ -3,7 +3,7 @@
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
 import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight } from 'lucide-react'
-import { float } from '@/components/landing/Motion'
+import { float, RevealText } from '@/components/landing/Motion'
 import { SectionLabel } from '@/components/landing/SectionLabel'
 import { EASE, buttonHover } from '@/lib/motion'
 import { MorphButton } from '@/components/landing/sections/TestimonialButtons'
@@ -109,9 +109,7 @@ export function Testimonials({
         >
           <SectionLabel>(Értékelések)</SectionLabel>
           <div className="flex flex-col gap-3">
-            <h2 className="font-semibold text-[clamp(2.5rem,4.5vw,49px)] leading-[1.05] tracking-[-1.47px] text-brand-ink">
-              Most {trial_days} napig ingyen.
-            </h2>
+            <RevealText text={`Most ${trial_days} napig ingyen.`} className="font-semibold text-[clamp(2.5rem,4.5vw,49px)] leading-[1.05] tracking-[-1.47px] text-brand-ink" />
             <p className="text-[20px] tracking-[-0.6px] text-brand-ink/70">
               Próbáld ki kötelezettség nélkül — bankkártya sem kell.
             </p>

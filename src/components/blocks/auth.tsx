@@ -60,7 +60,7 @@ export function AuthScreen({ title = <>Kezeld<br />okosan<br />az üzleted.</>, 
             {sub && <div className="mt-5 max-w-[340px] text-ui-body text-white/80">{sub}</div>}
             {info.length > 0 && <div className="mt-6 max-w-[380px] space-y-1.5">{info.map((t) => <GlassRow key={t}>{t}</GlassRow>)}</div>}
           </div>
-          <span className="text-ui-label text-white/50">© {new Date().getFullYear()} [davelopment]®</span>
+          <span className="text-ui-label text-white/50">© {new Date().getFullYear()} [davelopment]</span>
         </div>
       </Card>
       <Card tone="white" pad="lg" className="flex flex-col justify-center lg:px-12"><div className="mx-auto w-full max-w-[400px]">{children}</div></Card>
@@ -115,7 +115,7 @@ export function LoginEmailForm({ dark = false, email = 'anna@fodraszat.hu', onEm
     : dark ? <div className={GLASS_FIELD}>{email}</div> : <Input type="email" defaultValue={email} />
   const errLine = error && <div role="alert" className={`mt-2 text-ui-label ${dark ? 'text-ui-bad-bg' : 'text-ui-bad'}`}>{error}</div>
   return (
-    <form onSubmit={submit} noValidate>
+    <form onSubmit={onSubmit ? submit : undefined} noValidate>
       {dark
         ? <><div className="mb-8 text-ui-num font-light uppercase leading-tight ui-photo-text">Bejelentkezés</div><div className="mb-1.5 text-ui-label text-white/60">E-mail</div>{field}{errLine}<div className="mt-3"><GlassRow>Küldünk egy 6 jegyű kódot — jelszó nem kell</GlassRow></div></>
         : <><div className="text-ui-page font-light leading-tight text-ui-text">Üdv újra!</div><Meta className="mt-2 text-ui-body">Jelentkezz be a fiókodba.</Meta>
@@ -142,7 +142,7 @@ export function LoginCodeForm({ dark = false, email = 'anna@fodraszat.hu', code 
   const submit = (e: React.FormEvent) => { e.preventDefault(); onSubmit?.() }
   const mmss = `${Math.floor(resendIn / 60)}:${String(resendIn % 60).padStart(2, '0')}`
   return (
-    <form onSubmit={submit} noValidate>
+    <form onSubmit={onSubmit ? submit : undefined} noValidate>
       {dark ? <div className="text-ui-num font-light uppercase leading-tight ui-photo-text">Írd be<br />a kódot</div> : <div className="text-ui-sub font-light text-ui-text">Írd be a kódot</div>}
       <div className={`mt-1 text-ui-body ${dark ? 'mb-6 mt-3 text-ui-meta text-white/60' : 'text-ui-muted'}`}>Elküldtük ide: <span className={dark ? 'text-white' : 'text-ui-text'}>{email}</span></div>
       <CodeInput value={code} onChange={onCode} onComplete={onSubmit ? (v) => onSubmit(v) : undefined} autoFocus={!!onCode} error={!!error} className={dark ? '' : 'mt-6'} inputClassName={dark ? GLASS_CODE : undefined} />

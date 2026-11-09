@@ -66,13 +66,25 @@ export function articleJsonLd(tip: Tip): Record<string, unknown> {
 }
 
 const TIP_IMAGES: Record<string, string> = {
-  'no-show-csokkentese': '/landing/tips/noshow-arany-javitas-tippek-davelopment-booking.png',
-  'emlekeztetok-automatizalasa': '/landing/tips/emlekeztetok-amik-novelik-a-hatekonysagot-davelopment-booking.png',
-  'mikor-eri-meg-online-foglalo': '/landing/tips/mikor-eri-meg-online-foglalot-bevezetni-davelopment-booking.png',
-  'csapat-beosztas-hatekonyan': '/landing/tips/csapat-beosztas-hatekonyan-davelopment-booking.png',
-  'torzsvendegek-megtartasa': '/landing/tips/hogyan-tartsd-meg-a-torzsvendegeidet-ne-csak-ujakat-szerezz.png',
-  'hogyan-valassz-idopontfoglalo-rendszert': '/landing/tips/hogyan-valassz-idopontfoglalo-rendszert-davelopment-booking.jpg',
-  'mennyibe-kerul-idopontfoglalo-szoftver': '/landing/tips/atlathato-arazas-davelopment-booking.jpg',
+  // a rendszer valódi mobilnézete telefonkeretben (2026-11-09; a landing-tipcovers TipCover-jéből exportálva)
+  'no-show-csokkentese': '/landing/tips/borito/no-show-csokkentese-davelopment-booking.webp',
+  'emlekeztetok-automatizalasa': '/landing/tips/borito/emlekeztetok-automatizalasa-davelopment-booking.webp',
+  'mikor-eri-meg-online-foglalo': '/landing/tips/borito/mikor-eri-meg-online-foglalo-davelopment-booking.webp',
+  'csapat-beosztas-hatekonyan': '/landing/tips/borito/csapat-beosztas-hatekonyan-davelopment-booking.webp',
+  'torzsvendegek-megtartasa': '/landing/tips/borito/torzsvendegek-megtartasa-davelopment-booking.webp',
+  'hogyan-valassz-idopontfoglalo-rendszert': '/landing/tips/borito/hogyan-valassz-idopontfoglalo-rendszert-davelopment-booking.webp',
+  'mennyibe-kerul-idopontfoglalo-szoftver': '/landing/tips/borito/mennyibe-kerul-idopontfoglalo-szoftver-davelopment-booking.webp',
+  'ingyenes-idopontfoglalo-szoftver-mikor-eri-meg-fizetni': '/landing/tips/borito/ingyenes-idopontfoglalo-szoftver-mikor-eri-meg-fizetni-davelopment-booking.webp',
+  'idopontfoglalo-szoftver-funkciok-amire-konnyu-nem-gondolni': '/landing/tips/borito/idopontfoglalo-szoftver-funkciok-amire-konnyu-nem-gondolni-davelopment-booking.webp',
+  'ajandekutalvany-ertekesites-szepsegszalonban': '/landing/tips/borito/ajandekutalvany-ertekesites-szepsegszalonban-davelopment-booking.webp',
+  'digitalis-beleegyezo-nyilatkozat-rendeloben': '/landing/tips/borito/digitalis-beleegyezo-nyilatkozat-rendeloben-davelopment-booking.webp',
+  'asztalfoglalas-online-vs-telefonon': '/landing/tips/borito/asztalfoglalas-online-vs-telefonon-davelopment-booking.webp',
+  'mikor-kell-jogosultsagkezeles-csapatnak': '/landing/tips/borito/mikor-kell-jogosultsagkezeles-csapatnak-davelopment-booking.webp',
+  'elolegkeres-foglalaskor-csokkenti-noshowt': '/landing/tips/borito/elolegkeres-foglalaskor-csokkenti-noshowt-davelopment-booking.webp',
+  'naptar-szinkron-idopontfoglalohoz': '/landing/tips/borito/naptar-szinkron-idopontfoglalohoz-davelopment-booking.webp',
+  'audit-naplo-kisvallalkozasban': '/landing/tips/borito/audit-naplo-kisvallalkozasban-davelopment-booking.webp',
+  'jelek-hogy-elavult-a-foglalasi-rendszered': '/landing/tips/borito/jelek-hogy-elavult-a-foglalasi-rendszered-davelopment-booking.webp',
+  'nav-kompatibilis-szamlazas-foglalasi-rendszerbol': '/landing/tips/borito/nav-kompatibilis-szamlazas-foglalasi-rendszerbol-davelopment-booking.webp',
 }
 
 const RAW_TIPS: Omit<Tip, 'image'>[] = [
@@ -103,7 +115,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Mikor volt utoljára dupla foglalásod?', body: 'Ha ez már megtörtént (vagy fennáll a kockázata, mert több helyen is jegyzed az időpontokat), az azt jelenti, hogy a jelenlegi rendszered nem skálázódik tovább.' },
       { title: 'Tudod-e fejből a legforgalmasabb napszakodat?', body: 'Ha nem, akkor vakon tervezel — egy rendszer ezt automatikusan megmutatja, és ez alapján tudsz árazni vagy beosztani.' },
     ],
-    closing: 'Ha kettőnél többre igent mondtál, itt az idő — a davelopment booking 30 napig ingyen kipróbálható, kártya nélkül.',
+    closing: 'Ha kettőnél többre igent mondtál, itt az idő — a davelopment booking ingyen kipróbálható, kártya nélkül.',
     relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
   },
   {
@@ -158,8 +170,6 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
     title: 'Hogyan válassz időpontfoglaló rendszert: 5 szempont, amit tényleg érdemes nézni',
     excerpt: 'Papíron a legtöbb rendszer ugyanazt ígéri. Az öt szempont, ami a gyakorlatban tényleg számít, mire eldöntöd, melyiket választod.',
     intro: 'Egy gyors keresésre tucatnyi időpontfoglaló rendszer jön fel, és papíron szinte mindegyik ugyanazt ígéri: online foglalás, emlékeztető, naptár. A különbség ott derül ki, amikor a napi működésedhez illesztve nézed őket — ez az öt szempont segít objektíven összehasonlítani.',
-    headerImageFit: 'cover',
-    headerImagePositionY: 40,
     sections: [
       {
         title: 'Nézd meg, mennyire illik a TE iparágadhoz',
@@ -186,14 +196,12 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
     intro: 'Az árazási oldalak első pillantásra egyszerűnek tűnnek: egy szám, havonta. A valóságban a végösszeget gyakran 3-4 külön tényező adja — ezeket érdemes átlátni még a döntés előtt, nem az első számla megérkezésekor.',
     // A borítókép laptopja középen ül a keretben (nem felül) — object-top helyett center-rel a
     // lista-kártya vágása a fehér margóból eszik, nem magából a laptopból.
-    imagePosition: 'center',
     // A kép sok üres margót tartalmaz a laptop körül — "contain" módban emiatt aprónak tűnne a
     // cikk-oldal fejlécén, ezért egy kis (30%-os) nagyítást kap.
     headerImageZoom: 1.3,
     // A lista-/teaser-kártyákon a vágási pontot a bal oldal felé toljuk, hogy a laptop bal fele
     // maradjon látható, a jobb oldali üres margó vágódjon le (alap 50% helyett) — a 30%-os
     // alapponthoz képest még +10px-es finomítással jobbra.
-    coverPositionX: 'calc(30% + 10px)',
     sections: [
       {
         title: 'Fix díj vagy per-fő árazás — nézd meg, melyik skálázódik veled',
@@ -211,9 +219,188 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
     closing: 'A davelopment booking árazása átlátható és csomagfüggetlenül tartalmazza a hírlevél-küldést is — nincs elrejtett, csak apró betűvel jelzett extra tétel. A próbaidő alatt a teljes funkciókészletet használhatod, hogy pontosan lásd, melyik csomag lesz elég.',
     relatedIndustrySlugs: ['maganrendelo-idopontfoglalas', 'joga-idopontfoglalas', 'barber-idopontfoglalas'],
   },
+  {
+    slug: 'ingyenes-idopontfoglalo-szoftver-mikor-eri-meg-fizetni',
+    category: 'Döntés',
+    date: '2026. augusztus 1.',
+    title: 'Ingyenes időpontfoglaló szoftverek: mikor éri meg mégis fizetni értük',
+    excerpt: 'Az ingyenes csomagok jó kiindulópontok, de van egy pont, ahol a hiányzó funkciók többe kerülnek, mint egy fizetős előfizetés.',
+    intro: 'Egy induló vállalkozásnak logikus lépés az ingyenes időpontfoglalóval kezdeni — de érdemes tudni előre, hol vannak a határai, hogy ne akkor derüljön ki, amikor már ráállt rá a működésed.',
+    sections: [
+      { title: 'Nézd meg, mi számít "korlátozottnak"', body: 'A legtöbb ingyenes csomag nem a funkciók számában korlátoz, hanem a mennyiségben: hány foglalás, hány munkatárs, hány emlékeztető fér bele havonta. Ha ezek a határok a jelenlegi forgalmaddal is szűkösek, az "ingyenes" gyorsan csak névleg az.' },
+      { title: 'Az emlékeztető és az előleg nem luxus, hanem bevétel-védelem', body: 'Az automatikus emlékeztető és az előlegkérés funkciója ritkán szerepel az ingyenes csomagokban — pedig pont ezek csökkentik a no-show-t, ami közvetlen bevételkiesés. Ha rendszeresen van üresen maradt időpontod, ez a hiány gyorsan drágább, mint egy előfizetés.' },
+      { title: 'Számold ki, mennyit ér a saját időd', body: 'Ha az ingyenes rendszer hiányzó funkciói miatt kézzel kell pótolnod (pl. külön emlékeztetőt írsz, manuálisan foglalsz be telefonon), az az idő is költség — csak nem számla formájában jelenik meg.' },
+    ],
+    closing: 'A davelopment booking kártyaszám nélküli, teljes hozzáférésű próbaidőt ad — így pontosan látod, mennyit ér neked azok a funkciók, amikért egyébként fizetnél.',
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'kozmetikus-idopontfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+  },
+  {
+    slug: 'idopontfoglalo-szoftver-funkciok-amire-konnyu-nem-gondolni',
+    category: 'Funkciók',
+    date: '2026. augusztus 1.',
+    title: 'Időpontfoglaló szoftver: 3 funkció, amire könnyű nem gondolni vásárlás előtt',
+    excerpt: 'A legtöbb rendszer ígéri az alapokat — pár konkrét funkció hiánya viszont csak akkor derül ki, amikor már éles használatban vagy.',
+    intro: 'Legyen szó fodrászatról, kozmetikáról, egy magánrendelőről vagy egy személyi edzőről — a felszínen a legtöbb időpontfoglaló ugyanazt ígéri. A különbség néhány konkrét, könnyen elsikkadó funkción múlik, amit érdemes kipipálni még a döntés előtt.',
+    sections: [
+      { title: 'Tudja-e kezelni a szolgáltatásonként eltérő időtartamot', body: 'Egy gyors kezelés 15-20 perc, egy komplexebb szolgáltatás akár 2-3 óra is lehet — ha a rendszer mindenkinek ugyanazt a fix időblokkot osztja, vagy alul-, vagy túlfoglalod magad. Nézd meg, hogy szolgáltatásonként külön időtartamot állíthatsz-e be.' },
+      { title: 'Látja-e mindenki a saját sávját, anélkül hogy összezavarodna a többi', body: 'Több szakembernél a naptárnak külön, jól elkülönített sávot kell mutatnia mindenkinek — enélkül a csapat percek alatt elveszti az áttekintést, ki mikor dolgozik és kinél van szabad hely.' },
+      { title: 'Van-e benne törzsvendég-felismerés és extra bevételi lehetőség', body: 'A legtöbb szolgáltató vállalkozás bevételének nagy része a visszatérő vendégekből jön — egy jó rendszer külön kezeli őket, és lehetőséget ad pl. ajándékutalvány értékesítésére is, ami plusz bevételi forrás ünnepek környékén.' },
+    ],
+    closing: 'A davelopment booking pontosan ezekre épül: szolgáltatásonként egyedi időtartam, külön munkatárs-sáv, és beépített ajándékutalvány-értékesítés — mindezt egy próbaidő alatt, saját szolgáltatásaiddal tesztelheted, bármelyik iparágban dolgozol is.',
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'kozmetikus-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas'],
+  },
+  {
+    slug: 'ajandekutalvany-ertekesites-szepsegszalonban',
+    category: 'Bevétel',
+    date: '2026. augusztus 1.',
+    title: 'Ajándékutalvány-értékesítés szépségszalonban: plusz bevételi forrás, amit sokan kihagynak',
+    excerpt: 'Karácsony, anyák napja, Valentin-nap — mind olyan időszak, amikor az ajándékutalvány szinte magától eladja magát, ha van hol megvenni.',
+    intro: 'Sok szépségszalon és fodrászat kihagyja az ajándékutalványt, pedig ünnepek környékén ez az egyik legkönnyebben eladható termék — feltéve, hogy a vendégnek nem kell személyesen bejönnie érte.',
+    sections: [
+      { title: 'Az utalványt online is meg kell tudni venni', body: 'Ha az ajándékutalvány kizárólag helyben, nyitvatartási időben vásárolható meg, a legtöbb potenciális vevő lemarad róla — sokan este vagy hétvégén, otthonról döntenek úgy, hogy ajándékot vesznek.' },
+      { title: 'Tedd egyértelművé, mire váltható be', body: 'A "bármire beváltható" utalvány kényelmesnek tűnik, de zavart okozhat a pénztárnál. Egy fix összegű vagy konkrét szolgáltatásra szóló utalvány egyszerűbben kezelhető mindkét oldalról.' },
+      { title: 'Kösd össze az újrafoglalással', body: 'Az utalványt beváltó vendég egy vadonatúj vendég a rendszerednek — ha a beváltás után könnyen tud újra foglalni nálad, jó eséllyel törzsvendég lesz belőle, nem egyszeri alkalom.' },
+    ],
+    closing: 'A davelopment bookingban az ajándékutalvány beépített funkció: a vendég online megveheti, a rendszer automatikusan kezeli a beváltást a foglalásnál — nincs szükség külön nyilvántartásra vagy kézi levonásra.',
+    relatedIndustrySlugs: ['kozmetikus-idopontfoglalas', 'mukormos-idopontfoglalas', 'fodrasz-idopontfoglalas'],
+  },
+  {
+    slug: 'digitalis-beleegyezo-nyilatkozat-rendeloben',
+    category: 'Jog',
+    date: '2026. augusztus 1.',
+    title: 'Digitális beleegyező nyilatkozat fogászati és egészségügyi rendelőben',
+    excerpt: 'A papíralapú nyilatkozat könnyen elkeveredik, nehezen kereshető vissza — mire figyelj, ha digitálisra váltanál.',
+    intro: 'Egészségügyi és fogászati rendelőkben a beleegyező nyilatkozat kötelező, de a papíralapú változat gyakran csak egy dossziéban él, amit sürgős esetben nehéz visszakeresni. A digitális váltás nem bonyolult, de van néhány jogi és gyakorlati buktató.',
+    sections: [
+      { title: 'A digitális aláírás jogilag is érvényes kell legyen', body: 'Nem minden "tableten aláírt" megoldás felel meg az egészségügyi adatkezelési előírásoknak — nézz utána, hogy az általad választott forma elegendő-e a te szakterületeden a jogszabályok szerint.' },
+      { title: 'Az adatot biztonságosan, korlátozott hozzáféréssel kell tárolni', body: 'A beleegyező nyilatkozat egészségügyi adatot tartalmaz — a tárolásnak meg kell felelnie a GDPR és az egészségügyi adatvédelmi szabályoknak, ideértve, hogy csak az arra jogosult munkatársak férjenek hozzá.' },
+      { title: 'Legyen visszakereshető páciensenként, ne csak dátum szerint', body: 'Sürgős helyzetben perceken belül elő kell tudni venni egy adott páciens aktuális nyilatkozatát — ha a rendszer csak dátum szerint rendezi a dokumentumokat, ez feleslegesen lassítja a munkát.' },
+    ],
+    closing: 'A davelopment booking önmagában nem helyettesíti a jogi tanácsadást a nyilatkozat tartalmában, de a páciensadatok és időpontok egy helyen, biztonságosan kezelhetők vele — így legalább a szervezési oldal nem okoz plusz fejfájást.',
+    relatedIndustrySlugs: ['fogorvos-idopontfoglalas', 'maganrendelo-idopontfoglalas', 'csontkovacs-idopontfoglalas'],
+  },
+  {
+    slug: 'asztalfoglalas-online-vs-telefonon',
+    category: 'Vendégek',
+    date: '2026. augusztus 1.',
+    title: 'Asztalfoglalás online vs telefonon: mit veszítesz, ha csak telefonon lehet foglalni',
+    excerpt: 'A telefonos foglalás kényelmesnek tűnik a tulajdonosnak — a vendégnek viszont gyakran ez az utolsó lökés, hogy inkább máshova menjen.',
+    intro: 'Sok étterem még mindig kizárólag telefonon fogad foglalást — pedig a vendégek egyre nagyobb hányada eleve online keres asztalt, és ha nem találja, egyszerűen tovább görget a következő étteremhez.',
+    sections: [
+      { title: 'A telefonos foglalás csak nyitvatartási időben működik', body: 'Ha valaki este 11-kor dönt úgy, hogy pénteken asztalt akar foglalni nálad, a telefonos út azt jelenti, hogy másnapig várnia kell — közben lehet, hogy már le is foglalta a szomszéd éttermet.' },
+      { title: 'A személyzet ideje asztalfoglalás-egyeztetéssel telik', body: 'Minden telefonhívás megszakítja a személyzet munkáját — csúcsidőben ez pont akkor történik, amikor a legkevésbé ráérnek. Az online foglalás ezt a terhet teljesen leveszi róluk.' },
+      { title: 'Az online foglalásnál nincs félreértés az asztal méretében', body: 'Telefonon könnyen elsikkad egy részlet (hányan lesznek, kell-e gyerekülés, van-e allergia) — egy online űrlap ezeket eleve bekéri, így az asztal és a felkészülés is pontosan illeszkedik a vendéghez.' },
+    ],
+    closing: 'A davelopment bookingban a vendég percek alatt lefoglalja az asztalt bármikor, a rendszer pedig automatikusan figyeli a kapacitást asztalonként — a személyzetnek nem kell manuálisan egyeztetnie minden hívást.',
+    relatedIndustrySlugs: ['etterem-asztalfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+  },
+  {
+    slug: 'mikor-kell-jogosultsagkezeles-csapatnak',
+    category: 'Csapat',
+    date: '2026. augusztus 1.',
+    title: 'Mikor van szükség jogosultságkezelésre a csapatodban',
+    excerpt: 'Két fős csapatnál felesleges, öt fő fölött viszont hiánya biztonsági és szervezési kockázat.',
+    intro: 'Amíg egyedül vagy páros vagy, mindenki lát és módosíthat mindent — ez rendben is van. De ahogy nő a csapat, egyre nagyobb a kockázata, hogy valaki (akár figyelmetlenségből) olyat módosít, amihez nem kellene hozzáférnie.',
+    sections: [
+      { title: 'Nézd meg, ki férhet hozzá az árazáshoz és a statisztikákhoz', body: 'Nem minden munkatársnak kell látnia a bevételi adatokat vagy módosíthatnia az árakat — ha a rendszer nem tesz különbséget, ez könnyen kínos helyzeteket szülhet, vagy akár hibás árazáshoz vezethet.' },
+      { title: 'Legyen egyértelmű, ki törölhet foglalást', body: 'A foglalás-törlés visszafordíthatatlan döntés — ha bárki törölhet bárkinek a foglalását, egy elgépelés vagy félreértés komoly bevételkiesést okozhat. Ez egy tipikus eset, ahol a jogosultság-szűkítés véd, nem korlátoz.' },
+      { title: 'Az audit-napló akkor válik fontossá, amikor már ketten-hárman módosítanak', body: 'Ha nem csak te nyúlsz a rendszerhez, előbb-utóbb felmerül a kérdés: ki módosított egy adott foglalást vagy árat. Enélkül ez csak találgatás marad.' },
+    ],
+    closing: 'A davelopment bookingban egyedi szerepeket hozhatsz létre testreszabott jogokkal (pl. csak-olvasás az árazáshoz, törlési jog nélkül) — a rendszer pedig minden módosítást naplóz, hogy visszakövethető legyen, ki mit csinált.',
+    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
+  },
+  {
+    slug: 'elolegkeres-foglalaskor-csokkenti-noshowt',
+    category: 'Foglalások',
+    date: '2026. augusztus 1.',
+    title: 'Előleg kérése foglaláskor: hogyan csökkenti a no-show-t',
+    excerpt: 'Ha a vendégnek van anyagi tétje a megjelenésnek, sokkal ritkábban marad el — a kérdés csak az, hogyan kérj előleget anélkül, hogy elriasztanád.',
+    intro: 'Az előlegkérés az egyik leghatékonyabb, mégis kevesek által használt eszköz a no-show ellen — sok tulajdonos fél tőle, mert azt gondolja, elriasztja a vendéget. A gyakorlatban a jól bevezetett előleg inkább szűri a komolytalan foglalásokat.',
+    sections: [
+      { title: 'Ne minden foglalásnál kérj előleget, csak ahol indokolt', body: 'Hosszabb, drágább szolgáltatásoknál (pl. speciális kezelés, nagyobb csoportos asztalfoglalás) van igazán értelme — egy 15 perces időpontnál az előleg inkább felesleges súrlódás, mint védelem.' },
+      { title: 'A kártyás előleg gyorsabb, mint a bankkártya-adatok utólagos bekérése', body: 'Ha a foglaláskor azonnal, a folyamat részeként kéred be az előleget, a vendég nem érzi külön lépésnek — utólag, egy külön emailben kérve viszont sokan egyszerűen nem reagálnak rá.' },
+      { title: 'Legyen egyértelmű a lemondási szabály', body: 'Az előleg csak akkor működik bizalomvesztés nélkül, ha a vendég előre tudja, meddig mondhatja le ingyen, és mikor veszíti el az előleget — ezt írd ki egyértelműen a foglalás során.' },
+    ],
+    closing: 'A davelopment bookingban az előlegkérés szolgáltatásonként bekapcsolható, a kártyás fizetés pedig közvetlenül a foglalási folyamat része — a vendégnek nem kell külön lépést tennie, neked pedig nem kell utólag beszedned semmit.',
+    relatedIndustrySlugs: ['kozmetikus-idopontfoglalas', 'etterem-asztalfoglalas', 'masszor-idopontfoglalas'],
+  },
+  {
+    slug: 'naptar-szinkron-idopontfoglalohoz',
+    category: 'Funkciók',
+    date: '2026. augusztus 1.',
+    title: 'Google/Apple naptár-szinkron időpontfoglalóhoz — miért számít, ha több helyszínen dolgozol',
+    excerpt: 'Ha a saját és a munkahelyi naptárad külön él, előbb-utóbb ütközés lesz belőle — a szinkron ezt küszöböli ki automatikusan.',
+    intro: 'Ha egy szakember több helyszínen dolgozik, vagy a foglalásai mellett saját magánprogramjai is vannak, könnyen előfordul, hogy két rendszerben él párhuzamosan a naptára — ez a fajta kettősség szinte garantáltan ütközéshez vezet előbb-utóbb.',
+    sections: [
+      { title: 'A foglalás azonnal megjelenjen a saját naptáradban is', body: 'Ha külön kell átmásolnod minden új foglalást a saját Google vagy Apple naptáradba, ez nemcsak időt vesz el, hanem hibalehetőség is — egy elfelejtett bejegyzés simán dupla foglaláshoz vezethet.' },
+      { title: 'Ellenőrizd, hogy a szinkron valós idejű-e, nem csak napi frissítésű', body: 'Néhány rendszer csak naponta egyszer szinkronizál — ez azt jelenti, hogy egy aznap felvett foglalás csak másnap jelenik meg a másik naptáradban, ami éppen a legkritikusabb pillanatban hagy ki egy ütközést.' },
+      { title: 'Egy szabványos naptár-feed bármelyik eszközön működik', body: 'Ha a rendszer egy szabványos (iCal/ICS) feedet ad, azt Google Calendarba, Apple Naptárba vagy szinte bármilyen más naptáralkalmazásba feliratkozhatsz — nem vagy egyetlen gyártóhoz kötve.' },
+    ],
+    closing: 'A davelopment booking automatikus naptár-feedet biztosít (iCal/ICS), amit Google Calendarba vagy Apple Naptárba feliratkozva a foglalásaid megjelennek a saját naptáradban — külön másolgatás nélkül.',
+    relatedIndustrySlugs: ['maganrendelo-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'masszor-idopontfoglalas'],
+  },
+  {
+    slug: 'audit-naplo-kisvallalkozasban',
+    category: 'Biztonság',
+    date: '2026. augusztus 1.',
+    title: 'Audit-napló kisvállalkozásban: ki módosított mit, és miért fontos ezt tudni',
+    excerpt: 'Nem a bizalmatlanságról szól — arról, hogy egy vitás helyzetben percek alatt kiderüljön, mi történt valójában.',
+    intro: 'Amint egynél többen nyúlnak a rendszeredhez, előbb-utóbb felmerül egy kérdés: ki törölte azt a foglalást, ki módosította az árat. Az audit-napló nem a bizalmatlanság eszköze, hanem egy biztonsági háló, amit remélhetőleg sosem kell komolyan használnod — de ha mégis, percek alatt választ ad.',
+    sections: [
+      { title: 'Ne csak azt lásd, MI történt, hanem KI és MIKOR csinálta', body: 'Egy jó napló nem csak azt mutatja, hogy egy foglalás törölve lett, hanem azt is, melyik munkatárs törölte, és pontosan mikor — ez különbözteti meg a valódi audit-naplót egy egyszerű módosítás-időbélyegtől.' },
+      { title: 'Legyen visszakereshető visszamenőleg, ne csak az elmúlt pár napra', body: 'Egy vitás helyzet gyakran csak hetekkel később derül ki — ha a napló csak pár napig őrzi az adatokat, éppen akkor nem lesz mit visszanézni, amikor a legjobban kellene.' },
+      { title: 'Ne tegye lassabbá a napi munkát', body: 'Az audit-napló háttérben kell fusson, anélkül hogy bárkinek külön adminisztrációs terhet jelentene — ha valakinek külön be kell jegyeznie, mit csinált, azt előbb-utóbb el fogják hagyni.' },
+    ],
+    closing: 'A davelopment bookingban minden módosítás automatikusan, láthatóan naplózva van — ki, mit, mikor változtatott —, 90 napra visszamenőleg kereshető a Beállítások alatt, minden plusz adminisztráció nélkül.',
+    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'fodrasz-idopontfoglalas', 'maganrendelo-idopontfoglalas'],
+  },
+  {
+    slug: 'jelek-hogy-elavult-a-foglalasi-rendszered',
+    category: 'Döntés',
+    date: '2026. augusztus 1.',
+    title: '5 jel, hogy elavult a foglalási rendszered',
+    excerpt: 'Nem mindig egyértelmű, mikor kell váltani — ezek a jelek viszont szinte biztos mutatói annak, hogy ideje körülnézni.',
+    intro: 'A legtöbben nem azért ragaszkodnak egy elavult rendszerhez, mert az jó, hanem mert a váltás ijesztőnek tűnik. Az alábbi jelek viszont elég egyértelmű mutatói annak, hogy a jelenlegi megoldás már inkább hátráltat, mint segít.',
+    sections: [
+      { title: 'Papíron vagy táblázatban vezeted a foglalásokat', body: 'Ha egy papírnaptár vagy Excel-tábla a "rendszered", minden új foglalás kézi munka — és egyetlen elgépelés vagy elveszett füzet komoly zavart okozhat. Ez az egyik legegyértelműbb jel, hogy ideje digitalizálni.' },
+      { title: 'A vendégek csak telefonon vagy személyesen tudnak foglalni', body: 'Ha a vendégnek nyitvatartási időben kell hívnia ahhoz, hogy időpontot kapjon, elesel az esti és hétvégi döntésektől — ilyenkor sokan egyszerűen a következő, online is elérhető opciót választják.' },
+      { title: 'Nem tudod fejből a legforgalmasabb napszakodat, és rendszeresen van dupla foglalásod', body: 'Ha ezekre nem tudsz azonnal válaszolni, az azt jelenti, hogy vakon vezeted a vállalkozásod — egy modern rendszer ezt automatikusan megmutatja, és az ütközéseket eleve kizárja.' },
+    ],
+    closing: 'Ha kettőnél többre ismersz magadra, valószínűleg többet veszítesz a régi rendszerrel, mint amennyibe egy váltás kerülne — a davelopment booking ingyen, kártya nélkül kipróbálható.',
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'kozmetikus-idopontfoglalas'],
+  },
+  {
+    slug: 'nav-kompatibilis-szamlazas-foglalasi-rendszerbol',
+    category: 'Számlázás',
+    date: '2026. augusztus 1.',
+    title: 'NAV-kompatibilis számlázás foglalási rendszerből — amit tudnod kell',
+    excerpt: 'A foglalás és a számlázás gyakran két külön rendszerben él — pedig összekötve rengeteg kézi munkát spórolhatsz meg.',
+    intro: 'Sok vállalkozás a foglalást egy rendszerben, a számlázást egy másikban (vagy kézzel) vezeti — ez azt jelenti, hogy minden foglalás után külön át kell másolni az adatokat, ami nemcsak időigényes, hanem hibalehetőség is.',
+    sections: [
+      { title: 'Nézd meg, hogy a számlázás automatikusan, NAV-adatszolgáltatásra kész-e', body: 'A magyar szabályozás szerint a legtöbb számlát élesben, automatikusan jelenteni kell a NAV felé — ha a rendszered ezt nem intézi automatikusan, ez rajtad marad, számlánként külön adminisztrációval.' },
+      { title: 'A foglalás adatai automatikusan kerüljenek át a számlára', body: 'Ha a vendég neve, a szolgáltatás és az ár már ott van a foglalásban, felesleges még egyszer begépelni a számlázáshoz — ez az egyik legegyszerűbben megspórolható lépés egy összekötött rendszerben.' },
+      { title: 'Az előleg és a végösszeg számlázása külön kezelést igényel', body: 'Ha előleget kérsz a foglaláskor, arról külön előlegszámlát kell kiállítani, majd a végösszegről a végszámlát — ha ezt a rendszered nem automatizálja, két külön manuális lépés marad neked minden egyes foglalásnál.' },
+    ],
+    closing: 'A davelopment booking automatikusan, a foglalás adatai alapján állítja ki a NAV-kompatibilis számlát (előleg- és végszámlát egyaránt) — nincs külön adatbevitel, nincs elfelejtett számla.',
+    relatedIndustrySlugs: ['maganrendelo-idopontfoglalas', 'joga-idopontfoglalas', 'csontkovacs-idopontfoglalas'],
+  },
 ]
 
-export const TIPS: Tip[] = RAW_TIPS.map((t) => ({ ...t, image: TIP_IMAGES[t.slug] }))
+/** Élesben csak ezek a (már korábban is kint lévő) cikkek látszanak; a többi még nincs kész.
+ *  Fejlesztés közben (npm run dev) mind látszik. Ha egy új cikk kész: a slugját ide. */
+const PUBLISHED_TIP_SLUGS = new Set([
+  'no-show-csokkentese',
+  'mikor-eri-meg-online-foglalo',
+  'csapat-beosztas-hatekonyan',
+  'emlekeztetok-automatizalasa',
+  'torzsvendegek-megtartasa',
+  'hogyan-valassz-idopontfoglalo-rendszert',
+  'mennyibe-kerul-idopontfoglalo-szoftver',
+])
+
+export const TIPS: Tip[] = RAW_TIPS
+  .filter((t) => process.env.NODE_ENV === 'development' || PUBLISHED_TIP_SLUGS.has(t.slug))
+  .map((t) => ({ ...t, image: TIP_IMAGES[t.slug] }))
 
 export function getTip(slug: string): Tip | undefined {
   return TIPS.find((t) => t.slug === slug)

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Bell, CalendarClock, CalendarDays, Check, Lightbulb, CheckCheck, Gift, Settings, Star, Trash2, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeftRight, Bell, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Check, Lightbulb, CheckCheck, Gift, Settings, Star, Trash2, X, type LucideIcon } from 'lucide-react'
 import { Button, Card, CardTitle, IconButton, IconCircle, ListRow, Meta, PageHead, Panel, Pill, Segmented, MarqueeText } from '@/components/ui-kit'
 import type { CircleTone } from '@/components/ui-kit'
 
@@ -14,20 +14,21 @@ export function NotificationsPanel({ className = '' }: { className?: string }) {
         </div>
         {[
           { day: 'Ma', items: [
-            { I: CalendarDays, t: 'Új foglalás — jóváhagyásra vár', b: 'Juhász Hanna · Nov. 6. 13:30 · Balayage', when: '2 perce', unread: true, approve: true, tone: '' },
+            { I: CalendarCheck, t: 'Új foglalás — jóváhagyásra vár', b: 'Juhász Hanna · Nov. 6. 13:30 · Balayage', when: '2 perce', unread: true, approve: true, tone: '' },
             { I: Gift, t: 'Utalványt vásároltak', b: 'Kovács Anna · 20 000 Ft · online', when: '1 órája', unread: true, approve: false, tone: '' },
-            { I: X, t: 'Lemondás', b: 'Tóth Bence · ma 17:00', when: '3 órája', unread: true, approve: false, tone: 'bad' },
+            { I: CalendarX, t: 'Lemondás', b: 'Tóth Bence · ma 17:00', when: '3 órája', unread: true, approve: false, tone: 'bad' },
           ] },
           { day: 'Tegnap', items: [
-            { I: Star, t: 'Új Google-értékelés ★★★★★', b: '„Viktória csodát művelt a hajammal…”', when: 'Okt. 30.', unread: false, approve: false, tone: '' },
+            { I: ArrowLeftRight, t: 'Beosztás módosítva', b: 'Nagy Eszter · Nov. 9. 10:00–18:00', when: 'Okt. 30.', unread: false, approve: false, tone: 'warn' },
+            { I: Lightbulb, t: 'Heti tipp', b: 'Kapcsold be az emlékeztetőt — kevesebb lesz a meg nem jelenés.', when: 'Okt. 30.', unread: false, approve: false, tone: '' },
           ] },
         ].map((g) => (
           <div key={g.day}>
             <div className="px-3 pb-1 pt-3 text-ui-label text-ui-muted">{g.day}</div>
             <div className="space-y-1">
             {g.items.map((n) => (
-              <div key={n.t} className={`flex gap-3 rounded-ui-inner px-3 py-3 ${n.unread ? 'bg-white' : ''}`}>
-                <IconCircle size="md" tone={n.tone === 'bad' ? 'bad' : n.approve ? 'yellow' : 'cell'}><n.I className="h-4 w-4" strokeWidth={1.8} /></IconCircle>
+              <div key={n.t} className="flex gap-3 rounded-ui-inner px-3 py-3 transition-colors hover:bg-ui-cell">
+                <IconCircle size="md" tone={n.tone === 'bad' ? 'bad' : n.tone === 'warn' ? 'warn' : n.approve ? 'yellow' : 'cell'}><n.I className="h-4 w-4" strokeWidth={1.8} /></IconCircle>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-ui-body font-medium leading-snug text-ui-text">{n.t}</span>

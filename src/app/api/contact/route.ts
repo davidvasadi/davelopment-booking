@@ -12,6 +12,9 @@ const schema = z.object({
   email: z.string().trim().email().max(320),
   phone: z.string().trim().max(60).optional().or(z.literal('')),
   message: z.string().trim().min(1).max(4000),
+  /** opcionális: a /kapcsolat űrlap téma-választója és az üzlet neve */
+  topic: z.string().trim().max(80).optional().or(z.literal('')),
+  business: z.string().trim().max(200).optional().or(z.literal('')),
 })
 
 /** Publikus kapcsolatfelvételi űrlap: elmenti az üzenetet + admin-értesítő emailt küld. */
@@ -21,7 +24,11 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
   }
-  const { name, email, phone, message } = parsed.data
+  const { name, email, phone, topic, business } = parsed.data
+  // A téma és az üzlet neve az üzenet elejére kerül (a `contact-messages` gyűjtemény sémája így
+  // változatlan marad — nincs migráció), a backstage-ben és az emailben is látszik.
+  const meta = [topic && `Téma: ${topic}`, business && `Üzlet: ${business}`].filter(Boolean).join('\n')
+  const message = meta ? `${meta}\n\n${parsed.data.message}` : parsed.data.message
 
   const payload = await getPayloadClient()
   await payload.create({
@@ -67,7 +74,7 @@ export async function POST(req: NextRequest) {
     payload.logger.error(`contact push hiba: ${String(err)}`)
   }
 
-  const subject = `Új kapcsolatfelvétel — ${name}`
+  const subject = `Új kapcsolatfelvétel${topic ? ` (${topic})` : ''} — ${name}`
   const html = `
     <div style="font-family:sans-serif;font-size:14px;color:#211F1A;line-height:1.6;">
       <p><strong>Név:</strong> ${escapeHtml(name)}</p>

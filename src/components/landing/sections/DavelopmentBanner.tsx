@@ -58,7 +58,7 @@ export function DavelopmentBanner() {
             className="order-2 lg:order-none flex flex-col gap-4 flex-1 px-8 lg:px-12 py-7 lg:py-8 relative z-10"
           >
             <motion.span variants={textItem} className="font-onest font-bold text-[13px] tracking-[-0.01em] text-white">
-              [davelopment]®
+              [davelopment]©
             </motion.span>
 
             <motion.h2

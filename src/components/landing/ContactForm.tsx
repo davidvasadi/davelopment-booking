@@ -2,17 +2,31 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, Send, CheckCircle2 } from 'lucide-react'
-import { Label } from '@/components/ui/label'
-import { authInputDark, authLabelDark, authErrorTextDark } from '@/components/auth/authStyles'
-import { EASE, buttonHover } from '@/lib/motion'
+import { EASE, SPRING_SNAPPY, buttonHover } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { PhoneInput } from '@/components/booking/PhoneCountryInput'
+import { SUPPORT_RESPONSE_TEXT } from '@/lib/brand'
 
-export function ContactForm() {
+/**
+ * Kapcsolatfelvételi űrlap (világos kártyára): téma-választó, név, email, üzlet neve, telefon,
+ * üzenet → `/api/contact` (mentés a backstage-be + admin-értesítés + email). A téma és az üzlet
+ * neve az üzenet elejére kerül a szerveren.
+ */
+export const CONTACT_TOPICS = ['Általános kérdés', 'Árak és csomagok', 'Bemutató kérése', 'Egyedi csomag', 'Technikai segítség', 'Számlázás'] as const
+
+const input = 'h-12 w-full rounded-[14px] border border-transparent bg-[#F4F4F4] px-4 text-[15px] text-brand-ink outline-none transition-[background-color,border-color,box-shadow] duration-200 placeholder:text-brand-ink/35 hover:bg-[#EFEFEF] focus:border-brand-ink/70 focus:bg-white focus:shadow-[0_0_0_4px_rgba(59,59,59,.08)]'
+const label = 'mb-1.5 block text-[13px] font-medium text-brand-ink/60'
+const errText = 'mt-1 text-[12.5px] text-[#C0564A]'
+
+export function ContactForm({ defaultTopic = CONTACT_TOPICS[0] }: { defaultTopic?: (typeof CONTACT_TOPICS)[number] }) {
+  const [topic, setTopic] = useState<string>(defaultTopic)
+  // a kijelölés csak témaváltáskor csússzon (betöltéskor a kártya beúszik — ne kövesse külön)
+  const [topicTouched, setTopicTouched] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [business, setBusiness] = useState('')
   const [phone, setPhone] = useState('')
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -45,7 +59,7 @@ export function ContactForm() {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, message }),
+        body: JSON.stringify({ name, email, phone, message, topic, business }),
       })
       if (!res.ok) throw new Error()
       setSent(true)
@@ -56,88 +70,96 @@ export function ContactForm() {
     }
   }
 
-  if (sent) {
-    return (
-      <div className="flex flex-col items-start gap-3 py-6">
-        <CheckCircle2 className="h-8 w-8 text-gold" strokeWidth={1.6} />
-        <p className="text-[17px] font-semibold text-white">Köszönjük, megkaptuk az üzeneted!</p>
-        <p className="text-[14px] text-white/55 max-w-xs">Munkanapokon, ügyfélszolgálati időben válaszolunk — általában néhány órán belül.</p>
-      </div>
-    )
-  }
-
   return (
-    <form onSubmit={onSubmit} className="space-y-3.5" noValidate>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        <div key={`name-${shakeKey}`} className={cn('space-y-1.5', fieldErrors.name && 'animate-shake')}>
-          <Label className={authLabelDark}>Neved</Label>
-          <input
-            type="text"
-            placeholder="Kovács Anna"
-            value={name}
-            onChange={e => { setName(e.target.value); clearFieldError('name') }}
-            className={cn(authInputDark, fieldErrors.name && 'ring-1 ring-red-400 border-red-400')}
-          />
-          {fieldErrors.name && <p role="alert" className={authErrorTextDark}>{fieldErrors.name}</p>}
-        </div>
-        <div key={`email-${shakeKey}`} className={cn('space-y-1.5', fieldErrors.email && 'animate-shake')}>
-          <Label className={authLabelDark}>Email címed</Label>
-          <input
-            type="email"
-            placeholder="te@pelda.hu"
-            value={email}
-            onChange={e => { setEmail(e.target.value); clearFieldError('email') }}
-            className={cn(authInputDark, fieldErrors.email && 'ring-1 ring-red-400 border-red-400')}
-          />
-          {fieldErrors.email && <p role="alert" className={authErrorTextDark}>{fieldErrors.email}</p>}
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label className={authLabelDark}>Telefonszám (opcionális)</Label>
-        <PhoneInput value={phone} onChange={setPhone} inputClass={authInputDark} dark />
-      </div>
-      <div key={`message-${shakeKey}`} className={cn('space-y-1.5', fieldErrors.message && 'animate-shake')}>
-        <Label className={authLabelDark}>Miben segíthetünk?</Label>
-        <textarea
-          rows={4}
-          placeholder="Írd le röviden, mi a kérdésed..."
-          value={message}
-          onChange={e => { setMessage(e.target.value); clearFieldError('message') }}
-          className={cn(authInputDark, 'h-auto resize-none py-3', fieldErrors.message && 'ring-1 ring-red-400 border-red-400')}
-        />
-        {fieldErrors.message && <p role="alert" className={authErrorTextDark}>{fieldErrors.message}</p>}
-      </div>
-      {error && <p className={authErrorTextDark}>{error}</p>}
-      <motion.button
-        type="submit"
-        disabled={sending}
-        variants={buttonHover}
-        initial="rest"
-        whileHover="hover"
-        className="flex w-full items-center justify-center gap-5 rounded-full bg-white py-2.5 pl-6 pr-2.5 font-onest font-medium text-base text-ink-dark disabled:opacity-50"
-      >
-        Üzenet küldése
-        <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full overflow-hidden bg-gold">
-          {sending ? (
-            <Loader2 className="h-[18px] w-[18px] animate-spin text-ink-dark" />
-          ) : (
-            <>
-              <motion.div className="absolute flex" variants={{ rest: { x: 0 }, hover: { x: 36 } }} transition={{ duration: 0.28, ease: EASE }}>
-                <Send className="h-[16px] w-[16px] text-ink-dark" />
-              </motion.div>
-              <motion.div className="absolute flex" variants={{ rest: { x: -36 }, hover: { x: 0 } }} transition={{ duration: 0.28, ease: EASE }}>
-                <Send className="h-[16px] w-[16px] text-ink-dark" />
-              </motion.div>
-            </>
-          )}
-        </span>
-      </motion.button>
-      <p className="text-[11.5px] leading-relaxed text-white/40">
-        A küldéssel elfogadod a{' '}
-        <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-white/70">Felhasználási feltételeket</Link>
-        {' '}és az{' '}
-        <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-white/70">Adatkezelési tájékoztatót</Link>.
-      </p>
-    </form>
+    <AnimatePresence mode="wait">
+      {sent ? (
+        <motion.div key="sent" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }} className="flex flex-col items-start gap-3 py-10" role="status">
+          <CheckCircle2 className="h-9 w-9 text-ok-fill" strokeWidth={1.6} />
+          <p className="text-[19px] font-semibold tracking-[-0.02em] text-brand-ink">Köszönjük, megkaptuk az üzeneted!</p>
+          <p className="max-w-sm text-[14.5px] text-brand-ink/55">{SUPPORT_RESPONSE_TEXT} A választ a megadott email-címre küldjük.</p>
+        </motion.div>
+      ) : (
+        <motion.form key="form" onSubmit={onSubmit} noValidate exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="space-y-4">
+          {/* Téma */}
+          <fieldset>
+            <legend className={label}>Miben segíthetünk?</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {CONTACT_TOPICS.map((t) => {
+                const on = t === topic
+                return (
+                  <button key={t} type="button" aria-pressed={on} onClick={() => { setTopicTouched(true); setTopic(t) }} className={cn('relative rounded-full px-3.5 py-2 text-[13.5px] font-medium transition-colors', !on && 'bg-[#F4F4F4] hover:bg-[#EDEDED]')}>
+                    {on && <motion.span layoutId={topicTouched ? 'contact-topic' : undefined} transition={SPRING_SNAPPY} className="absolute inset-0 rounded-full bg-brand-ink" />}
+                    <span className={cn('relative transition-colors', on ? 'text-white' : 'text-brand-ink/65 hover:text-brand-ink')}>{t}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div key={`name-${shakeKey}`} className={cn(fieldErrors.name && 'animate-shake')}>
+              <label htmlFor="cf-name" className={label}>Neved</label>
+              <input id="cf-name" type="text" autoComplete="name" placeholder="Kovács Anna" value={name} onChange={e => { setName(e.target.value); clearFieldError('name') }} aria-invalid={!!fieldErrors.name} className={cn(input, fieldErrors.name && 'border-[#C0564A]')} />
+              {fieldErrors.name && <p role="alert" className={errText}>{fieldErrors.name}</p>}
+            </div>
+            <div key={`email-${shakeKey}`} className={cn(fieldErrors.email && 'animate-shake')}>
+              <label htmlFor="cf-email" className={label}>Email címed</label>
+              <input id="cf-email" type="email" autoComplete="email" placeholder="te@pelda.hu" value={email} onChange={e => { setEmail(e.target.value); clearFieldError('email') }} aria-invalid={!!fieldErrors.email} className={cn(input, fieldErrors.email && 'border-[#C0564A]')} />
+              {fieldErrors.email && <p role="alert" className={errText}>{fieldErrors.email}</p>}
+            </div>
+            <div>
+              <label htmlFor="cf-business" className={label}>Üzlet neve <span className="text-brand-ink/35">(opcionális)</span></label>
+              <input id="cf-business" type="text" autoComplete="organization" placeholder="pl. Anna Szépségszalon" value={business} onChange={e => setBusiness(e.target.value)} className={input} />
+            </div>
+            <div>
+              <span className={label}>Telefonszám <span className="text-brand-ink/35">(opcionális)</span></span>
+              <PhoneInput value={phone} onChange={setPhone} inputClass={input} />
+            </div>
+          </div>
+
+          <div key={`message-${shakeKey}`} className={cn(fieldErrors.message && 'animate-shake')}>
+            <label htmlFor="cf-message" className={label}>Üzenet</label>
+            <textarea id="cf-message" rows={4} placeholder="Írd le röviden, mi a kérdésed…" value={message} onChange={e => { setMessage(e.target.value); clearFieldError('message') }} aria-invalid={!!fieldErrors.message} className={cn(input, 'h-auto resize-none py-3', fieldErrors.message && 'border-[#C0564A]')} />
+            {fieldErrors.message && <p role="alert" className={errText}>{fieldErrors.message}</p>}
+          </div>
+
+          {error && <p role="alert" className={errText}>{error}</p>}
+
+          <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+            <motion.button
+              type="submit"
+              disabled={sending}
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              className="inline-flex items-center gap-2.5 self-start rounded-full bg-[#2a2720] py-2.5 pl-5 pr-2.5 font-onest text-base font-medium text-[#f5f5f5] disabled:opacity-60"
+            >
+              Üzenet küldése
+              <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#f1ce45]">
+                {sending ? (
+                  <Loader2 className="h-[18px] w-[18px] animate-spin text-[#1d1c19]" />
+                ) : (
+                  <>
+                    <motion.div className="absolute flex" variants={{ rest: { x: 0 }, hover: { x: 36 } }} transition={{ duration: 0.28, ease: EASE }}>
+                      <Send className="h-4 w-4 text-[#1d1c19]" />
+                    </motion.div>
+                    <motion.div className="absolute flex" variants={{ rest: { x: -36 }, hover: { x: 0 } }} transition={{ duration: 0.28, ease: EASE }}>
+                      <Send className="h-4 w-4 text-[#1d1c19]" />
+                    </motion.div>
+                  </>
+                )}
+              </span>
+            </motion.button>
+            <p className="max-w-[280px] text-[11.5px] leading-relaxed text-brand-ink/40">
+              A küldéssel elfogadod a{' '}
+              <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-brand-ink/70">Felhasználási feltételeket</Link>
+              {' '}és az{' '}
+              <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-brand-ink/70">Adatkezelési tájékoztatót</Link>.
+            </p>
+          </div>
+        </motion.form>
+      )}
+    </AnimatePresence>
   )
 }
+

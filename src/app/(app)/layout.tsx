@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Geist, Martian_Mono, Onest } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { SmoothScroll } from '@/components/SmoothScroll'
+import { PageTransition } from '@/components/landing/PageTransition'
 import { MotionProvider } from '@/components/MotionProvider'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 import { PlatformAnalytics } from '@/components/PlatformAnalytics'
@@ -46,6 +47,8 @@ export default function RootLayout({
       <body suppressHydrationWarning className={`${inter.className} ${geist.variable} ${martianMono.variable} ${onest.variable}`}>
           <MotionProvider>
             <SmoothScroll>{children}</SmoothScroll>
+            {/* oldalváltás-függöny a landing-oldalak között (a többi útvonalat nem érinti) */}
+            <PageTransition />
             {/* toast a kit szerint (/design 1.11): sötét pill alul középen (stílus: globals.css → .dav-toast) */}
             <Toaster
               position="bottom-center"

@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useInView, LayoutGroup } from 'framer-motion'
+import { RevealText } from '@/components/landing/Motion'
+import { SectionNav } from '@/components/landing/SectionNav'
+import { FitCard } from '@/components/landing/FitCard'
 import {
   CalendarDays, Bell, CalendarOff, Wallet,
   CalendarClock, Smartphone, MapPin, Users, BarChart3, Clock,
@@ -65,7 +68,7 @@ function StackedCards() {
             initial={false}
             transition={spring}
           >
-            <img src={src} className="w-full block" alt="" loading="lazy" />
+            <img decoding="async" src={src} className="w-full block" alt="" loading="lazy" />
           </motion.div>
         )
       })}
@@ -73,7 +76,7 @@ function StackedCards() {
   )
 }
 
-function SalonLayout() {
+function SalonLayout({ v }: { v?: SegmentVisuals }) {
   const c1 = useCard()
   const c2 = useCard()
   const c3 = useCard()
@@ -84,17 +87,17 @@ function SalonLayout() {
     <div className="flex flex-col gap-4">
 
       {/* Sor 1: Foglalások — telefon bal, szöveg jobb */}
-      <motion.div
+      <motion.div id="szalon-naptarsavok"
         ref={c1.ref} variants={cardV} initial="hidden" animate={c1.animate}
-        className="bg-white rounded-[13px] overflow-hidden flex flex-col-reverse lg:flex-row min-h-[360px]"
+        className="scroll-mt-[88px] bg-white rounded-[13px] overflow-hidden flex flex-col-reverse lg:flex-row min-h-[360px]"
       >
         <motion.div variants={imgV} className="lg:w-[46%] p-4">
           <div className="relative bg-[#f7f7f7] rounded-[13px] overflow-hidden w-full h-[360px] lg:h-full">
-            <img
+            {v?.salonCalendar ? <FitCard fit="contain" w={520} className="absolute inset-0 p-4">{v.salonCalendar}</FitCard> : <img
               src={`${SW}/szakember-foglalasok-davelopment-booking.jpg`}
               alt="Szakember-foglalások"
               className="absolute inset-y-0 left-1/2 -translate-x-1/2 h-full w-auto"
-            />
+            />}
           </div>
         </motion.div>
         <div className="flex-1 flex items-center p-7 lg:p-10">
@@ -108,12 +111,12 @@ function SalonLayout() {
 
       {/* Sor 2: Szabadnap (stacked animáció) + Értesítések */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <motion.div
+        <motion.div id="szalon-szabadnap"
           ref={c2.ref} variants={cardV} initial="hidden" animate={c2.animate}
-          className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6"
+          className="scroll-mt-[88px] bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6"
         >
           <motion.div variants={imgV}>
-            <StackedCards />
+            {v?.salonDayOff ? <div className="relative h-[360px] rounded-[20px] bg-[#f7f7f7]"><FitCard fit="contain" w={480} className="absolute inset-0 p-4">{v.salonDayOff}</FitCard></div> : <StackedCards />}
           </motion.div>
           <RestoText
             Icon={CalendarOff}
@@ -122,16 +125,16 @@ function SalonLayout() {
           />
         </motion.div>
 
-        <motion.div
+        <motion.div id="szalon-ertesitesek"
           ref={c3.ref} variants={cardV} initial="hidden" animate={c3.animate}
-          className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6"
+          className="scroll-mt-[88px] bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6"
         >
           <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[275px] sm:h-[360px]">
-            <img
+            {v?.salonNotify ? <FitCard fit="contain" w={520} className="absolute inset-0 p-4">{v.salonNotify}</FitCard> : <img
               src={`${SW}/eretesitesek-szakemberek-davelopment-booking.jpg`}
               alt="Értesítések"
               className="absolute inset-0 w-full h-full object-cover object-top"
-            />
+            />}
           </motion.div>
           <RestoText
             Icon={Bell}
@@ -142,16 +145,16 @@ function SalonLayout() {
       </div>
 
       {/* Sor 3: PWA — kép bal, szöveg jobb */}
-      <motion.div
+      <motion.div id="szalon-webalkalmazas"
         ref={c4.ref} variants={cardV} initial="hidden" animate={c4.animate}
-        className="bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
+        className="scroll-mt-[88px] bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
       >
         <motion.div variants={imgV} className="lg:w-[46%] p-4 flex items-stretch min-h-[260px]">
-          <img
+          {v?.salonApp ? <div className="relative min-h-[260px] w-full rounded-[13px] bg-[#f7f7f7]"><FitCard fit="contain" w={460} className="absolute inset-0 p-4">{v.salonApp}</FitCard></div> : <img
             src={`${HW}/webalkalmazas-ikon-davelopment-booking.jpg`}
             alt="Webalkalmazás"
             className="w-full object-cover rounded-[13px]"
-          />
+          />}
         </motion.div>
         <div className="flex-1 flex items-center p-7 lg:p-10">
           <RestoText
@@ -163,9 +166,9 @@ function SalonLayout() {
       </motion.div>
 
       {/* Sor 4: Áttekintés — teljes szélességű */}
-      <motion.div
+      <motion.div id="szalon-egy-helyen"
         ref={c5.ref} variants={cardV} initial="hidden" animate={c5.animate}
-        className="bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
+        className="scroll-mt-[88px] bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
       >
         <div className="flex-1 flex items-center p-7 lg:p-10">
           <RestoText
@@ -191,12 +194,12 @@ function SalonLayout() {
         </div>
         <motion.div variants={imgV} className="lg:w-[54%] min-h-[260px] p-4">
           <div className="rounded-[13px] overflow-hidden w-full h-full">
-            <img
+            {v?.salonOverview ? <div className="relative min-h-[260px] w-full rounded-[13px] bg-[#f7f7f7]"><FitCard fit="contain" w={460} className="absolute inset-0 p-4">{v.salonOverview}</FitCard></div> : <img
               src={`${HW}/attekintes-davelopment-booking.jpg`}
               alt="Áttekintés"
               className="w-full h-full object-cover object-center"
               style={{ transform: 'scale(1.14)', transformOrigin: 'center' }}
-            />
+            />}
           </div>
         </motion.div>
       </motion.div>
@@ -235,12 +238,11 @@ function RestoText({
     <div className="flex flex-col gap-4">
       <RestoBadge Icon={Icon} />
       <div className="flex flex-col gap-3">
-        <h3
-          className="font-onest font-medium leading-[1.1] text-brand-ink"
-          style={{ fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', letterSpacing: '-0.06em' }}
-        >
-          {title}
-        </h3>
+        <RevealText
+          as="h3"
+          text={title}
+          className="font-onest font-medium leading-[1.1] text-brand-ink text-[clamp(1.75rem,3vw,2.5rem)] tracking-[-0.06em]"
+        />
         <p className="font-onest font-medium text-base leading-relaxed text-brand-ink/60">
           {body}
         </p>
@@ -322,7 +324,7 @@ function useCard() {
   return { ref, animate: inView ? 'show' : 'hidden' } as const
 }
 
-function RestaurantLayout() {
+function RestaurantLayout({ v }: { v?: SegmentVisuals }) {
   const c1a = useCard()
   const c1b = useCard()
   const c2  = useCard()
@@ -334,16 +336,16 @@ function RestaurantLayout() {
 
       {/* Sor 1: 2 telefon — értesítések + napi idővonal */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <motion.div
+        <motion.div id="etterem-ertesitesek"
           ref={c1a.ref} variants={cardV} initial="hidden" animate={c1a.animate}
-          className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6 h-full"
+          className="scroll-mt-[88px] bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6 h-full"
         >
           <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[275px] sm:h-[360px]">
-            <img
+            {v?.restoNotify ? <FitCard fit="contain" w={520} className="absolute inset-0 p-4">{v.restoNotify}</FitCard> : <img
               src={`${HW}/ertesitesek-davelopment-booking.jpg`}
               alt="Értesítések"
               className="absolute inset-0 w-full h-full object-cover object-top"
-            />
+            />}
           </motion.div>
           <RestoText
             Icon={Bell}
@@ -352,17 +354,17 @@ function RestaurantLayout() {
           />
         </motion.div>
 
-        <motion.div
+        <motion.div id="etterem-idovonal"
           ref={c1b.ref} variants={cardV} initial="hidden" animate={c1b.animate}
-          className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6 h-full"
+          className="scroll-mt-[88px] bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6 h-full"
         >
           <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[275px] sm:h-[360px]">
-            <img
+            {v?.restoTimeline ? <FitCard fit="contain" w={520} className="absolute inset-0 p-4">{v.restoTimeline}</FitCard> : <img
               src={`${HW}/foglalasok-davelopment-booking.jpg`}
               alt="Napi idővonal"
               className="absolute inset-0 w-full h-full object-cover object-top"
               style={{ transform: 'rotate(-6deg) scale(1.06)', transformOrigin: 'center' }}
-            />
+            />}
           </motion.div>
           <RestoText
             Icon={CalendarClock}
@@ -373,9 +375,9 @@ function RestaurantLayout() {
       </div>
 
       {/* Sor 2: PWA szöveg bal + kép jobb */}
-      <motion.div
+      <motion.div id="etterem-webalkalmazas"
         ref={c2.ref} variants={cardV} initial="hidden" animate={c2.animate}
-        className="bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
+        className="scroll-mt-[88px] bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
       >
         <div className="flex-1 flex items-center p-7 lg:p-10">
           <RestoText
@@ -385,26 +387,26 @@ function RestaurantLayout() {
           />
         </div>
         <motion.div variants={imgV} className="lg:w-[46%] p-4 flex items-stretch min-h-[260px]">
-          <img
+          {v?.restoApp ? <div className="relative min-h-[260px] w-full rounded-[13px] bg-[#f7f7f7]"><FitCard fit="contain" w={460} className="absolute inset-0 p-4">{v.restoApp}</FitCard></div> : <img
             src={`${HW}/webalkalmazas-ikon-davelopment-booking.jpg`}
             alt="Webalkalmazás"
             className="w-full object-cover rounded-[13px]"
-          />
+          />}
         </motion.div>
       </motion.div>
 
       {/* Sor 3: Vendégek telefon bal + Foglalási arány jobb */}
-      <motion.div
+      <motion.div id="etterem-vendegek"
         ref={c3.ref} variants={cardV} initial="hidden" animate={c3.animate}
-        className="bg-white rounded-[13px] overflow-hidden flex flex-col-reverse lg:flex-row min-h-[360px]"
+        className="scroll-mt-[88px] bg-white rounded-[13px] overflow-hidden flex flex-col-reverse lg:flex-row min-h-[360px]"
       >
         <motion.div variants={imgV} className="lg:w-[46%] p-4">
           <div className="relative bg-[#f7f7f7] rounded-[13px] overflow-hidden w-full h-[360px] lg:h-full">
-            <img
+            {v?.restoGuests ? <FitCard fit="contain" w={520} className="absolute inset-0 p-4">{v.restoGuests}</FitCard> : <img
               src={`${HW}/vendegek-davelopment-booking.jpg`}
               alt="Vendégek"
               className="absolute inset-y-0 left-1/2 -translate-x-1/2 h-full w-auto"
-            />
+            />}
           </div>
         </motion.div>
         <div className="flex-1 flex items-center p-7 lg:p-10">
@@ -419,9 +421,9 @@ function RestaurantLayout() {
       </motion.div>
 
       {/* Sor 4: Áttekintés — teljes szélességű */}
-      <motion.div
+      <motion.div id="etterem-egy-helyen"
         ref={c4.ref} variants={cardV} initial="hidden" animate={c4.animate}
-        className="bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
+        className="scroll-mt-[88px] bg-white rounded-[13px] overflow-hidden flex flex-col lg:flex-row min-h-[300px]"
       >
         <div className="flex-1 flex items-center p-7 lg:p-10">
           <RestoText
@@ -447,12 +449,12 @@ function RestaurantLayout() {
         </div>
         <motion.div variants={imgV} className="lg:w-[54%] min-h-[260px] p-4">
           <div className="rounded-[13px] overflow-hidden w-full h-full">
-            <img
+            {v?.restoOverview ? <div className="relative min-h-[260px] w-full rounded-[13px] bg-[#f7f7f7]"><FitCard fit="contain" w={460} className="absolute inset-0 p-4">{v.restoOverview}</FitCard></div> : <img
               src={`${HW}/attekintes-davelopment-booking.jpg`}
               alt="Áttekintés"
               className="w-full h-full object-cover object-center"
               style={{ transform: 'scale(1.14)', transformOrigin: 'center' }}
-            />
+            />}
           </div>
         </motion.div>
       </motion.div>
@@ -463,11 +465,32 @@ function RestaurantLayout() {
 
 // ─── Fő szekció ───────────────────────────────────────────────────────────────
 
+// a kártyák rövid nevei a szakasz-navigációhoz (sorrend = a kártyák sorrendje)
+const SALON_NAV = [
+  { slug: 'szalon-naptarsavok', title: 'Naptársávok' },
+  { slug: 'szalon-szabadnap', title: 'Szabadnap & kivételes nap' },
+  { slug: 'szalon-ertesitesek', title: 'Értesítések' },
+  { slug: 'szalon-webalkalmazas', title: 'Webalkalmazás' },
+  { slug: 'szalon-egy-helyen', title: 'Mindent egy helyen' },
+]
+const RESTAURANT_NAV = [
+  { slug: 'etterem-ertesitesek', title: 'Értesítések' },
+  { slug: 'etterem-idovonal', title: 'Napi idővonal' },
+  { slug: 'etterem-webalkalmazas', title: 'Webalkalmazás' },
+  { slug: 'etterem-vendegek', title: 'Vendégek & foglalási arány' },
+  { slug: 'etterem-egy-helyen', title: 'Mindent egy helyen' },
+]
+
+export type SegmentVisuals = Partial<Record<'salonCalendar' | 'salonDayOff' | 'salonNotify' | 'salonApp' | 'salonOverview' | 'restoNotify' | 'restoTimeline' | 'restoApp' | 'restoGuests' | 'restoOverview', React.ReactNode>>
+
 export function SegmentToggle({
   segment: fixedSegment,
   title,
   subtitle,
+  visuals,
 }: {
+  /** A képernyőképek helyén a design-kártyák (src/components/blocks) — megadva a képek helyett. */
+  visuals?: SegmentVisuals
   /** Iparági landingeknél a szegmens fix — ilyenkor nincs értelme a szakember/étterem
    *  váltónak, azt el is rejtjük, csak a releváns nézet jelenik meg. */
   segment?: 'salon' | 'restaurant'
@@ -476,6 +499,8 @@ export function SegmentToggle({
   subtitle?: string
 } = {}) {
   const [internalActive, setInternalActive] = useState<'salon' | 'restaurant'>(fixedSegment ?? 'salon')
+  // a kapszula csak váltáskor csússzon (betöltéskor a fejléc beúszik — ne kövesse külön)
+  const [touched, setTouched] = useState(false)
   const active = fixedSegment ?? internalActive
 
   return (
@@ -487,31 +512,29 @@ export function SegmentToggle({
         transition={SPRING_QUICK}
         className="flex flex-col items-center gap-4 mb-12 text-center"
       >
-        <h2 className="font-onest font-medium text-[clamp(2rem,5.5vw,3rem)] leading-[1.15] tracking-[-0.05em] text-brand-ink">
-          {title ?? 'Látod mi történik az üzletedben.'}
-        </h2>
+        <RevealText text={title ?? 'Látod mi történik az üzletedben.'} className="font-onest font-medium text-[clamp(2rem,5.5vw,3rem)] leading-[1.15] tracking-[-0.05em] text-brand-ink" />
         <p className="font-onest text-[clamp(1rem,2vw,1.25rem)] tracking-[-0.05em] text-brand-ink/50">
           {subtitle ?? 'Tedd hatékonyabbá az üzleted'}
         </p>
 
         {!fixedSegment && (
-          <div className="flex items-center gap-1 bg-white rounded-full p-2.5 mt-6">
+          <div className="flex items-center gap-1 bg-white rounded-full p-1.5 mt-5">
             {(['salon', 'restaurant'] as const).map((seg) => {
               const label = seg === 'salon' ? 'Szakembereknek' : 'Éttermeknek'
               const isActive = active === seg
               return (
                 <motion.button
                   key={seg}
-                  onClick={() => setInternalActive(seg)}
+                  onClick={() => { setTouched(true); setInternalActive(seg) }}
                   variants={buttonHover}
                   initial="rest"
                   whileHover="hover"
-                  className="relative px-6 py-4 rounded-full text-[clamp(1rem,2vw,1.25rem)] font-onest font-light tracking-[-0.04em] transition-colors duration-200"
+                  className="relative px-4 py-2 rounded-full text-[14.5px] font-onest font-normal tracking-[-0.03em] transition-colors duration-200 sm:px-5 sm:py-2.5 sm:text-[15px]"
                   style={{ color: isActive ? '#ffffff' : '#3B3B3B' }}
                 >
                   {isActive && (
                     <motion.span
-                      layoutId="seg-pill"
+                      layoutId={touched ? 'seg-pill' : undefined}
                       className="absolute inset-0 rounded-full bg-brand-ink"
                       transition={SPRING_SNAPPY}
                     />
@@ -532,9 +555,12 @@ export function SegmentToggle({
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.35, ease: EASE }}
         >
-          {active === 'salon' ? <SalonLayout /> : <RestaurantLayout />}
+          {active === 'salon' ? <SalonLayout v={visuals} /> : <RestaurantLayout v={visuals} />}
         </motion.div>
       </AnimatePresence>
+
+      {/* Lebegő „Ezen az oldalon” pill + pöttyök a kártyákhoz (mint a funkció-oldalakon) */}
+      <SectionNav key={active} items={active === 'salon' ? SALON_NAV : RESTAURANT_NAV} />
     </section>
   )
 }

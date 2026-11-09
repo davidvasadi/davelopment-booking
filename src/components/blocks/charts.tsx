@@ -79,19 +79,19 @@ export function Ring({ pct, size = 140, children, className = '' }: { pct: numbe
 /** Sötét vonal-grafikon (Crextio „Test Statistics”, a Statisztikák bevétel-részlete): sárga = most, szaggatott fehér =
  *  előző / átlag, a kijelölt ponton fehér karika és fehér címke-pill; alul a tengely-feliratok, a kijelölt pillben.
  *  Sötét kártyába való. A Statisztikák (5.x) és a Marketing nyitási arány (13.x) is ez. */
-export function DarkLineChart({ now, prev, sel, label, ticks, selTick, min, max, h = 110, className = '' }: { now: number[]; prev?: number[]; sel: number; label: string; ticks: string[]; selTick?: number; min: number; max: number; h?: number; className?: string }) {
+export function DarkLineChart({ now, prev, sel, label, ticks, selTick, min, max, h = 110, drawIn = false, className = '' }: { now: number[]; prev?: number[]; sel: number; label: string; ticks: string[]; selTick?: number; min: number; max: number; h?: number; /** belépő: a görbe kirajzolódik, utána a pont és a címke beúszik (landing) */ drawIn?: boolean; className?: string }) {
   const x = (i: number) => (i / (now.length - 1)) * 100
   const top = 100 - ((now[sel] - min) / (max - min)) * 100
   return (
     <div className={className}>
       <div className="relative mt-10" style={{ height: h }}>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className={`absolute inset-0 h-full w-full overflow-visible ${drawIn ? 'ui-reveal-x' : ''}`}>
           {prev && <path d={smooth(prev, 100, 100, min, max)} fill="none" stroke="white" strokeOpacity=".4" strokeWidth="1.2" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />}
           <path d={smooth(now, 100, 100, min, max)} fill="none" stroke="var(--ui-yellow)" strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         </svg>
-        <span className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-white bg-ui-dark transition-all duration-200" style={{ left: `${x(sel)}%`, top: `${top}%` }} />
+        <span className={`absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-white bg-ui-dark transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ left: `${x(sel)}%`, top: `${top}%`, ['--d' as string]: '1100ms' }} />
         {/* a szélső pontoknál befelé fordul, hogy ne lógjon ki a kártyából */}
-        <span className="absolute transition-all duration-200" style={{ left: `${x(sel)}%`, top: `${top}%`, transform: `translate(${x(sel) <= 15 ? '-12%' : x(sel) >= 85 ? '-88%' : '-50%'}, calc(-100% - 14px))` }}><Pill tone="white" size="md" className="gap-2"><span className="h-1.5 w-1.5 rounded-full bg-ui-yellow" />{label}</Pill></span>
+        <span className={`absolute transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ ['--d' as string]: '1250ms', left: `${x(sel)}%`, top: `${top}%`, transform: `translate(${x(sel) <= 15 ? '-12%' : x(sel) >= 85 ? '-88%' : '-50%'}, calc(-100% - 14px))` }}><Pill tone="white" size="md" className="gap-2"><span className="h-1.5 w-1.5 rounded-full bg-ui-yellow" />{label}</Pill></span>
       </div>
       <div className="mt-4 flex items-center justify-between text-ui-meta text-white/45">
         {ticks.map((w, i) => i === selTick ? <Pill key={i} tone="onDark" size="sm">{w}</Pill> : <span key={i}>{w}</span>)}

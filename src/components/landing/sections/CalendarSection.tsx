@@ -1,8 +1,13 @@
 'use client'
 
+import { ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
+import { RevealText } from '@/components/landing/Motion'
+import { FitCard } from '@/components/landing/FitCard'
 import { EASE, SPRING_QUICK } from '@/lib/motion'
+import { featurePath } from '@/lib/landingFeatures'
 
 const cardV = {
   hidden: { opacity: 0, scale: 0.94 },
@@ -176,9 +181,12 @@ function BookingTrendCard() {
 export function CalendarSection({
   title,
   subtitle,
+  visuals,
 }: {
+  /** A tablet-kép és a két kártya helyén a design-kártyák (src/components/blocks). */
+  visuals?: { main?: React.ReactNode; top?: React.ReactNode; bottom?: React.ReactNode }
   /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
-  title?: React.ReactNode
+  title?: string
   subtitle?: string
 } = {}) {
   const cImg = useCard()
@@ -194,16 +202,17 @@ export function CalendarSection({
         transition={SPRING_QUICK}
         className="flex flex-col gap-6 mb-12 lg:mb-14"
       >
-        <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
+        <span className="inline-flex self-start items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]">
           Naptár
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
-          <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink max-w-2xl">
-            {title ?? (<>Mindenki naptára,<br className="hidden sm:block" /> egy képernyőn.</>)}
-          </h2>
-          <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
+          <RevealText text={title ?? 'Mindenki naptára,\negy képernyőn.'} className="font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink max-w-2xl" />
+          <div className="flex max-w-sm flex-col gap-3 lg:pb-1">
+          <p className="text-[16px] leading-[1.6] text-brand-ink/55">
             {subtitle ?? 'Valós idejű foglalások, szakembersávok, szabadnapok — húzd át, kattints, kész.'}
           </p>
+          <Link href={featurePath('/funkciok/foglalas#elo-asztalallapot')} className="inline-flex items-center gap-1 text-[15px] font-semibold text-brand-ink">Részletek <ChevronRight className="h-4 w-4" strokeWidth={2.2} /></Link>
+          </div>
         </div>
       </motion.div>
 
@@ -216,12 +225,12 @@ export function CalendarSection({
         >
           <motion.div variants={imgV} className="w-full h-full lg:p-4">
             <div className="bg-[#f7f7f7] rounded-[13px] overflow-hidden w-full h-full">
-              <img
+              {visuals?.main ? <FitCard fit="contain" w={860} className="h-full min-h-[400px] p-4 lg:min-h-[588px]">{visuals.main}</FitCard> : <img
                 src="/landing/calendar/naptar-tablet-davelopment-booking.webp"
                 alt="Naptár — davelopment booking"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: '50% 22%', transform: 'scale(1.12)', transformOrigin: '50% 18%' }}
-              />
+              />}
             </div>
           </motion.div>
         </motion.div>
@@ -232,11 +241,11 @@ export function CalendarSection({
           className="flex flex-col sm:flex-row lg:flex-col gap-4"
         >
           <motion.div variants={imgV} className="flex-1 w-full lg:bg-white rounded-[13px] overflow-hidden lg:p-3 flex flex-col">
-            <OccupancyCard />
+            {visuals?.top ? <FitCard w={330}>{visuals.top}</FitCard> : <OccupancyCard />}
           </motion.div>
 
           <motion.div variants={imgV} className="flex-1 min-h-[420px] sm:min-h-[280px] w-full lg:bg-white rounded-[13px] overflow-hidden lg:p-3 flex flex-col">
-            <BookingTrendCard />
+            {visuals?.bottom ? <FitCard w={330}>{visuals.bottom}</FitCard> : <BookingTrendCard />}
           </motion.div>
         </motion.div>
 

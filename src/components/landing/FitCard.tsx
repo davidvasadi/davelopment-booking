@@ -27,7 +27,9 @@ export function FitCard({ w = 420, fit = 'width', className = '', children }: { 
   }, [w, fit, on])
   const top = fit === 'contain' ? Math.max(0, (s.bh - s.ih * s.k) / 2) : 0
   return (
-    <div ref={box} className={`pointer-events-none relative select-none ${className}`} style={fit === 'width' ? { height: s.ih * s.k || undefined } : undefined} aria-hidden>
+    // a `relative` csak akkor, ha a hívó nem ad saját helyzetet: a CSS-ben a `relative` a későbbi szabály, így felülírta az
+    // `absolute inset-0`-t — a doboz csak a belső margónyi magas lett, és a kártya apróra kicsinyült
+    <div ref={box} className={`pointer-events-none select-none ${/\b(absolute|fixed)\b/.test(className) ? '' : 'relative'} ${className}`} style={fit === 'width' ? { height: s.ih * s.k || undefined } : undefined} aria-hidden>
       <div ref={inner} className="absolute left-1/2" style={{ width: w, top, transform: `translateX(-50%) scale(${s.k})`, transformOrigin: 'top center' }}>{on && children}</div>
     </div>
   )

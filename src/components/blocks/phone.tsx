@@ -6,7 +6,7 @@ import { BrandLogo } from '@/components/BrandLogo'
  *  (a menü első 4 pontja + Több), az aktív sötét. */
 export function PhoneFrame({ children, nav = 0, plus = 'Új foglalás', tool, className = '' }: { children: React.ReactNode; nav?: number; plus?: string; tool?: React.ReactNode; className?: string }) {
   return (
-    <div className={`flex w-[360px] shrink-0 flex-col overflow-hidden rounded-ui-container bg-ui-page px-4 pb-5 pt-4 ${className}`}>
+    <div data-phone className={`flex w-[360px] shrink-0 flex-col overflow-hidden rounded-ui-container bg-ui-page px-4 pb-5 pt-4 ${className}`}>
       <div className="flex items-center justify-between">
         <BrandLogo variant="light" className="h-6" />
         <span className="flex items-center gap-1.5">

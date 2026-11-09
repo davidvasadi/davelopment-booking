@@ -32,7 +32,7 @@ export default async function TipsIndexPage() {
       </header>
 
       <div className="mx-auto max-w-5xl px-6 pt-12 pb-16">
-        <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[15px] tracking-[-0.03em] text-brand-ink mb-4">
+        <span className="inline-flex self-start items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19] mb-4">
           Blog
         </span>
         <h1 className="font-semibold text-[clamp(2rem,5vw,3.25rem)] leading-[1.05] tracking-[-0.05em] text-brand-ink mb-3">

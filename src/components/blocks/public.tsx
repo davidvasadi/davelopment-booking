@@ -637,7 +637,7 @@ function LiveBookingCard({ className = '', card = 'dark', sheet = false, step = 
         </div>
       )}
       {terms ? <TermsPanel c={c} restaurant={restaurant} /> : flow === 'voucher' ? <VoucherStep c={c} step={step} restaurant={restaurant} /> : <CardStep c={c} step={step} restaurant={restaurant} sel={sel} quick={quick} />}
-      <div className="mt-4 flex justify-center"><PoweredBy dark={c.dark} /></div>
+      <div className="mt-4 flex justify-center"><PoweredBy dark={c.dark} link={false} /></div>
     </div>
   )
 }
@@ -645,7 +645,7 @@ function LiveBookingCard({ className = '', card = 'dark', sheet = false, step = 
 /** Az élő koncepció az új elemekkel: teljes képes borító (az üzlet fotója) felül és alul sötétedő átmenettel, fent a
  *  sáv, desktopon bal alul az üzlet (név, cím, értékelés, leírás, fő gomb + legközelebbi időpont), jobbra a sötét
  *  üveg-kártya a foglalóval; mobilon alul az üzlet és a gomb, a foglaló felcsúszó sötét üveg-lapon. */
-export type LiveArea = 'cover' | 'nav' | 'gallery' | 'intro' | 'desc' | 'rating' | 'social' | 'cta' | 'card'
+export type LiveArea = 'cover' | 'nav' | 'gallery' | 'intro' | 'name' | 'desc' | 'rating' | 'social' | 'cta' | 'card'
 
 // a két minta-üzlet adatai: szalon (időpont) és étterem (asztal)
 const RESTO_PHOTO = '/landing/tips/asztalfoglalas-online-etterem-davelopment-booking.jpg'
@@ -678,7 +678,9 @@ export function LiveStage({ mobile = false, open = false, photo, sel, card = 'da
       <div className={`absolute z-10 text-white ${mobile ? 'inset-x-5 bottom-8' : 'bottom-10 left-8 max-w-[46%]'} ${mobile && (open || info === 'open') ? 'invisible' : ''}`}>
         {!blank && <GalleryStrip className={`mb-4 ${hl('gallery')}`} />}
         <div className={hl('intro')}>
-          <div className={`font-light leading-none ${mobile ? 'text-ui-num' : 'text-ui-page'}`}>{b.name}</div>
+          {/* 'name': csak a név kijelölve, ahogy az élő szerkesztőben — tömör sárga keret, fölötte a gyors-sáv */}
+          {sel === 'name' && quick && <div className="mb-3">{quick}</div>}
+          <div className={`font-light leading-none ${mobile ? 'text-ui-num' : 'text-ui-page'} ${sel === 'name' ? 'w-fit rounded-ui-control px-1.5 py-1 -mx-1.5 outline outline-2 outline-ui-yellow shadow-[0_0_14px_rgba(241,206,69,.45)]' : ''}`}>{b.name}</div> {/* ui-allow: az élő szerkesztő kijelölésének sárga derengése */}
           <div className="mt-2 flex items-center gap-1.5 text-ui-meta text-white/65"><MapPin className="h-3.5 w-3.5" />{b.addr}</div>
         </div>
         {/* az értékelések egymás mellett, alattuk a közösségi linkek (élesben a social_links, a platform a linkből ismerve) */}

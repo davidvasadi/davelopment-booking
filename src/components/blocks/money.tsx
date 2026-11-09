@@ -382,7 +382,7 @@ const MONTH_ABBR = ['Jan.', 'Febr.', 'Márc.', 'Ápr.', 'Máj.', 'Jún.', 'Júl.
 const kFt = (n: number) => (n >= 1000 ? `${Math.round(n / 1000).toLocaleString('hu-HU')} e Ft` : `${n.toLocaleString('hu-HU')} Ft`)
 
 /** 16.14: az idei utalvány-eladás (sötét kártya) — havi görbe, szaggatottal a tavalyi. Élőben `data` (betöltés közben null). */
-export function VoucherSalesCard({ className = '', data = SAMPLE_VOUCHERS }: { className?: string; data?: VoucherSummary | null }) {
+export function VoucherSalesCard({ className = '', data = SAMPLE_VOUCHERS, animate = false }: { className?: string; data?: VoucherSummary | null; /** belépő: a görbe kirajzolódik (landing) */ animate?: boolean }) {
   const now = data?.months.map((m) => Math.round(m.now / 1000)) ?? []
   const prev = data?.months.map((m) => Math.round(m.prev / 1000)) ?? []
   const all = [...now, ...prev]
@@ -391,7 +391,7 @@ export function VoucherSalesCard({ className = '', data = SAMPLE_VOUCHERS }: { c
   return (
     <Card tone="dark" className={className}>
       <Meta dark>Idén eladva</Meta><div className="mt-1 text-ui-num font-light leading-none">{data ? kFt(data.yearTotal) : '…'}</div>
-      {data && now.length > 0 && <DarkLineChart now={now} prev={prev} sel={now.length - 1} min={lo} max={hi} h={70} label={kFt(data.months[now.length - 1].now)} ticks={data.months.map((m) => m.label)} selTick={now.length - 1} />}
+      {data && now.length > 0 && <DarkLineChart now={now} prev={prev} sel={now.length - 1} min={lo} max={hi} h={70} label={kFt(data.months[now.length - 1].now)} ticks={data.months.map((m) => m.label)} selTick={now.length - 1} drawIn={animate} />}
       {data && <Meta dark className="mt-3">{data.yearCount} utalvány{data.yearCount ? ` · ${data.redeemedPct}% már beváltva` : ''}</Meta>}
     </Card>
   )

@@ -1,5 +1,7 @@
 'use client'
 
+import { ArrowUpRight } from 'lucide-react'
+
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
@@ -7,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { EASE } from '@/lib/motion'
 import { BrandLogo } from '@/components/BrandLogo'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
+import { MobileMegaAccordion } from '@/components/landing/NavMegaMenu'
 
 /**
  * Ragadós felső navigáció: logó · középső fehér-pill menü · jobb CTA + Bejelentkezés.
@@ -15,20 +18,16 @@ import { RollButton } from '@/components/landing/sections/TestimonialButtons'
  */
 
 // Konverzió-optimalizált sorrend: funkciók megértése → ár → bizalom → kérdések
-const LINKS = [
+const LINKS: { id: string; label: string; href?: string }[] = [
   { id: 'hogyan', label: 'Funkciók' },
-  { id: 'arazas', label: 'Árak' },
-  { id: 'tippek', label: 'Blog' },
-  { id: 'kapcsolat', label: 'Kapcsolat' },
+  { id: 'arazas', label: 'Árak', href: '/arak' },
+  { id: 'tippek', label: 'Tippek', href: '/tips' },
+  { id: 'kapcsolat', label: 'Kapcsolat', href: '/kapcsolat' },
 ]
 
-export const SERVICES = [
-  { label: 'Weboldal készítés',             href: 'https://davelopment.hu/hu/weboldal-keszites' },
-  { label: 'Időpontfoglaló rendszer',     href: 'https://booking.davelopment.hu/register' },
-  { label: 'Vállalatirányítási rendszer', href: 'https://davelopment.hu/hu/szolgaltatasok' },
-  { label: 'Design & Arculat',               href: 'https://davelopment.hu/hu/szolgaltatasok' },
-  { label: 'Marketing',           href: 'https://davelopment.hu/hu/szolgaltatasok' },
-]
+// a davelopment szolgáltatás-lista közös helyen (a menü-panel is innen olvassa); itt csak továbbadjuk
+export { SERVICES } from '@/lib/davelopmentServices'
+import { SERVICES } from '@/lib/davelopmentServices'
 
 const NAV_OFFSET = 110
 
@@ -177,13 +176,13 @@ export function Nav() {
 
         {/* Desktop menü-pill */}
         <div className="hidden min-[1033px]:flex items-center gap-1 rounded-[30px] bg-[#F0EFEC] p-[5px]">
-          {LINKS.map(({ id, label }) => {
+          {LINKS.map(({ id, label, href }) => {
             const isActive = active === id
             return (
               <motion.a
                 key={id}
-                href={`#${id}`}
-                onClick={(e) => onDesktopClick(e, id)}
+                href={href ?? `#${id}`}
+                onClick={href ? undefined : (e) => onDesktopClick(e, id)}
                 whileTap={{ scale: 0.94 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                 className="relative flex items-center rounded-[30px] px-4 py-2 text-[15px] font-medium tracking-[-0.4px] text-brand-ink"
@@ -294,7 +293,7 @@ export function MenuToggle({
               rotate: open ? 45 : 0,
               y: open ? 0 : -7,
               width: open ? 20 : 22,
-              background: open ? '#1d1c19' : ink ? '#1d1c19' : 'rgba(255,255,255,0.88)',
+              background: open ? '#383838' : ink ? '#383838' : 'rgba(255,255,255,0.88)',
             }}
             transition={t}
           />
@@ -306,7 +305,7 @@ export function MenuToggle({
               y: open ? 0 : 7,
               x: open ? 0 : 4,
               width: open ? 20 : 14,
-              background: open ? '#1d1c19' : '#F1CE45',
+              background: open ? '#383838' : ink ? '#383838' : '#F1CE45',
             }}
             transition={t}
           />
@@ -364,15 +363,19 @@ export function MobileMenu({
 
   return (
     // z-[80] — magasabb mint bármely stacking context a lapon, az X gomb garantáltan kattintható
+    // data-lenis-prevent: a Lenis (desktop smooth scroll) ne nyelje el a menü saját görgetését
+    // (keskeny desktop ablakban / mobil-nézetben); overscroll-contain: ne görgesse alatta a lapot
     <motion.div
-      className="fixed inset-0 z-[80] flex flex-col overflow-y-auto bg-white min-[1033px]:hidden"
+      data-lenis-prevent
+      className="fixed inset-0 z-[80] flex flex-col overflow-y-auto overscroll-contain font-onest text-ui-text min-[1033px]:hidden"
+      style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px) saturate(150%)', WebkitBackdropFilter: 'blur(24px) saturate(150%)' }}
       initial={{ clipPath: 'inset(0 0 100% 0)' }}
       animate={{ clipPath: 'inset(0 0 0% 0)' }}
       exit={{ clipPath: 'inset(0 0 100% 0)' }}
       transition={{ duration: 0.4, ease: EASE }}
     >
       {/* Fejléc-magasság megtartása — logo + toggle portálra kerül (fixed, felette). Sticky, hogy görgetéskor a tartalom ne csússzon alá. */}
-      <div className="sticky top-0 z-10 h-12 shrink-0 bg-white" />
+      <div className="sticky top-0 z-10 h-12 shrink-0" />
 
       {/* Nav linkek */}
       <motion.div
@@ -381,50 +384,50 @@ export function MobileMenu({
         animate="show"
         variants={{ show: { transition: { staggerChildren: 0.06, delayChildren: 0.06 } } }}
       >
-        {LINKS.map(({ id, label }) => {
+        {/* Funkciók / Kinek — harmonika; a sima horgony-linkek alatta */}
+        <MobileMegaAccordion onPick={() => onClose?.()} />
+        {LINKS.filter((l) => l.id !== 'hogyan').map(({ id, label, href }) => {
           const isActive = active === id
           return (
             <motion.a
               key={id}
-              href={`#${id}`}
-              onClick={(e) => onPick(e, id)}
+              href={href ?? `#${id}`}
+              onClick={href ? () => onClose?.() : (e) => onPick(e, id)}
               variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
               transition={{ duration: 0.35, ease: EASE }}
               whileTap={{ scale: 0.98 }}
               className={[
-                'flex items-center justify-between rounded-[16px] px-4 py-1.5',
-                'text-[clamp(1.625rem,7vw,2.375rem)] font-semibold tracking-[-0.04em] text-brand-ink',
+                'flex items-center justify-between rounded-[12px] px-1 py-2',
+                'text-[clamp(1.75rem,8vw,2.125rem)] font-medium tracking-[-0.035em] text-ui-text',
               ].join(' ')}
             >
               <span>{label}</span>
-              {isActive && <span className="h-2.5 w-2.5 rounded-full bg-brand-accent shrink-0" />}
+              {isActive && <span className="h-2 w-2 rounded-full bg-ui-yellow shrink-0" />}
             </motion.a>
           )
         })}
       </motion.div>
 
-      {/* davelopment szolgáltatások */}
+      {/* davelopment szolgáltatások — mint a desktop menüben: füstös háttér, logó, fehér pillek */}
       <motion.div
-        className="px-5 pb-4 flex flex-col gap-2"
+        className="px-5 pb-3"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: EASE, delay: ctaDelay - 0.04 }}
       >
-        <p className="text-[12px] font-semibold text-brand-ink/40 px-1">
-          <span className="text-brand-ink">[davelopment]®</span> Szolgáltatások
-        </p>
-        <div className="grid grid-cols-2 gap-1.5">
-          {SERVICES.filter((s) => s.label !== 'Időpontfoglaló rendszer').map((s) => (
-            <a
-              key={s.label}
-              href={s.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-[14px] border border-brand-ink/10 px-3.5 py-2.5 text-[15px] font-medium text-brand-ink/70 hover:text-brand-ink transition-colors"
-            >
-              {s.label}
-            </a>
-          ))}
+        <div className="relative overflow-hidden rounded-ui-inner bg-ui-cell p-4">
+          <img src="/landing/hero/davelopment-fust-hatter-davelopment-booking.webp" alt="" width={640} height={640} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+          <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="relative flex items-center justify-between">
+            <img src="/logo_davelopment_dark.svg" alt="davelopment" width={2034} height={526} className="h-6 w-auto" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ui-text"><ArrowUpRight className="h-4 w-4" strokeWidth={2} /></span>
+          </a>
+          <div className="relative mt-3 flex flex-wrap gap-1.5">
+            {SERVICES.filter((s) => s.label !== 'Időpontfoglaló rendszer').map((s) => (
+              <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className="rounded-full bg-white px-3 py-1.5 text-ui-body font-medium text-ui-text">
+                {s.label}
+              </a>
+            ))}
+          </div>
         </div>
       </motion.div>
 
@@ -435,20 +438,13 @@ export function MobileMenu({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: EASE, delay: ctaDelay }}
       >
-        <a
-          href="/register"
-          className="flex w-full items-center justify-between rounded-full bg-brand-ink py-3.5 pl-6 pr-3 font-onest font-medium text-[17px] text-white"
-        >
-          <span>Próbáld ki ingyen</span>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-accent shrink-0">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d1c19" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-            </svg>
-          </span>
+        {/* sima gomb, mint a desktop nav-ban */}
+        <a href="/register" className="flex h-12 w-full items-center justify-center rounded-full bg-ui-dark text-ui-row font-medium text-white transition-opacity active:opacity-90">
+          Próbáld ki ingyen
         </a>
         <Link
           href="/login"
-          className="self-center text-[13px] font-medium text-brand-ink/40 hover:text-brand-ink/70 transition-colors py-1"
+          className="self-center py-1 text-ui-body font-medium text-ui-muted transition-colors hover:text-ui-text"
         >
           Már van fiókom → Bejelentkezés
         </Link>

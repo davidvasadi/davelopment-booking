@@ -10,7 +10,7 @@ import HomeClient from './HomeClient'
 export const revalidate = 3600
 
 export const metadata: Metadata = {
-  title: '[davelopment]® Booking — Online Időpontfoglaló Rendszer',
+  title: '[davelopment]© Booking — Online Időpontfoglaló Rendszer',
   description:
     'Online időpontfoglaló rendszer szakembereknek és szolgáltató vállalkozásoknak — szépségszalonoktól az étteremig. Próbáld ki ingyen, kártya nélkül.',
   keywords: [
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     'davelopment booking',
   ],
   openGraph: {
-    title: '[davelopment]® Booking — Online Időpontfoglaló Rendszer',
+    title: '[davelopment]© Booking — Online Időpontfoglaló Rendszer',
     description:
       'Egyszerű, modern online időpontfoglaló rendszer kis vállalkozásoknak. Próbáld ki ingyen — bankkártya sem kell.',
     url: '/',
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: '[davelopment]® Booking — Online Időpontfoglaló Rendszer',
+    title: '[davelopment]© Booking — Online Időpontfoglaló Rendszer',
     description:
       'Egyszerű, modern online időpontfoglaló rendszer kis vállalkozásoknak. Próbáld ki ingyen.',
     images: ['/api/og/landing'],

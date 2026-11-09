@@ -3,6 +3,8 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { motion, useInView } from 'framer-motion'
+import { RevealText } from '@/components/landing/Motion'
+import { ImageIcon } from 'lucide-react'
 import { EASE, SPRING_QUICK } from '@/lib/motion'
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 60, mass: 1 } as const
@@ -33,40 +35,57 @@ const STEPS = [
 ]
 
 export function HowItWorks({
+  id = 'hogyan',
   title,
   subtitle,
   steps,
+  ownImages = false,
+  visuals,
+  k2 = false,
 }: {
+  id?: string
   /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
   title?: string
   subtitle?: string
   /** Iparági landingeknél felülírja a 3 lépés cím/szövegét (a képek megmaradnak — azok
    *  általános termék-screenshotok, nincs hozzájuk iparáganként külön asset). */
-  steps?: { title: string; body: string }[]
+  steps?: { title: string; body: string; img?: string; alt?: string }[]
+  /** Funkció-oldalak: a lépések saját képet kapnak; amíg nincs, helyőrző (nem a főoldali kép). */
+  ownImages?: boolean
+  /** Funkció-oldalak: kép helyett a dashboard design-kártyája lépésenként (src/components/blocks), kicsinyítve. */
+  visuals?: React.ReactNode[]
+  /** új (2. koncepció) stílus: krém pill és kártya, fehér oldalon */
+  k2?: boolean
 } = {}) {
   const [active, setActive] = useState(0)
   const cardRef = useRef<HTMLDivElement>(null)
   const cardInView = useInView(cardRef, { once: true, margin: '-80px 0px' })
-  const resolvedSteps = steps ? STEPS.map((s, i) => ({ ...s, title: steps[i].title, body: steps[i].body })) : STEPS
+  const resolvedSteps: { dots: number; title: string; body: string; img?: string; alt: string }[] = steps
+    ? STEPS.map((s, i) => ({
+        ...s,
+        title: steps[i].title,
+        body: steps[i].body,
+        img: ownImages ? steps[i].img : s.img,
+        alt: ownImages ? (steps[i].alt ?? steps[i].title) : s.alt,
+      }))
+    : STEPS
 
   return (
-    <section id="hogyan" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28">
+    <section id={id} className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28">
       {/* Fejléc */}
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         whileInView={{ opacity: 1, scale: 1 }}
         viewport={{ once: true, amount: 0.4 }}
         transition={SPRING_QUICK}
-        className="flex flex-col gap-6 mb-12 lg:mb-14"
+        className={k2 ? 'mb-12 flex flex-col items-center gap-5 text-center' : 'flex flex-col gap-6 mb-12 lg:mb-14'}
       >
-        <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
+        <span className={`inline-flex items-center rounded-[8px] ${k2 ? '' : 'self-start'} px-3 py-1.5 font-onest text-[14px] font-medium ${k2 ? 'bg-ui-yellow/15 text-ui-text/80' : 'bg-white text-[#1D1C19]'}`}>
           Hogyan működik
         </span>
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
-          <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink max-w-2xl">
-            {title ?? 'Kezd el 3 egyszerű lépésben.'}
-          </h2>
-          <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
+        <div className={k2 ? 'flex flex-col items-center gap-4' : 'flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5'}>
+          <RevealText text={title ?? 'Kezd el 3 egyszerű lépésben.'} className={k2 ? 'max-w-2xl text-[clamp(2rem,3.6vw,48px)] font-medium leading-[1.08] tracking-[-0.035em] text-ui-text' : 'font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink max-w-2xl'} />
+          <p className={k2 ? 'max-w-[560px] text-ui-row text-ui-muted' : 'text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1'}>
             {subtitle ?? '5 perc és éles vagy'}
           </p>
         </div>
@@ -78,7 +97,7 @@ export function HowItWorks({
         initial={{ opacity: 0, scale: 0.94 }}
         animate={cardInView ? { opacity: 1, scale: 1 } : {}}
         transition={{ duration: 0.55, ease: EASE }}
-        className="bg-white rounded-[13px] p-3 lg:p-5"
+        className={k2 ? 'rounded-ui-container bg-white p-3 lg:p-5' : 'bg-white rounded-[13px] p-3 lg:p-5'}
       >
 
         {/* ── Egységes layout: mobilon flex-col, desktopon flex-row ── */}
@@ -113,13 +132,22 @@ export function HowItWorks({
                   ].join(' ')}
                 >
                   <div className="relative w-full h-full bg-[#f7f7f7]">
-                    <Image
-                      src={step.img}
-                      alt={step.alt}
-                      fill
-                      className="object-cover object-left-top"
-                      sizes="(max-width: 520px) 90vw, (max-width: 1024px) 50vw, 30vw"
-                    />
+                    {visuals?.[i] ? (
+                      <FitVisual>{visuals[i]}</FitVisual>
+                    ) : step.img ? (
+                      <Image
+                        src={step.img}
+                        alt={step.alt}
+                        fill
+                        className="object-cover object-left-top"
+                        sizes="(max-width: 520px) 90vw, (max-width: 1024px) 50vw, 30vw"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#EFEFEF] text-brand-ink/25">
+                        <ImageIcon className="h-10 w-10" strokeWidth={1.1} />
+                        <span className="text-[12px] font-medium">Kép hamarosan</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -153,5 +181,15 @@ export function HowItWorks({
 
       </motion.div>
     </section>
+  )
+}
+
+/** A lépés design-kártyája a képhelyen, mint egy levágott képernyőkép: eredeti méretben (rendes betűkkel), a bal felső
+ *  saroktól indul, kitölti a dobozt, és jobbra-lefelé túlnyúlik a kereten (ott levágódik). Kép-szerepű: nem kattintható. */
+function FitVisual({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 select-none overflow-hidden" aria-hidden>
+      <div className="absolute -bottom-10 left-5 top-5 w-[460px] [&>*]:h-full">{children}</div>
+    </div>
   )
 }
