@@ -11,24 +11,24 @@ import { FEATURE_GROUPS, type FeatureGroupId } from '@/lib/landingFeatures'
 import { GrainCanvas } from '@/components/landing/GrainCanvas'
 
 /** A főoldali hero gombja: kapszula + arany kör, rámutatásra átcsúszó nyíllal. */
-export function HeroButton({ href, label, light = false, onDark = false }: { href: string; label: string; light?: boolean; /** sötét felületen: áttetsző fehér (a ui-dark gomb beleolvadna) */ onDark?: boolean }) {
+export function HeroButton({ href, label, light = false, onDark = false, plain = false }: { href: string; label: string; light?: boolean; /** sötét felületen: áttetsző fehér (a ui-dark gomb beleolvadna) */ onDark?: boolean; /** letisztult: csak a felirat, a sárga nyíl-kör nélkül (főoldali hero) */ plain?: boolean }) {
   return (
     <motion.a
       href={href}
       variants={buttonHover}
       initial="rest"
       whileHover="hover"
-      className={`inline-flex items-center gap-2 rounded-full py-1.5 pl-4 pr-1.5 font-onest text-ui-row font-medium ${light ? 'bg-white text-ui-text' : onDark ? 'bg-[#4a4a4a] text-white transition-colors hover:bg-[#525252]' : 'bg-ui-dark text-white'}`}
+      className={`inline-flex items-center gap-2 rounded-full font-onest text-ui-row font-medium ${plain ? 'px-6 py-3' : 'py-1.5 pl-4 pr-1.5'} ${light ? 'bg-white text-ui-text' : onDark ? 'bg-[#4a4a4a] text-white transition-colors hover:bg-[#525252]' : 'bg-ui-dark text-white'}`}
     >
       {label}
-      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ui-yellow">
+      {!plain && <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ui-yellow">
         <motion.div className="absolute flex" variants={{ rest: { x: 0 }, hover: { x: 32 } }} transition={{ duration: 0.28, ease: EASE }}>
           <ArrowRight className="h-4 w-4 text-ui-dark" />
         </motion.div>
         <motion.div className="absolute flex" variants={{ rest: { x: -32 }, hover: { x: 0 } }} transition={{ duration: 0.28, ease: EASE }}>
           <ArrowRight className="h-4 w-4 text-ui-dark" />
         </motion.div>
-      </span>
+      </span>}
     </motion.a>
   )
 }

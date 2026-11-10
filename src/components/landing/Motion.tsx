@@ -30,8 +30,9 @@ export function FadeUp({
     <motion.div
       ref={ref}
       className={className}
-      initial={{ opacity: 0, y: reduce ? 0 : 24 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
+      // egy `transform` (nem y): a framer így WAAPI-val, a böngészővel animálja
+      initial={{ opacity: 0, transform: `translateY(${reduce ? 0 : 24}px)` }}
+      animate={inView ? { opacity: 1, transform: 'translateY(0px)' } : {}}
       transition={{ duration: reduce ? 0.25 : 0.6, delay: reduce ? 0 : delay, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
@@ -63,8 +64,8 @@ export function Reveal({
       ref={ref}
       className={className}
       style={style}
-      initial={{ opacity: 0, y: reduce ? 0 : 36 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
+      initial={{ opacity: 0, transform: `translateY(${reduce ? 0 : 36}px)` }}
+      animate={inView ? { opacity: 1, transform: 'translateY(0px)' } : {}}
       transition={{ duration: reduce ? 0.25 : 0.9, delay: reduce ? 0 : delay, ease: REVEAL_EASE }}
     >
       {children}
@@ -115,8 +116,8 @@ export function RevealText({
                   <span className="inline-block overflow-hidden pb-[0.12em] -mb-[0.12em] align-top">
                     <motion.span
                       className="inline-block"
-                      initial={{ y: '110%' }}
-                      animate={inView ? { y: '0%' } : {}}
+                      initial={{ transform: 'translateY(110%)' }}
+                      animate={inView ? { transform: 'translateY(0%)' } : {}}
                       transition={{ duration: 0.85, delay: delay + i * 0.045, ease: REVEAL_EASE }}
                     >
                       {w}

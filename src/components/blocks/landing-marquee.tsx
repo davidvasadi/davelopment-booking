@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { RevealText } from '@/components/landing/Motion'
 import type { LucideIcon } from 'lucide-react'
@@ -146,22 +146,40 @@ function Laurel({ flip = false }: { flip?: boolean }) {
 
 export function Marquee({ pill, laurel }: { /** koncepció 2: pill-címke a cím fölött */ pill?: string; /** koncepció 2: babérágas „díj”-jelvény a cím helyén (két sor) */ laurel?: [string, string] } = {}) {
   const track = [...PHOTO_INDUSTRIES, ...PHOTO_INDUSTRIES]
+  // érintőképernyőn az első koppintás csak kiemeli a képet és kiírja a szakma nevét (a szalag megáll); a NÉV a link
+  // (különben a koppintás azonnal elvinne, és a felugró név sosem látszana). Gépen: rámutatásra felugrik, kattintásra visz.
+  const [open, setOpen] = useState<number | null>(null)
+  useEffect(() => {
+    if (open === null) return
+    const close = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest('[data-mq-card]')) setOpen(null) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [open])
   return (
     <section className="w-full overflow-hidden py-10 lg:py-16">
       {/* a teljes kijelző szélességében; a két szélen enyhén elhalványul */}
       <div className="[mask-image:linear-gradient(to_right,transparent,black_4rem,black_calc(100%-4rem),transparent)]">
-        <div className="ui-photo-marquee flex w-max gap-2.5 pb-4 pt-11 lg:gap-3">
-          {track.map((it, i) => (
-            <a key={i} href={`/${it.slug}`} aria-hidden={i >= PHOTO_INDUSTRIES.length ? true : undefined} tabIndex={i >= PHOTO_INDUSTRIES.length ? -1 : undefined}
-              className="group relative block w-[150px] shrink-0 outline-none lg:w-[200px]">
-              <span className="block aspect-square overflow-hidden rounded-ui-card transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-y-9 group-focus-visible:-translate-y-9 group-active:-translate-y-9">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/landing/marquee/${it.slug}-davelopment-booking.webp`} alt={`${it.name} ${it.slug.endsWith('asztalfoglalas') ? 'asztalfoglalás' : 'időpontfoglalás'} — davelopment booking`} loading="lazy" decoding="async" width={400} height={400} className="h-full w-full object-cover" />
-              </span>
-              {/* az iparág neve: felemelkedéskor beúszik a kép alá */}
-              <span className="pointer-events-none absolute inset-x-0 top-full -mt-8 translate-y-2 text-center font-onest text-ui-title font-medium leading-none tracking-tight text-ui-text opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 group-active:translate-y-0 group-active:opacity-100">{it.name}</span>
-            </a>
-          ))}
+        <div className="ui-photo-marquee flex w-max gap-2.5 pb-4 pt-11 lg:gap-3" style={open !== null ? { animationPlayState: 'paused' } : undefined}>
+          {track.map((it, i) => {
+            const dup = i >= PHOTO_INDUSTRIES.length, on = open === i, href = `/${it.slug}`
+            return (
+              <div key={i} data-mq-card aria-hidden={dup || undefined} className="group relative block w-[150px] shrink-0 lg:w-[200px]">
+                <button type="button" tabIndex={-1} aria-label={it.name}
+                  onClick={() => { if (window.matchMedia('(hover: hover)').matches) { window.location.href = href; return } setOpen(on ? null : i) }}
+                  className="block w-full cursor-pointer outline-none">
+                  <span className={`block aspect-square overflow-hidden rounded-ui-card transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-y-9 group-focus-within:-translate-y-9 ${on ? '-translate-y-9' : ''}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/landing/marquee/${it.slug}-davelopment-booking.webp`} alt={`${it.name} ${it.slug.endsWith('asztalfoglalas') ? 'asztalfoglalás' : 'időpontfoglalás'} — davelopment booking`} loading="lazy" decoding="async" width={400} height={400} className="h-full w-full object-cover" />
+                  </span>
+                </button>
+                {/* az iparág neve — EZ a link: felemelkedéskor (rámutatás / koppintás) beúszik a kép alá */}
+                <a href={href} tabIndex={dup ? -1 : undefined}
+                  className={`absolute inset-x-0 top-full -mt-8 inline-flex items-center justify-center gap-1 text-center font-onest text-ui-title font-medium leading-none tracking-tight text-ui-text outline-none transition-all duration-500 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 focus-visible:translate-y-0 focus-visible:opacity-100 ${on ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'}`}>
+                  {it.name}<span aria-hidden className="text-ui-muted">›</span>
+                </a>
+              </div>
+            )
+          })}
         </div>
       </div>
       {laurel ? (

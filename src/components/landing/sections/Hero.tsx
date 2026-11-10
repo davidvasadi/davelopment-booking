@@ -399,10 +399,12 @@ const PAIRS: [CardFn, CardFn][] = [
 ]
 
 // ─── HeroNav — hero-ba épített navigáció (nem sticky) ────────────────────────
-export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'pill', login = true }: {
+export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'pill', login = true, cta = 'trial' }: {
   theme?: 'dark' | 'light'; pillId?: string
   /** false: a Bejelentkezés link nélkül (pl. a 2. koncepció hero-ja) */
   login?: boolean
+  /** a desktopos jobb oldali gomb (ugyanaz a stílus): `trial` — Próbáld ki ingyen, `login` — Belépés (a főoldalon; a mobil menü nem változik) */
+  cta?: 'trial' | 'login'
   /** `plain`: sötét, videó nélküli hero-kon — doboz nélküli, fehér szöveges linkek + fehér CTA (Optivio-minta) */
   variant?: 'pill' | 'plain'
 }) {
@@ -559,24 +561,24 @@ export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'p
 
         {/* CTA + Bejelentkezés (desktop) + mobil toggle */}
         <div className="flex items-center gap-2.5 shrink-0">
-          {theme === 'light' && login && (
+          {theme === 'light' && login && cta === 'trial' && (
             <Link
               href="/login"
-              className="hidden min-[1033px]:inline-flex text-[13px] font-medium text-brand-ink/45 hover:text-brand-ink/80 transition-colors px-1"
+              className="hidden min-[1033px]:inline-flex px-1 font-onest text-ui-body font-medium text-ui-muted transition-colors hover:text-ui-text"
             >
-              Bejelentkezés
+              Belépés
             </Link>
           )}
           {plain ? (
             // sima gomb (nyíl-kör nélkül) — a nav-ban egyszerű, sötét kapszula
             <motion.a
-              href="/register"
+              href={cta === 'login' ? '/login' : '/register'}
               variants={buttonHover}
               initial="rest"
               whileHover="hover"
               className={`hidden min-[1033px]:inline-flex items-center rounded-full px-4 py-2.5 font-onest text-[14px] font-medium leading-5 transition-opacity hover:opacity-90 ${onDark ? 'bg-white text-ui-text' : 'bg-ui-dark text-white'}`}
             >
-              Próbáld ki ingyen
+              {cta === 'login' ? 'Belépés' : 'Próbáld ki ingyen'}
             </motion.a>
           ) : (
             <motion.a

@@ -50,8 +50,8 @@ export function Pricing({
 
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        whileInView={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, transform: 'scale(0.96)' }}
+        whileInView={{ opacity: 1, transform: 'scale(1)' }}
         viewport={{ once: true, amount: 0.4 }}
         transition={SPRING_QUICK}
         className={`flex flex-col gap-6 ${k2 ? 'items-center text-center' : ''}`}
@@ -110,13 +110,13 @@ export function Pricing({
       <AnimatePresence mode="wait">
         <motion.div
           key={active}
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, transform: 'translateY(18px)' }}
+          animate={{ opacity: 1, transform: 'translateY(0px)' }}
+          exit={{ opacity: 0, transform: 'translateY(-10px)' }}
           transition={{ duration: 0.35, ease: EASE }}
           // k2: mobilon oldalra lapozható sáv (snap), mint a tippek — desktopon a 3 oszlopos rács
           className={k2
-            ? 'relative -mx-4 flex snap-x snap-mandatory scroll-px-4 items-stretch gap-3 overflow-x-auto px-4 py-2 font-onest [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:w-[78%] [&>*]:shrink-0 [&>*]:snap-start lg:mx-auto lg:grid lg:w-full lg:max-w-[1400px] lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:px-0 lg:py-0 lg:[&>*]:w-auto'
+            ? 'relative -mx-4 flex snap-x snap-mandatory scroll-px-4 items-stretch gap-3 overflow-x-auto px-4 py-2 font-onest [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:w-[94%] [&>*]:shrink-0 [&>*]:snap-start lg:mx-auto lg:grid lg:w-full lg:max-w-[1400px] lg:grid-cols-3 lg:gap-5 lg:overflow-visible lg:px-0 lg:py-0 lg:[&>*]:w-auto'
             : 'relative grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch max-w-[1400px] mx-auto w-full font-onest'}
         >
           <NotchedPricingCard

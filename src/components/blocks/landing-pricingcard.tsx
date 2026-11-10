@@ -110,7 +110,7 @@ export function NotchedPricingCard({ featured, badgeLabel, dotClass = 'bg-ui-gre
   const body = (
     <div
       ref={innerRef}
-      className={cn('flex h-full flex-col rounded-ui-container p-5 pt-8 sm:p-6 sm:pt-9', featured ? 'bg-ui-dark text-white' : glass ? 'bg-white/55' : 'bg-white/60 backdrop-blur-lg')}
+      className={cn('flex flex-1 flex-col rounded-ui-container p-5 pt-8 sm:p-6 sm:pt-9', featured ? 'bg-ui-dark text-white' : glass ? 'bg-white/55' : 'bg-white/60 backdrop-blur-lg')}
       style={{ clipPath }}
     >
       <div className={cn('text-ui-title font-light leading-7', featured ? 'text-white' : 'text-ui-text')}>{title}</div>
@@ -132,8 +132,11 @@ export function NotchedPricingCard({ featured, badgeLabel, dotClass = 'bg-ui-gre
   )
 
   return (
-    // üveg-módban a vetett árnyék és a vékony perem `drop-shadow`-val: ez követi a mappafüles clip-path alakját
-    <div className={cn('relative flex h-full flex-col', glass && !featured && '[filter:drop-shadow(0_24px_40px_rgba(0,0,0,.08))]')}>
+    // a külső dobozon NINCS h-full (a %-os magasság kikapcsolja a flex/grid sor nyújtását → a kártyák a saját tartalmukig
+    // nőnének); a belső rész flex-1-gyel tölti ki a magasságot (nem h-full-lal: a Safari a nyújtott flex-elemen belüli %-os magasságot
+    // nem mindig veszi át — a kártyák ettől lettek eltérő magasak)
+    // árnyék nincs (Dave, 2026-11-10); üveg-módban a szaggatott perem követi a mappafüles clip-path alakját
+    <div className="relative flex flex-col">
       {badgeLabel && (
         <span
           className={cn('absolute z-10 flex items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-ui-label font-medium sm:text-ui-meta', 'text-ui-text')}
@@ -150,7 +153,7 @@ export function NotchedPricingCard({ featured, badgeLabel, dotClass = 'bg-ui-gre
         </svg>
       )}
       {featured ? (
-        <div className="h-full rounded-ui-container bg-ui-yellow p-[3px] shadow-ui-float">
+        <div className="flex flex-1 flex-col rounded-ui-container bg-ui-yellow p-[3px]">
           {body}
         </div>
       ) : body}

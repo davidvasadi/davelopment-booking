@@ -85,7 +85,8 @@ const TABS = [
   </FitCard> },
 ]
 const PHOTOS = ['/design/boritokep-szalon-ny.webp', '/design/munkatars-viktoria.webp', '/landing/tips/asztalfoglalas-online-etterem-davelopment-booking.jpg', '/landing/tips/elolegkeres-foglalaskor-davelopment-booking.jpg', '/landing/tips/ajandekutalvany-szepsegszalon-davelopment-booking.jpg', '/landing/tips/jogosultsagkezeles-csapat-davelopment-booking.jpg']
-const rise = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 200, damping: 24 } } }
+// a beúszók egy `transform`-ban (nem külön x/y/scale): így a framer a böngésző saját animációjával (WAAPI) futtatja, nem JS-ből
+const rise = { hidden: { opacity: 0, transform: 'translateY(24px)' }, show: { opacity: 1, transform: 'translateY(0px)', transition: { type: 'spring' as const, stiffness: 200, damping: 24 } } }
 const inView = { initial: 'hidden', whileInView: 'show', viewport: { once: true, amount: 0.25 } } as const
 const stagger = (s = 0.08) => ({ show: { transition: { staggerChildren: s } } })
 
@@ -111,8 +112,8 @@ function TabStage({ dark = false }: { dark?: boolean }) {
           <button key={x.label} type="button" onClick={() => setTab(i)} className={`ui-press rounded-full px-5 py-2 text-ui-title outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/40 ${i === tab ? (dark ? 'bg-white/15 text-white' : 'bg-ui-dark text-white') : dark ? 'text-white/55 hover:text-white/80' : 'text-ui-muted'}`}>{x.label}</button>
         ))}
       </div>
-      <motion.p key={`p${tab}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-5 text-ui-row text-ui-muted">{TABS[tab].t}</motion.p>
-      <motion.div key={tab} initial={{ opacity: 0, y: 30, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 20 }} className={`mt-8 w-full text-left ${TABS[tab].w}`}>{TABS[tab].v}</motion.div>
+      <motion.p key={`p${tab}`} initial={{ opacity: 0, transform: 'translateY(6px)' }} animate={{ opacity: 1, transform: 'translateY(0px)' }} className="mt-5 text-ui-row text-ui-muted">{TABS[tab].t}</motion.p>
+      <motion.div key={tab} initial={{ opacity: 0, transform: 'translateY(30px) scale(0.96)' }} animate={{ opacity: 1, transform: 'translateY(0px) scale(1)' }} transition={{ type: 'spring', stiffness: 220, damping: 20 }} className={`mt-8 w-full text-left ${TABS[tab].w}`}>{TABS[tab].v}</motion.div>
     </div>
   )
 }
@@ -159,10 +160,10 @@ export function ConceptOurs({ rating, trialDays = 14, tail }: { rating?: Rating;
           <motion.p variants={rise} className="mx-auto mt-6 max-w-[560px] text-ui-row text-ui-muted">Online foglalás, beosztás, előleg és hírlevél — szalonnak és étteremnek is, a te arculatoddal.</motion.p>
           <motion.div variants={rise} className="mt-8 flex justify-center"><HeroButton href="/register" label={`Próbáld ki ${trialDays} napig ingyen`} /></motion.div>
         </motion.div>
-        <motion.div initial={{ opacity: 0, y: 80 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.15 }} transition={{ type: 'spring', stiffness: 110, damping: 20 }} className="relative mx-auto mt-14 max-w-[1100px] text-left">
+        <motion.div initial={{ opacity: 0, transform: 'translateY(80px)' }} whileInView={{ opacity: 1, transform: 'translateY(0px)' }} viewport={{ once: true, amount: 0.15 }} transition={{ type: 'spring', stiffness: 110, damping: 20 }} className="relative mx-auto mt-14 max-w-[1100px] text-left">
           <BookingPagePreview />
-          <motion.div className="absolute -left-[5%] bottom-[10%] hidden w-[24%] -rotate-3 lg:block" initial={{ opacity: 0, x: -50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.3 }}><FitCard w={360}><DayTimelineShot /></FitCard></motion.div>
-          <motion.div className="absolute -right-[5%] top-[16%] hidden w-[30%] rotate-2 lg:block" initial={{ opacity: 0, x: 50 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.45 }}><FitCard w={380}><PendingApproval className="w-full shadow-ui-float" /></FitCard></motion.div>
+          <motion.div className="absolute -left-[5%] bottom-[10%] hidden w-[24%] lg:block" initial={{ opacity: 0, transform: 'translateX(-50px) rotate(-3deg)' }} whileInView={{ opacity: 1, transform: 'translateX(0px) rotate(-3deg)' }} viewport={{ once: true }} transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.3 }}><FitCard w={360}><DayTimelineShot /></FitCard></motion.div>
+          <motion.div className="absolute -right-[5%] top-[16%] hidden w-[30%] lg:block" initial={{ opacity: 0, transform: 'translateX(50px) rotate(2deg)' }} whileInView={{ opacity: 1, transform: 'translateX(0px) rotate(2deg)' }} viewport={{ once: true }} transition={{ type: 'spring', stiffness: 200, damping: 16, delay: 0.45 }}><FitCard w={380}><PendingApproval className="w-full shadow-ui-float" /></FitCard></motion.div>
         </motion.div>
       </section>
       <section className="py-10"><TagRail /></section>
@@ -229,13 +230,13 @@ export function ConceptLight({ rating, trialDays = 14, tail, footer }: { rating?
       <HandBubbles />
       <DailyOps rating={rating} />
       {/* a fülek (Foglalás / Csapat / Pénz) a mobil nézettel — fehér háttéren */}
-      <section className="bg-white px-4 py-24 text-center"><SectionHead pill="App" title="Minden fontos, egy érintésre." className="mb-12" /><TabStage dark /></section>
+      <section className="bg-white px-4 py-24 text-center"><SectionHead pill="App" title="Minden fontos, egy érintésre." className="mb-12" /><motion.div {...inView} variants={rise}><TabStage dark /></motion.div></section>
       <IndustryStack />
       {/* számok ikon-kártyákkal */}
-      <section className="bg-ui-cell px-4 py-24">
-        <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {factsK2().map(({ icon, v, l, href }) => <a key={v} href={href} className="group rounded-ui-card bg-white p-6 transition-transform hover:-translate-y-1"><IconCircle icon={icon} tone="cell" size="md" /><h3 className="mt-16 text-ui-title font-medium">{v}</h3><p className="mt-2 text-ui-meta text-ui-muted">{l}</p></a>)}
-        </div>
+      <section className="bg-[#F7F7F7] px-4 py-24">
+        <motion.div {...inView} variants={stagger(0.08)} className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {factsK2().map(({ icon, v, l, href }) => <motion.div key={v} variants={rise} className="h-full"><a href={href} className="group block h-full rounded-ui-card bg-white p-6 transition-transform hover:-translate-y-1"><IconCircle icon={icon} tone="cell" size="md" /><h3 className="mt-16 text-ui-title font-medium">{v}</h3><p className="mt-2 text-ui-meta text-ui-muted">{l}</p></a></motion.div>)}
+        </motion.div>
       </section>
       <PhotoBand pin rating={rating} card="center" src="/landing/hero/pilates-studio-online-foglalas-davelopment-booking.webp" alt="Napfényes pilates- és jógastúdió — órák online foglalása a davelopment bookinggal"
         title="Az órák maguktól megtelnek" text="A vendégek online foglalnak helyet az órákra, emlékeztetőt kapnak — te csak megtartod az órát." cta="Nézd meg, hogyan" ctaHref="/pilates-idopontfoglalas"
@@ -247,7 +248,7 @@ export function ConceptLight({ rating, trialDays = 14, tail, footer }: { rating?
       <div className="relative z-10 flow-root bg-white">
       {tail}
       {/* záró: a mostani színezett (festett hátterű) CTA — minden oldalon a saját szövegével */}
-      <CtaGlow trial_days={trialDays} button="dark" label="Kezdd el ma" title="Foglalások, káosz nélkül." bg="/landing/cta/cta-hatter-davelopment-booking.webp" lead={`${trialDays} napig ingyen próbálhatod — ma beállítod, holnap már foglalnak.`} />
+      <CtaGlow trial_days={trialDays} button="dark" label="Kezdd el ma" title="Foglalások, káosz nélkül." bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp" plain bgPosition="object-[center_75%]" lead={`${trialDays} napig ingyen próbálhatod — ma beállítod, holnap már foglalnak.`} />
       {footer ?? <ConceptLightFooter trialDays={trialDays} />}
       </div>
     </div>
@@ -509,6 +510,9 @@ function NotifTicker() {
  *  becsúszó értesítés-chippel. */
 /** Visszagörgetéskor előjövő menü: lefelé görgetve rejtve, felfelé görgetve (a hero alatt) lecsúszik a képernyő tetejére —
  *  ugyanaz a középre összehúzott menü, fehér, finoman elmosott sávon. A hero tetején a saját (álló) menü látszik. */
+// mobilon TÖMÖR fehér: az iOS 26 Safari ennek a színét veszi a felső sávnak, az áttetszőt szürkének látja.
+// Elrejtve `invisible` is (nem csak kitolva): különben az iOS 26 Safari ezt a fixed, tetőt érintő elemet veszi a felső
+// sáv színének (fehér), a hero színes rétege helyett
 function NavOnScrollUp() {
   const [show, setShow] = useState(false)
   useEffect(() => {
@@ -524,8 +528,8 @@ function NavOnScrollUp() {
     return () => window.removeEventListener('scroll', on)
   }, [])
   return (
-    <div aria-hidden={!show} className={`fixed inset-x-0 top-0 z-[60] border-b border-ui-divider bg-white/85 px-4 py-2 backdrop-blur-xl transition-transform duration-300 ease-out lg:px-5 ${show ? 'translate-y-0' : 'pointer-events-none -translate-y-full'}`}>
-      <div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="k2-nav-sticky" variant="plain" login={false} /></div>
+    <div aria-hidden={!show} className={`fixed inset-x-0 top-0 z-[60] border-b border-ui-divider bg-white px-4 py-2 lg:bg-white/85 lg:backdrop-blur-xl transition-[transform,visibility] duration-300 ease-out lg:px-5 ${show ? 'visible translate-y-0' : 'pointer-events-none invisible -translate-y-full'}`}>
+      <div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="k2-nav-sticky" variant="plain" cta="login" /></div>
     </div>
   )
 }
@@ -536,6 +540,9 @@ function NavOnScrollUp() {
 // ELŐTTE álló, a szakaszt kitöltő testvér-elem (a ref-ek gyerek→szülő sorrendben kötődnek, a szakasz ref-je még üres lenne);
 // (4) a szakaszon overflow-CLIP legyen, ne overflow-hidden: a hidden görgető dobozzá teszi, és a natív idővonal azt
 // figyelné (ami sosem görög) — a telefon nem mozdulna.
+/** a hero háttérképének (ég) felső-közép színe — a telefon felső sávjához */
+const HERO_TOP = '#D3D3D3'
+
 export function ConceptLightHero({ trialDays = 14 }: { trialDays?: number }) {
   // Hero-parallax (Framer-minta): a hero fél sebességgel görög (lefelé tolódik a hero-magasság feléig), így az utána
   // jövő fehér tartalom (relative z-10 bg-white) egyenes éllel rácsúszik. A telefon közben a képernyőn ugyanúgy
@@ -544,27 +551,48 @@ export function ConceptLightHero({ trialDays = 14 }: { trialDays?: number }) {
   const tl = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: tl, offset: ['start start', 'end start'] })
   const heroT = useTransform(scrollYProgress, [0, 1], ['translateY(0%)', 'translateY(50%)'])
+  // a háttér (ég, hegyek) közben ráközelít — alulról, a hegygerinc felől —, hogy a lemaradás a szemnek is feltűnjön.
+  // Telefonon erősebben (ott a kép kisebb, a 120% alig látszik); a natív animáció a csatoláskor rögzül → key-jel újracsatol.
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => { const m = window.matchMedia('(max-width: 639px)'); const f = () => setNarrow(m.matches); f(); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, [])
+  const bgT = useTransform(scrollYProgress, [0, 1], ['scale(1)', narrow ? 'scale(1.45)' : 'scale(1.2)'])
   const phoneT = useTransform(scrollYProgress, [0, 1], ['translateY(calc(0% - min(0svh, 0px)))', 'translateY(calc(-42% - min(50svh, 460px)))'])
   // a menü, a cím és a gomb is visszaveszi a lemaradást (normál sebességgel görög) — csak a háttér (ég, hegyek) marad le,
   // így a telefon és a szöveg egymáshoz képest úgy mozog, mint parallax nélkül (nem csúszik rá a telefon a címre)
   const textT = useTransform(scrollYProgress, [0, 1], ['translateY(calc(0px - min(0svh, 0px)))', 'translateY(calc(0px - min(50svh, 460px)))'])
+  // iPhone (iOS 26 Safari) felső sáv: a lap tetejét érintő fixed elem színével festi — amíg a hero látszik, a hero egének
+  // színe (a kép felső közepe). Ld. ios-safari-mobile skill, 1. pont.
+  const topBar = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = tl.current, bar = topBar.current
+    if (!el || !bar) return
+    // a hero után a réteg eltűnik (nem fehérre vált): a Safari a már beállt sávszínt színváltásra nem frissíti, a fehér
+    // réteg csak egy plusz csík lenne alatta
+    const io = new IntersectionObserver(([e]) => { bar.style.display = e.isIntersecting ? '' : 'none' }, { rootMargin: '0px 0px -100% 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
   return (
     <div className="relative">
+    <div ref={topBar} aria-hidden style={{ backgroundColor: HERO_TOP }} className="pointer-events-none fixed inset-x-0 top-0 z-[61] h-[max(8px,env(safe-area-inset-top))] lg:hidden" />
     <div ref={tl} aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[min(100svh,920px)] min-h-[560px]" />
     {/* a mozgó (transform-os) hero-n kívül: transform-os ősben a fixed nem a képernyőhöz igazodna */}
     <NavOnScrollUp />
     <motion.section style={{ transform: heroT }} className="relative z-0 isolate flex h-[min(100svh,920px)] min-h-[560px] flex-col overflow-clip bg-white font-onest text-ui-text will-change-transform">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/landing/hero/sziklas-hatter-davelopment-booking.webp" alt="" className="absolute inset-0 -z-10 h-full w-full object-cover object-bottom" />
+      <motion.img key={narrow ? 'n' : 'w'} style={{ transform: bgT }} src="/landing/hero/sziklas-hatter-davelopment-booking.webp" alt="" className="absolute inset-0 -z-10 h-full w-full origin-bottom object-cover object-bottom will-change-transform" />
+      {/* mobilon: a hero teteje a felső sáv (HERO_TOP) egyszínéből indul és beleolvad a színátmenetes égbe — így a sáv
+          és a hero között egyik szélen sincs látható él */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-[5] h-[120px] lg:hidden" style={{ background: `linear-gradient(to bottom, ${HERO_TOP}, transparent)` }} />
       {/* a menü, ugyanaz, mint az aloldalakon */}
       {/* a menü középre összehúzva (nem a két szélen szétszórva) */}
       <motion.div style={{ transform: textT }} className="relative z-20 will-change-transform">
-      <div className="px-4 py-2.5 lg:px-5"><div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="concept2-hero-nav" variant="plain" login={false} /></div></div>
+      <div className="px-4 py-2.5 lg:px-5"><div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="concept2-hero-nav" variant="plain" cta="login" /></div></div>
       <div className="mx-auto mt-[clamp(0.5rem,4vh,4rem)] max-w-[900px] px-4 text-center">
         {/* belépő: CSS (ui-hero-rise), nem framer — így a JS betöltése előtt is megjelenik (gyors első kép, LCP) */}
         <h1 className="ui-hero-rise text-[clamp(2rem,min(5.4vw,7.6vh),76px)] font-medium leading-[1.02] tracking-[-0.045em]">Kezeld a naptárad.<br />Foglaljanak azonnal.<br /><span className="text-ui-muted">Építsd az üzleted.</span></h1> {/* ui-allow: hero H1 */}
         <div className="ui-hero-rise mt-[clamp(1rem,3.5vh,2rem)] flex justify-center" style={{ animationDelay: '.15s', ['--rise' as string]: '12px' }}>
-          <HeroButton href="/register" label={`Próbáld ki ${trialDays} napig ingyen`} />
+          <HeroButton href="/register" label={`Próbáld ki ${trialDays} napig ingyen`} plain />
         </div>
       </div>
       </motion.div>
@@ -598,12 +626,16 @@ export function HandBubbles() {
   // a buborékok a telefon közepéből indulnak (kicsik, átlátszók), és egymás után a helyükre úsznak — egy transform +
   // opacity, hogy hardveresen fusson
   const bubble = (from: number, to: number, dx: string, dy: string) => ({
-    opacity: useTransform(scrollYProgress, ...padRange([from, to], [0, 1])),
-    transform: useTransform(scrollYProgress, ...padRange([from, to], [`translate(${dx}, ${dy}) scale(0.35)`, 'translate(0%, 0%) scale(1)'])),
+    opacity: useTransform(scrollYProgress, ...padRange([from, from + (to - from) * 0.45], [0, 1])),
+    // finom bounce (görgetésre kötve, natívan): a pálya 60%-ánál ér a helyére enyhe túllendüléssel (106%), aztán puhán
+    // visszaáll (98,5% → 100%) — elég hosszú szakasz, hogy egérgörgővel se ugorja át egy kattanás
+    transform: useTransform(scrollYProgress, ...padRange(
+      [from, from + (to - from) * 0.6, from + (to - from) * 0.8, to],
+      [`translate(${dx}, ${dy}) scale(0.35)`, 'translate(0%, 0%) scale(1.06)', 'translate(0%, 0%) scale(0.985)', 'translate(0%, 0%) scale(1)'])),
   })
-  const b1 = bubble(0.175, 0.325, '90%', '60%')
-  const b2 = bubble(0.25, 0.4, '-90%', '20%')
-  const b3 = bubble(0.31, 0.475, '-80%', '-60%')
+  const b1 = bubble(0.175, 0.375, '90%', '60%')
+  const b2 = bubble(0.25, 0.45, '-90%', '20%')
+  const b3 = bubble(0.31, 0.525, '-80%', '-60%')
   // a kártyák tartalma akkor animál be (görbe kirajzolódik, oszlopok felnőnek, sorok beúsznak), amikor a szakasz
   // a képernyőre ér — és újra, ha visszagörgetsz. React-renderelés NÉLKÜL: a szakasz data-anim attribútumát közvetlenül
   // a DOM-on váltjuk, a CSS (globals.css, [data-anim="off"]) addig kikapcsolja az animációkat, a visszakapcsolás
@@ -662,12 +694,18 @@ function PhotoBand({ rating, src, alt, card, title, text, cta = 'Próbáld ki in
   const tl = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: tl, offset: COVER_OFFSET })
   const parT = useTransform(scrollYProgress, [0, 1], ['translateY(-12%)', 'translateY(12%)'])
+  // pin (ragadós) változat: a kép ráközelít, mint a hero háttere (telefonon erősebben). A ragadós szakasz nem mozdul, ezért
+  // a target egy ELŐTTE álló, 200svh magas, láthatatlan jelölő (abszolút, a szakasz tetejétől): a 'cover' sáv így 3 képernyő —
+  // beúszik (0–⅓), megáll és rácsúszik a következő rész (⅓–⅔) — a ráközelítés ezen a ⅔-on fut.
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => { const m = window.matchMedia('(max-width: 639px)'); const f = () => setNarrow(m.matches); f(); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, [])
+  const zoomT = useTransform(scrollYProgress, ...padRange([0, 0.67], ['scale(1)', narrow ? 'scale(1.45)' : 'scale(1.2)']))
   // a widgetek tartalma (oszlopok, gyűrű, sorok) akkor animál be, amikor a sáv a képre ér — és újra, ha visszagörgetsz
   const live = useInView(ref, { amount: 0.4 })
   // a kártya tartalma lépcsőzetesen éled meg: avatarok egyenként beugranak, a csillagok egymás után felvillannak,
   // aztán a cím, a szöveg és a gomb beúszik — a sáv minden belépésekor újra
-  const pop = { hidden: { opacity: 0, scale: 0.4, rotate: -12 }, show: { opacity: 1, scale: 1, rotate: 0, transition: { type: 'spring' as const, stiffness: 320, damping: 18 } } }
-  const card$ = { initial: 'hidden', animate: live ? 'show' : 'hidden', variants: { hidden: { opacity: 0, y: 30 }, show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 160, damping: 20, staggerChildren: 0.1 } } } }
+  const pop = { hidden: { opacity: 0, transform: 'scale(0.4) rotate(-12deg)' }, show: { opacity: 1, transform: 'scale(1) rotate(0deg)', transition: { type: 'spring' as const, stiffness: 320, damping: 18 } } }
+  const card$ = { initial: 'hidden', animate: live ? 'show' : 'hidden', variants: { hidden: { opacity: 0, transform: 'translateY(30px)' }, show: { opacity: 1, transform: 'translateY(0px)', transition: { type: 'spring' as const, stiffness: 160, damping: 20, staggerChildren: 0.1 } } } }
   const stars = (
     <motion.div variants={rise} className="flex items-center gap-2">
       <motion.span variants={stagger(0.07)} className="flex gap-0.5 text-ui-yellow">{[0, 1, 2, 3, 4].map((i) => <motion.span key={i} variants={pop}><SharpStar className="h-4 w-4" /></motion.span>)}</motion.span>
@@ -675,13 +713,15 @@ function PhotoBand({ rating, src, alt, card, title, text, cta = 'Próbáld ki in
     </motion.div>
   )
   return (
+    <>
+    {pin && <div ref={tl} aria-hidden className="pointer-events-none absolute h-[200svh] w-px" />}
     <section ref={ref} data-anim={live ? 'on' : 'off'} className={pin ? 'sticky top-0 z-0 h-svh overflow-clip' : 'relative h-[clamp(560px,52vw,820px)] overflow-clip'}>
       {/* ragadós változat: felülről normálisan beúszik, a képernyő tetején megáll, és a következő szakasz csúszik rá */}
-      <div ref={tl} aria-hidden className="pointer-events-none absolute inset-0" />
+      {!pin && <div ref={tl} aria-hidden className="pointer-events-none absolute inset-0" />}
       <div className="contents">
       {pin ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} loading="lazy" className={`absolute inset-0 h-full w-full object-cover ${align}`} />
+        <motion.img key={narrow ? 'n' : 'w'} style={{ transform: zoomT }} src={src} alt={alt} loading="lazy" className={`absolute inset-0 h-full w-full object-cover will-change-transform ${align}`} />
       ) : (
       <motion.div style={{ transform: parT }} className="absolute -inset-y-[14%] inset-x-0 will-change-transform">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -712,7 +752,7 @@ function PhotoBand({ rating, src, alt, card, title, text, cta = 'Próbáld ki in
       )}
       {/* lebegő widgetek: egymás után úsznak be, amikor a sáv a képre ér */}
       {widgets.map((g, i) => (
-        <motion.div key={i} initial={{ opacity: 0, y: 40, scale: 0.92 }} whileInView={{ opacity: 1, y: 0, scale: 1 }} viewport={{ once: true, amount: 0.4 }}
+        <motion.div key={i} initial={{ opacity: 0, transform: 'translateY(40px) scale(0.92)' }} whileInView={{ opacity: 1, transform: 'translateY(0px) scale(1)' }} viewport={{ once: true, amount: 0.4 }}
           transition={{ type: 'spring', stiffness: 140, damping: 20, delay: 0.15 + i * 0.15 }}
           className={`absolute hidden lg:block ${g.pos}`}>
           <div className="rounded-ui-card shadow-[0_24px_60px_-24px_rgba(0,0,0,.45)] [&>*]:rounded-ui-card"><FitCard w={g.w}><div className="ui-rise-kids">{g.el}</div></FitCard></div> {/* ui-allow: lebegő widget árnyéka */}
@@ -720,6 +760,7 @@ function PhotoBand({ rating, src, alt, card, title, text, cta = 'Próbáld ki in
       ))}
       </div>
     </section>
+    </>
   )
 }
 
@@ -751,6 +792,8 @@ export function IndustryStack() {
   )
 }
 function StackCard({ it, i, n, progress }: { it: (typeof STACK)[number]; i: number; n: number; progress: MotionValue<number> }) {
+  // (a címke tömör, nem backdrop-blur, és a kép előre töltődik: a mozgó kártyán az elmosást a telefon minden képkockán
+  // újraszámolná, a késleltetett kép-dekódolás pedig pont a beúszás közben akasztana)
   // az első kártya már a helyén van; a többi a saját szeletében, közvetlenül a görgetést követve (késleltetés nélkül)
   // alulról beúszik és lerakódik a pakli tetejére
   // (egy transform-ban, hogy natívan fusson; az első kártya végig a helyén, annak nincs görgetés-animációja)
@@ -760,8 +803,8 @@ function StackCard({ it, i, n, progress }: { it: (typeof STACK)[number]; i: numb
   return (
     <motion.a href={`/${it.slug}`} style={{ transform, zIndex: i + 1 }} className="group absolute inset-0 block will-change-transform overflow-hidden rounded-ui-inner shadow-[0_24px_60px_-28px_rgba(0,0,0,.4)]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/landing/marquee/${it.slug}-davelopment-booking.webp`} alt={`${it.name.replace(/nak$|nek$/, '')} — online foglalás a davelopment bookinggal`} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-      <span className="absolute bottom-4 left-4 rounded-full bg-white/85 px-4 py-2 text-ui-body text-ui-text backdrop-blur">{it.name}</span>
+      <img src={`/landing/marquee/${it.slug}-davelopment-booking.webp`} alt={`${it.name.replace(/nak$|nek$/, '')} — online foglalás a davelopment bookinggal`} loading="eager" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+      <span className="absolute bottom-4 left-4 rounded-full bg-white/95 px-4 py-2 text-ui-body text-ui-text">{it.name}</span>
     </motion.a>
   )
 }
@@ -861,7 +904,7 @@ export function DailyOps({ rating }: { rating?: Rating } = {}) {
                 const on = slot === 1
                 const Y: Record<number, number> = { [-1]: -62, 0: 0, 1: 66, 2: 134, 3: 196, 4: 258 }
                 return (
-                  <motion.div key={id} initial={false} animate={{ y: Y[slot], scale: on ? 1.08 : 0.94, opacity: slot < 0 || slot > 3 ? 0 : 1 }} transition={{ type: 'spring', stiffness: 170, damping: 22 }}
+                  <motion.div key={id} initial={false} animate={{ transform: `translateY(${Y[slot]}px) scale(${on ? 1.08 : 0.94})`, opacity: slot < 0 || slot > 3 ? 0 : 1 }} transition={{ type: 'spring', stiffness: 170, damping: 22 }}
                     className={`absolute inset-x-0 top-0 flex items-center gap-3 rounded-ui-inner p-2 transition-colors duration-500 ${on ? 'z-10 bg-white shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)]' : 'bg-white/70 backdrop-blur-md'}`}>
                     <img src={`/landing/funkciok/csapat/avatar/${a}.webp`} alt="" className="h-11 w-11 rounded-ui-control object-cover" /> {/* eslint-disable-line @next/next/no-img-element */}
                     <span className="min-w-0 flex-1"><span className="block text-ui-row">{n}</span><span className="block text-ui-meta text-ui-muted">{r}</span></span>
@@ -886,7 +929,7 @@ export function DailyOps({ rating }: { rating?: Rating } = {}) {
       {/* két gomb */}
       <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
         {/* mobilon csak a funkciók gomb (a regisztráció a fejlécben és a szakaszok végén is ott van) */}
-        <span className="hidden sm:inline-flex"><HeroButton href="/register" label="Próbáld ki ingyen" /></span>
+        <span className="hidden sm:inline-flex"><HeroButton href="/register" label="Töltsd meg a naptárad" /></span>
         <a href={featurePath('/funkciok')} className="ui-press inline-flex h-11 items-center rounded-full bg-ui-cell px-5 text-ui-row text-ui-text transition-colors hover:bg-ui-divider">Nézd meg a funkciókat</a>
       </div>
     </section>
@@ -894,8 +937,8 @@ export function DailyOps({ rating }: { rating?: Rating } = {}) {
     <section className="mx-auto max-w-6xl px-4 pb-24 pt-16 font-onest text-ui-text">
       <SectionHead title="Kevesebb adminisztráció, több vendég." />
       {/* két oszlop: lenyitható előnyök + a telefont tartó kéz */}
-      <div className="mt-12 grid gap-3 lg:grid-cols-2">
-        <div className="flex flex-col justify-center rounded-ui-container bg-ui-cell p-6 lg:min-h-[440px]">
+      <motion.div {...inView} variants={stagger(0.12)} className="mt-12 grid gap-3 lg:grid-cols-2">
+        <motion.div variants={rise} className="flex flex-col justify-center rounded-ui-container bg-ui-cell p-6 lg:min-h-[440px]">
           <div className="space-y-1.5">
             {OPS.map(([t, d], i) => (
               <button key={t} type="button" onClick={() => setOpen(i)} className="block w-full rounded-ui-card bg-white px-5 py-3.5 text-left">
@@ -904,12 +947,12 @@ export function DailyOps({ rating }: { rating?: Rating } = {}) {
               </button>
             ))}
           </div>
-        </div>
-        <div className="relative min-h-[440px] overflow-hidden rounded-ui-container bg-ui-yellow/15">
+        </motion.div>
+        <motion.div variants={rise} className="relative min-h-[440px] overflow-hidden rounded-ui-container bg-ui-yellow/15">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/landing/hero/foglalasok-feature-davelopment-booking.webp" alt="A davelopment booking a telefonon — a Foglalások nap-idővonala" loading="lazy" className="absolute -bottom-6 left-1/2 h-[112%] max-w-none -translate-x-1/2 object-contain" />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </section>
     </>
   )
@@ -949,15 +992,14 @@ export function StepsK2({ id = 'hogyan', head = { pill: 'Hogyan működik', titl
             <li key={st.title} onMouseEnter={() => setActive(i)}
               className={`relative flex min-h-[260px] cursor-pointer flex-col overflow-hidden rounded-ui-container bg-ui-yellow/15 transition-[flex-grow] duration-500 ease-out lg:min-h-0 ${on ? 'lg:flex-[2_1_0%]' : 'lg:flex-[1_1_0%]'}`}>
               {/* a telefon: mobilon mindig, desktopon csak a kinyílt kártya jobb felében */}
-              <div className={`pointer-events-none absolute right-3 top-3 z-10 transition-opacity duration-300 max-lg:hidden ${on ? 'opacity-100 delay-200' : 'opacity-0'}`}><img src="/icons/icon-192.png" alt="" aria-hidden className="h-7 w-7 rounded-[8px] shadow-[0_6px_16px_-8px_rgba(0,0,0,.4)]" /></div> {/* eslint-disable-line @next/next/no-img-element */}
-              <div className={`pointer-events-none absolute bottom-0 right-8 top-0 w-[190px] transition-opacity duration-300 max-lg:hidden ${on ? 'opacity-100 delay-200' : 'opacity-0'}`}>
-                {phone(i, 'absolute inset-x-0 top-7')}
-                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#FFF9E7] to-transparent" /> {/* ui-allow: a krém kártyaszínbe olvadás */}
+              {/* a telefon fehér, lekerekített képmezőben (krém kártya, fehér képmező — mint a funkció-kártyákon) */}
+              <div className={`pointer-events-none absolute bottom-3 right-3 top-3 w-[240px] overflow-hidden rounded-ui-card bg-white transition-opacity duration-300 max-lg:hidden ${on ? 'opacity-100 delay-200' : 'opacity-0'}`}>
+                {phone(i, 'absolute left-1/2 top-7 w-[190px] -translate-x-1/2')}
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
               </div>
-              <div className="relative h-[240px] overflow-hidden lg:hidden">
-                {BRAND_BADGE}
+              <div className="relative mx-3 mt-3 h-[240px] overflow-hidden rounded-ui-card bg-white lg:hidden">
                 {phone(i, 'absolute left-1/2 top-6 w-[190px] -translate-x-1/2')}
-                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#FFF9E7] to-transparent" /> {/* ui-allow: a krém kártyaszínbe olvadás */}
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
               </div>
               {/* szöveg: felül a sorszám, alul a cím és a mondat (a kinyílt kártyán a bal felében) */}
               <div className="relative z-10 flex flex-1 flex-col justify-between p-6 lg:w-[min(260px,100%)]">
@@ -1035,7 +1077,7 @@ export function ConceptLightFooter({ trialDays = 14 }: { trialDays?: number }) {
           <BrandLogo variant="light" className="h-8 w-auto" alt="davelopment booking" />
           <p className="mt-5 max-w-[320px] text-ui-body text-ui-muted">Online foglalási rendszer szakembereknek és vendéglátóknak — foglalás, csapat, vendégek és fizetés egy helyen.</p>
           <a href="mailto:hello@davelopment.hu" className="mt-4 inline-block text-ui-body text-ui-text underline underline-offset-4">hello@davelopment.hu</a>
-          <div className="mt-6"><HeroButton href="/register" label={`Próbáld ki ${trialDays} napig ingyen`} /></div>
+          <div className="mt-6"><HeroButton href="/register" label="Indítsd el a foglalóoldalad" /></div>
           {/* biztonságos fizetés — Stripe */}
           <p className="mt-5 flex items-center gap-2 text-ui-meta text-ui-muted">
             <Lock className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />

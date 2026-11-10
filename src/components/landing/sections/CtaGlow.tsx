@@ -24,6 +24,8 @@ export function CtaGlow({
   button = 'yellow',
   bg,
   strong = false,
+  plain = false,
+  bgPosition = 'object-center',
 }: {
   trial_days: number
   label?: string
@@ -34,6 +36,10 @@ export function CtaGlow({
   bg?: string
   /** mozgalmas, teljes erejű fotó: enyhébb színezés, és sötétebb szövegek, hogy olvasható maradjon */
   strong?: boolean
+  /** a háttérkép színezés nélkül (pl. világos, fehér fotó — a szépia bézsre húzná) */
+  plain?: boolean
+  /** a háttérkép vágása (object-position osztály) */
+  bgPosition?: string
 }) {
   const b = BUTTONS[button]
   return (
@@ -42,7 +48,7 @@ export function CtaGlow({
         <div className="relative isolate overflow-hidden rounded-[30px] bg-[#F2F2F2]">
           {/* festett háttér */}
           {bg
-            ? <img src={bg} alt="" aria-hidden loading="lazy" className={`absolute inset-0 -z-10 h-full w-full object-cover ${strong ? '[filter:sepia(.1)_saturate(.95)]' : '[filter:sepia(.22)_saturate(.8)_hue-rotate(-8deg)_brightness(1.02)]'}`} /> /* eslint-disable-line @next/next/no-img-element */
+            ? <img src={bg} alt="" aria-hidden loading="lazy" className={`absolute inset-0 -z-10 h-full w-full object-cover ${bgPosition} ${plain ? '' : strong ? '[filter:sepia(.1)_saturate(.95)]' : '[filter:sepia(.22)_saturate(.8)_hue-rotate(-8deg)_brightness(1.02)]'}`} /> /* eslint-disable-line @next/next/no-img-element */
             : <PaintedBackground />}
           {strong && <div aria-hidden className="absolute inset-0 -z-10 bg-white/25 backdrop-blur-[14px] [mask-image:radial-gradient(ellipse_46%_62%_at_50%_50%,#000_0%,#000_45%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_46%_62%_at_50%_50%,#000_0%,#000_45%,transparent_85%)]" />}
 
