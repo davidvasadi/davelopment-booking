@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useMotionValueEvent, useScroll, useTransform, type MotionValue } from 'framer-motion'
+import { COVER_OFFSET, padRange } from '@/lib/scrollOffset'
 import { Card, Pill } from '@/components/ui-kit'
 import { CoverStage } from '@/components/landing/CoverStage'
 import { GROUP_COVERS, GROUP_PARTS } from './covers'
@@ -87,23 +88,46 @@ export function FeatureShowcase({ className = '' }: { className?: string }) {
  * Kigyulladó szöveg (design: Landing › Kigyulladó szöveg) — Apple-stílusú átvezető: egy nagy mondat szavai görgetésre
  * egyenként „kigyulladnak” halványszürkéből a szövegszínre; alatta a hat csoport jelenete sorban beúszik.
  */
-function RevealWord({ word, i, n, progress }: { word: string; i: number; n: number; progress: MotionValue<number> }) {
-  const start = i / n, end = start + 1 / n
-  const opacity = useTransform(progress, [start, end], [0.18, 1])
+function RevealWord({ word, i, n, progress, a, b }: { word: string; i: number; n: number; progress: MotionValue<number>; /** a szöveg sávja a cover-progresszen belül */ a: number; b: number }) {
+  const start = a + (i / n) * (b - a), end = a + ((i + 1) / n) * (b - a)
+  const opacity = useTransform(progress, ...padRange([start, end], [0.18, 1]))
   // rendes szóköz a szavak között (az inline-block margója nem jelent meg)
   return <><motion.span style={{ opacity }} className="inline-block">{word}</motion.span>{' '}</>
 }
 export function RevealText({ text = 'Foglalás, naptár, vendégek, pénz, marketing és csapat — egy helyen, egy appban, a te arculatoddal.', className = '', covers = true, lead, textClass }: { text?: string; className?: string; /** false: csak a szöveg, a 6 borító-rács nélkül */ covers?: boolean
   /** a szöveg elé, sorban (pl. a logó) */ lead?: React.ReactNode
   /** a szöveg betűméret / súly / sorköz osztályai (alapból a nagy, vékony landing-szöveg) */ textClass?: string }) {
+  // natív (hardveres) görgetés: a framer csak a beépített sávokat gyorsítja, ezért 'cover'-t figyelünk (COVER_OFFSET), és
+  // a régi sávot ('start 0.85' → 'end 0.35') a szöveg és a képernyő magasságából számoljuk át: cover-progressz =
+  // (vh − top) / (vh + H) → a = 0,15·vh / (vh+H), b = (0,65·vh + H) / (vh+H). Átméretezéskor újraszámol (a szavak újracsatolnak).
   const ref = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 0.85', 'end 0.35'] })
+  const tl = useRef<HTMLSpanElement>(null)
+  const { scrollYProgress } = useScroll({ target: tl, offset: COVER_OFFSET })
+  const [ab, setAb] = useState<{ a: number; b: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const calc = () => {
+      const vh = window.innerHeight, H = el.offsetHeight
+      const nxt = { a: (0.15 * vh) / (vh + H), b: (0.65 * vh + H) / (vh + H) }
+      setAb((cur) => (cur && Math.abs(cur.a - nxt.a) < 0.005 && Math.abs(cur.b - nxt.b) < 0.005 ? cur : nxt))
+    }
+    calc()
+    const ro = new ResizeObserver(calc)
+    ro.observe(el)
+    window.addEventListener('resize', calc)
+    return () => { ro.disconnect(); window.removeEventListener('resize', calc) }
+  }, [])
   const words = text.split(' ')
   const groups = FEATURE_GROUPS.filter((g) => GROUP_COVERS[g.id])
   return (
     <div className={className}>
-      <div ref={ref} className={textClass ?? 'max-w-[980px] text-ui-num font-light leading-tight text-ui-text lg:text-ui-page'}>
-        {lead}{lead && ' '}{words.map((w, i) => <RevealWord key={i} word={w} i={i} n={words.length} progress={scrollYProgress} />)}
+      <div ref={ref} className={`relative ${textClass ?? 'max-w-[980px] text-ui-num font-light leading-tight text-ui-text lg:text-ui-page'}`}>
+        <span ref={tl} aria-hidden className="pointer-events-none absolute inset-0" />
+        {lead}{lead && ' '}{ab
+          ? words.map((w, i) => <RevealWord key={`${i}-${ab.a.toFixed(3)}-${ab.b.toFixed(3)}`} word={w} i={i} n={words.length} progress={scrollYProgress} a={ab.a} b={ab.b} />)
+          // mérés előtt (szerveren / első képkocka): halvány szavak, ugyanúgy, mint a sáv elején
+          : words.map((w, i) => <span key={i}><span className="inline-block opacity-[0.18]">{w}</span>{' '}</span>)}
       </div>
       {covers && <div className="mt-10 grid gap-[5px] md:grid-cols-2 lg:grid-cols-3">
         {groups.map((x, i) => (

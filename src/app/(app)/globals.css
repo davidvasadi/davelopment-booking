@@ -376,3 +376,8 @@ html:has([data-auth-dark]) body { background-color: #120D0B; }
 @keyframes ui-hero-rise { from { opacity: 0; transform: translateY(var(--rise, 24px)); } to { opacity: 1; transform: none; } }
 .ui-hero-rise { animation: ui-hero-rise .8s cubic-bezier(.22, 1, .36, 1) both; }
 @media (prefers-reduced-motion: reduce) { .ui-hero-rise { animation: none; } }
+
+/* Görgetésre újrainduló kártya-animációk (landing HandBubbles): amíg a szakasz nincs a képen, nincs animáció; amikor
+   odaér (data-anim="on", a JS közvetlenül a DOM-on váltja), a böngésző elölről indítja — React-renderelés nélkül. */
+[data-anim="off"] :is(.ui-grow-y, .ui-reveal-x, .ui-fade-up),
+[data-anim="off"] .ui-rise-kids > * > * { animation: none !important; }
