@@ -2,15 +2,17 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ChevronRight, CreditCard, Users, CalendarRange, Percent, Building2, RotateCcw } from 'lucide-react'
 import { FeatureHeroCentered } from '@/components/landing/FeatureHeroCentered'
-import { Pricing } from '@/components/landing/sections/Pricing'
+import { Pricing } from '@/components/blocks/landing-pricing'
 import { PriceCalculator } from '@/components/landing/pricing/PriceCalculator'
 import { CompareTable } from '@/components/landing/pricing/CompareTable'
-import { FaqAccordion, FaqCta } from '@/components/landing/sections/Faq'
+import { FaqAccordion, FaqCta } from '@/components/blocks/landing-faq'
 import { CtaGlow } from '@/components/landing/sections/CtaGlow'
-import { Footer } from '@/components/landing/sections/Footer'
-import { Reveal, RevealText } from '@/components/landing/Motion'
+import { ConceptLightFooter, SectionHead } from '@/components/blocks/landing-concepts'
+import { Reveal } from '@/components/landing/Motion'
+import { IconCircle } from '@/components/ui-kit'
 import { getPricing } from '@/lib/pricing'
-import { SITE_URL } from '@/lib/publicSeo'
+import { getCachedGoogleRating } from '@/lib/google-rating'
+import { SITE_URL, orgGraphNodes } from '@/lib/publicSeo'
 import { billingFacts, pricingFaqItems, pricingOffers, priceSummary } from '@/lib/pricingContent'
 import { ftFmt } from '@/components/landing/types'
 
@@ -20,15 +22,12 @@ import { ftFmt } from '@/components/landing/types'
  * a GYIK-kel, a strukturált adattal és az llms.txt-vel mindig egyezik.
  */
 const URL = `${SITE_URL}/arak`
-const SECTION = 'mx-auto max-w-7xl px-4 lg:px-5 py-10 lg:py-14'
-const PILL = 'inline-flex self-start items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]'
-const H2 = 'font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink'
 const FACT_ICONS = [CreditCard, Users, CalendarRange, Percent, Building2, RotateCcw]
 
 export async function generateMetadata(): Promise<Metadata> {
   const p = await getPricing()
   const title = 'Árak — online időpontfoglaló és asztalfoglaló rendszer'
-  const description = `Átlátható havidíj: szakembereknek ${ftFmt(p.salon_starter_huf)}/hó-tól, éttermeknek ${ftFmt(p.restaurant_starter_huf)}/hó-tól. Minden funkció minden csomagban, ${p.trial_days} nap ingyen, bankkártya nélkül, jutalék nélkül.`
+  const description = `Átlátható havidíj: szakembereknek ${ftFmt(p.salon_starter_huf)}/hó-tól, éttermeknek ${ftFmt(p.restaurant_starter_huf)}/hó-tól. Starter, Pro és egyedi csomag, ${p.trial_days} nap ingyen, bankkártya nélkül, jutalék nélkül.`
   return {
     title,
     description,
@@ -39,13 +38,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PricingPage() {
-  const pricing = await getPricing()
+  const [pricing, googleRating] = await Promise.all([getPricing(), getCachedGoogleRating()])
   const faq = pricingFaqItems(pricing)
   const facts = billingFacts(pricing)
 
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
+      ...orgGraphNodes(googleRating),
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
@@ -85,66 +85,59 @@ export default async function PricingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F7F7] font-geist text-brand-ink" style={{ '--page-bg': '#F7F7F7' } as React.CSSProperties}>
+    // a főoldal (2. koncepció) elemei: fehér oldal, Onest, ui-* színek; a kártyák #F7F7F7 sávon
+    <main className="min-h-screen bg-white font-onest text-ui-text">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <FeatureHeroCentered
         label="Árak"
-        h1="Átlátható árak, rejtett költségek nélkül."
-        lead={`Szakembereknek ${ftFmt(pricing.salon_starter_huf)}/hó-tól, éttermeknek ${ftFmt(pricing.restaurant_starter_huf)}/hó-tól. Minden funkció minden csomagban — jutalék és apró betű nélkül.`}
+        h1="Árak: a foglalás a tiéd, a jutalék is."
+        lead={`Szakembereknek ${ftFmt(pricing.salon_starter_huf)}/hó-tól, éttermeknek ${ftFmt(pricing.restaurant_starter_huf)}/hó-tól.`}
         trialDays={pricing.trial_days}
         secondary={{ href: '#osszehasonlitas', label: 'Csomagok összehasonlítása' }}
         breadcrumb={
-          <nav aria-label="Morzsamenü" className="flex items-center gap-1.5 text-[14px] text-brand-ink/45">
-            <Link href="/" className="hover:text-brand-ink">Főoldal</Link>
+          <nav aria-label="Morzsamenü" className="flex items-center gap-1.5 text-ui-body text-white/50">
+            <Link href="/" className="transition-colors hover:text-white">Főoldal</Link>
             <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
-            <span className="text-brand-ink/70">Árak</span>
+            <span className="text-white/75">Árak</span>
           </nav>
         }
       />
 
-      {/* Csomagkártyák — ugyanaz a komponens, mint a főoldalon */}
-      <Pricing pricing={pricing} title="Válaszd ki a csomagod." compact />
+      {/* Csomagkártyák — ugyanaz a komponens és stílus, mint a főoldalon */}
+      <Pricing pricing={pricing} title="Válaszd ki a csomagod." compact look="k2" />
 
       <PriceCalculator pricing={pricing} />
 
       <CompareTable pricing={pricing} />
 
-      {/* Így működik a számlázás */}
-      <section className={SECTION}>
-        <div className="mb-7 flex flex-col gap-4">
-          <Reveal><span className={PILL}>Számlázás</span></Reveal>
-          <RevealText text="Így működik a fizetés." delay={0.1} className={H2} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {facts.map((f, i) => {
-            const Icon = FACT_ICONS[i % FACT_ICONS.length]
-            return (
-              <Reveal key={f.title} delay={(i % 3) * 0.06} className="rounded-[18px] bg-white p-5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#F4F4F4] text-brand-ink">
-                  <Icon aria-hidden className="h-[18px] w-[18px]" strokeWidth={1.8} />
-                </span>
-                <h3 className="mt-3.5 text-[17px] font-semibold tracking-[-0.03em] text-brand-ink">{f.title}</h3>
-                <p className="mt-1.5 text-[14px] leading-[1.55] text-brand-ink/60">{f.body}</p>
-              </Reveal>
-            )
-          })}
+      {/* Így működik a fizetés — fehér kártyák #F7F7F7 sávon, mint a főoldal ikonos kártyái */}
+      <section className="bg-[#F7F7F7] px-4 py-24">
+        <SectionHead pill="Számlázás" title="Így működik a fizetés." className="mb-12" />
+        <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {facts.map((f, i) => (
+            <Reveal key={f.title} delay={(i % 3) * 0.06} className="h-full">
+              <div className="h-full rounded-ui-card bg-white p-6">
+                <IconCircle icon={FACT_ICONS[i % FACT_ICONS.length]} tone="cell" size="md" />
+                <h3 className="mt-10 text-ui-title font-medium">{f.title}</h3>
+                <p className="mt-2 text-ui-meta text-ui-muted">{f.body}</p>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
-      {/* GYIK — két oszlop, mint a többi oldalon */}
-      <section className={`${SECTION} flex flex-col gap-7`}>
-        <div className="flex flex-col gap-6">
-          <Reveal><span className={PILL}>FAQ</span></Reveal>
-          <RevealText text="Kérdések az árakról." delay={0.1} className={H2} />
-        </div>
+      {/* GYIK — ugyanaz, mint a főoldalon */}
+      <section className="mx-auto max-w-7xl px-4 py-24 lg:px-5">
+        <SectionHead pill="GYIK" title="Kérdések az árakról." className="mb-12" />
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-10">
           <FaqCta
+            k2
             trialDays={pricing.trial_days}
             title="Számold ki a saját árad."
             body="A kalkulátorral pár kattintás, de a legbiztosabb, ha kipróbálod: a próbaidő alatt minden funkció a tiéd, és nem terhelünk semmit."
           />
-          <FaqAccordion items={faq} compact />
+          <FaqAccordion items={faq} compact k2 />
         </div>
       </section>
 
@@ -154,8 +147,11 @@ export default async function PricingPage() {
         label="Árak"
         title="Kezdd ingyen, döntsd el később."
         lead="Minden funkció a tiéd a próbaidő alatt — csomagot csak akkor választasz, ha már látod, mennyit spórolsz vele."
+        bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp"
+        plain
+        bgPosition="object-[center_75%]"
       />
-      <Footer trial_days={pricing.trial_days} />
+      <ConceptLightFooter trialDays={pricing.trial_days} />
     </main>
   )
 }

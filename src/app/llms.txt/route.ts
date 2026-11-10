@@ -3,6 +3,7 @@ import { SITE_URL } from '@/lib/publicSeo'
 import { FEATURE_GROUPS, featurePagesOn } from '@/lib/landingFeatures'
 import { billingFacts, priceSummary } from '@/lib/pricingContent'
 import { CONTACT_EMAIL, CONTACT_PHONE, SUPPORT_HOURS_TEXT } from '@/lib/brand'
+import { TIPS } from '@/lib/tips-content'
 
 /**
  * /llms.txt — az AI-keresőknek szóló összefoglaló, UGYANAZOKBÓL az adatokból, mint az oldalak:
@@ -36,10 +37,18 @@ ${groups.map((g) => `### ${featurePagesOn ? `[${g.label}](${SITE_URL}/funkciok/$
 
 - [Főoldal](${SITE_URL}/): termékbemutató, funkciók, árak, GYIK.
 ${featurePagesOn ? `- [Funkciók](${SITE_URL}/funkciok): az összes funkció csoportonként.\n` : ''}- [Árak](${SITE_URL}/arak): csomagok, díjkalkulátor, összehasonlító táblázat, árazási GYIK.
-- [Tippek](${SITE_URL}/tips): gyakorlati cikkek kisvállalkozásoknak.
+- [Tippek és cikkek](${SITE_URL}/tips): útmutatók a rendszer használatához és gyakorlati cikkek kisvállalkozásoknak.
 - [Kapcsolat](${SITE_URL}/kapcsolat): ügyfélszolgálat — ${CONTACT_PHONE}, ${CONTACT_EMAIL} (${SUPPORT_HOURS_TEXT.toLowerCase()}).
 - [Regisztráció](${SITE_URL}/register): ${p.trial_days} napos ingyenes próbaidő szakembereknek.
 - [Regisztráció éttermeknek](${SITE_URL}/register-restaurant): ${p.trial_days} napos ingyenes próbaidő éttermeknek.
+
+## Tippek (a rendszer használata)
+
+${TIPS.filter((t) => t.kind === 'tipp').map((t) => `- [${t.title}](${SITE_URL}/tips/${t.slug}): ${t.excerpt}`).join('\n')}
+
+## Cikkek
+
+${TIPS.filter((t) => (t.kind ?? 'cikk') === 'cikk').map((t) => `- [${t.title}](${SITE_URL}/tips/${t.slug}): ${t.excerpt}`).join('\n')}
 
 ## Megjegyzés
 

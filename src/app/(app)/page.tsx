@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { getCachedGoogleRating } from '@/lib/google-rating'
 import { getPricing } from '@/lib/pricing'
 import { siteJsonLd } from '@/lib/publicSeo'
 import HomeClient from './HomeClient'
@@ -60,7 +61,7 @@ export default async function Home() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing)) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing, undefined, await getCachedGoogleRating())) }}
       />
       <HomeClient pricing={pricing} />
     </>

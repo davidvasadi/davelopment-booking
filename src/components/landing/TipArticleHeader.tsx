@@ -10,17 +10,17 @@ import type { Tip } from '@/lib/tips-content'
 // Ugyanaz a minta mint a TipsTeaser kártyáin: a TELJES konténer scale-lel jön be,
 // utána a kép, majd a szöveg/sor úszik fel (staggerChildren a szülőn).
 const outer = {
-  hidden: { opacity: 0, scale: 0.94 },
+  hidden: { opacity: 0, transform: 'scale(0.94)' },
   show: {
     opacity: 1,
-    scale: 1,
+    transform: 'scale(1)',
     transition: { duration: 0.55, ease: EASE, staggerChildren: 0.07, delayChildren: 0.06 },
   },
 } as const
 
 const inner = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
+  hidden: { opacity: 0, transform: 'translateY(24px)' },
+  show: { opacity: 1, transform: 'translateY(0px)', transition: { duration: 0.5, ease: EASE } },
 } as const
 
 export function TipArticleHeader({ tip }: { tip: Tip }) {

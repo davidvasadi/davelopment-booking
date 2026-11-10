@@ -8,7 +8,6 @@ import { EASE, SPRING_QUICK, SPRING_SNAPPY, buttonHover } from '@/lib/motion'
 import { HeroNav } from '@/components/landing/sections/Hero'
 import { useScrollHide } from '@/components/landing/useScrollHide'
 import { FEATURE_GROUPS, type FeatureGroupId } from '@/lib/landingFeatures'
-import { GrainCanvas } from '@/components/landing/GrainCanvas'
 
 /** A főoldali hero gombja: kapszula + arany kör, rámutatásra átcsúszó nyíllal. */
 export function HeroButton({ href, label, light = false, onDark = false, plain = false }: { href: string; label: string; light?: boolean; /** sötét felületen: áttetsző fehér (a ui-dark gomb beleolvadna) */ onDark?: boolean; /** letisztult: csak a felirat, a sárga nyíl-kör nélkül (főoldali hero) */ plain?: boolean }) {
@@ -58,8 +57,11 @@ export function FeatureHeroCentered({ groupId, label, h1, lead, trialDays, bread
   // parallax: lefelé görgetve a hero tartalma lassabban megy, mint az oldal, és az ALJÁTÓL fölfelé fokozatosan eltűnik
   // (maszk, nem opacity — az egész szöveg áttetszővé válna, és átütne rajta a szemcse)
   const reduce = useReducedMotion()
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ['start start', 'end start'] })
-  const contentY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : 160])
+  // (target: a szakaszt kitöltő, a tartalom ELŐTT álló réteg — a framer natív görgetés-idővonalához; ld. landing-concepts)
+  const tl = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: tl, offset: ['start start', 'end start'] })
+  // egy transform (nem y): így a framer natívan, hardveresen futtatja
+  const contentY = useTransform(scrollYProgress, [0, 1], ['translateY(0px)', `translateY(${reduce ? 0 : 160}px)`])
   const fadeEdge = useTransform(scrollYProgress, [0.05, 1], [reduce ? 130 : 110, reduce ? 130 : -20])
   const fadeEnd = useTransform(fadeEdge, (v) => v + 35)
   const contentMask = useMotionTemplate`linear-gradient(to bottom, #000 ${fadeEdge}%, transparent ${fadeEnd}%)`
@@ -87,42 +89,44 @@ export function FeatureHeroCentered({ groupId, label, h1, lead, trialDays, bread
       )}
 
       <section ref={sectionRef} className="relative z-10 mx-auto px-4 lg:px-5 pt-3 pb-5">
+        <div ref={tl} aria-hidden className="pointer-events-none absolute inset-0" />
+        {/* belépők: framer, egy `transform`-mal (nem külön y/scale) — így a böngésző animálja (WAAPI) */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, transform: 'scale(0.96)' }}
+          animate={{ opacity: 1, transform: 'scale(1)' }}
           transition={SPRING_QUICK}
-          className="relative isolate flex min-h-[min(calc(100svh-32px),620px)] flex-col overflow-hidden rounded-[30px] px-5 lg:px-8"
+          className="relative isolate flex min-h-[min(calc(100svh-32px),620px)] flex-col overflow-hidden rounded-[30px] px-5 lg:rounded-[48px] lg:px-8"
           // a design sötétje (ui-dark #383838), finom fény a jobb felső és árnyék a bal alsó sarokban
-          style={{ background: 'radial-gradient(85% 75% at 100% 0%, #4a4a4a 0%, transparent 65%), radial-gradient(75% 70% at 0% 100%, #2c2c2c 0%, transparent 65%), #383838' }}
+          // egyszínű, majdnem fekete (#1A1A1C), grain nélkül — Dave, 2026-11-10 (az Optivio hero-jának mintájára)
+          style={{ background: '#1A1A1C' }}
         >
-          <GrainCanvas strength="light" opacity={0.8} zIndex={-1} />
-          <motion.div className="relative z-10 pt-4 lg:pt-5" initial={{ y: -44, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={SPRING_SNAPPY}>
+          <motion.div className="relative z-10 pt-4 lg:px-14 lg:pt-9" initial={{ opacity: 0, transform: 'translateY(-44px)' }} animate={{ opacity: 1, transform: 'translateY(0px)' }} transition={SPRING_SNAPPY}>
             <HeroNav variant="plain" />
           </motion.div>
 
-          <motion.div style={{ y: contentY, maskImage: contentMask, WebkitMaskImage: contentMask }} className="relative z-10 mx-auto flex max-w-[1080px] flex-1 flex-col items-center justify-center px-2 pb-14 pt-10 text-center lg:pb-16 lg:pt-10">
+          <motion.div style={{ transform: contentY, maskImage: contentMask, WebkitMaskImage: contentMask }} className="relative z-10 mx-auto flex max-w-[1080px] flex-1 flex-col items-center justify-center px-2 pb-14 pt-10 text-center lg:pb-16 lg:pt-10">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12, duration: 0.35 }} className="mb-6 [&_*]:!text-white/45 [&_a:hover]:!text-white [&_nav]:justify-center">
               {breadcrumb}
             </motion.div>
             <motion.span
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, transform: 'translateY(8px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
               transition={{ delay: 0.18, duration: 0.4, ease: EASE }}
-              className="rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]"
+              className="rounded-[8px] bg-[#FFF9E7] px-3 py-1.5 font-onest text-[14px] font-medium text-ui-text"
             >
               {pillLabel}
             </motion.span>
             <motion.h1
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, transform: 'translateY(16px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
               transition={{ delay: 0.24, duration: 0.6, ease: EASE }}
               className="mt-6 font-onest text-[clamp(2.2rem,4.2vw,56px)] font-medium leading-[1.06] tracking-[-0.045em] text-white"
             >
               {h1}
             </motion.h1>
             <motion.p
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, transform: 'translateY(12px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
               transition={{ delay: 0.32, duration: 0.6, ease: EASE }}
               className="mt-5 max-w-[600px] font-onest text-[clamp(1rem,1.4vw,1.2rem)] leading-[1.6] tracking-[-0.02em] text-white/55"
             >

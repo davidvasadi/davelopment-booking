@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useRef, useState } from 'react'
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
+import { COVER_OFFSET } from '@/lib/scrollOffset'
 import { Minus, Plus } from 'lucide-react'
 import { ftFmt, type LandingPricing } from '@/components/landing/types'
 import { applyCycle, businessMonthlyFee, type BillingCycle } from '@/lib/tier'
@@ -61,10 +62,17 @@ export function PriceCalculator({ pricing }: { pricing: LandingPricing }) {
   const extra = list - base
   const pct = ((staff - 1) / 29) * 100
 
+  const parTl = useRef<HTMLDivElement>(null)
+  const { scrollYProgress: parP } = useScroll({ target: parTl, offset: COVER_OFFSET })
+  const parT = useTransform(parP, [0, 1], ['translateY(60px)', 'translateY(-60px)'])
   return (
-    <section id="kalkulator" className="mx-auto max-w-7xl scroll-mt-[88px] px-4 py-10 lg:px-5 lg:py-14">
-      <Reveal className="relative isolate overflow-hidden rounded-[26px] px-5 py-9 md:px-8 md:py-11" style={{ background: DARK_SURFACE_BG }}>
-        <GrainCanvas strength="light" opacity={0.8} zIndex={-1} />
+    // teljes szélességű sötét sáv (grain-nel); a tartalom középen, max-w-7xl-ben, enyhe parallaxszal (framer natív görgetés:
+    // COVER_OFFSET, egy transform, a target a tartalom ELŐTT álló réteg, a sávon overflow-clip — ld. landing-concepts)
+    <section id="kalkulator" className="relative isolate scroll-mt-[88px] overflow-clip" style={{ background: DARK_SURFACE_BG }}>
+      <div ref={parTl} aria-hidden className="pointer-events-none absolute inset-0" />
+      <GrainCanvas strength="light" opacity={0.8} zIndex={-1} />
+      <motion.div style={{ transform: parT }} className="will-change-transform">
+      <Reveal className="mx-auto max-w-7xl px-4 py-16 lg:px-5 lg:py-24">
 
         {/* Fejléc */}
         <div className="flex flex-col items-start gap-3.5 md:items-center md:text-center">
@@ -142,6 +150,7 @@ export function PriceCalculator({ pricing }: { pricing: LandingPricing }) {
           </div>
         </div>
       </Reveal>
+      </motion.div>
     </section>
   )
 }

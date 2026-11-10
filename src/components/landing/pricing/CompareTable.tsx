@@ -45,7 +45,7 @@ export function CompareTable({ pricing }: { pricing: LandingPricing }) {
       <div className="mb-7 flex flex-col gap-4">
         <Reveal><span className="inline-flex items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]">Összehasonlítás</span></Reveal>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <RevealText text="Minden funkció, minden csomagban." delay={0.1} className="max-w-3xl font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink" />
+          <RevealText text="Csomagok összehasonlítása." delay={0.1} className="max-w-3xl font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink" />
           <Reveal delay={0.25} className="max-w-sm text-[16px] leading-[1.6] text-brand-ink/55 lg:pb-1">
             A Starter és a Pro ugyanazt tudja — csak az ár és a beépített hírlevél-keret más. Az Egyedi csomag az egyedi igényekre szól.
           </Reveal>

@@ -92,30 +92,71 @@ export function placeMetadata(
   }
 }
 
+// ── Szervezet-blokkok: a davelopment booking és az anyacég (davelopment) — EGY helyen ───────────────────
+/** Az anyacég (davelopment) azonosítója — UGYANAZ az @id, mint a davelopment.hu strukturált adatában
+ *  (`[davelopment]®/frontend/lib/shared/structured-data.ts`), így a Google egy entitásnak látja a kettőt. */
+export const DAVELOPMENT_ORG_ID = 'https://davelopment.hu/#organization'
+
+type RatingData = { rating: number; userRatingCount: number } | null | undefined
+
+/** A davelopment (anyacég) a Google Business (Cégem) profiljával: a térkép-link a sameAs-ban, az értékelés csak VALÓS,
+ *  cache-elt adatból (getCachedGoogleRating — ugyanaz a Place ID, mint a davelopment.hu-n). SZINKRONBAN TARTANDÓ a
+ *  davelopment repó organizationNode()-jával (név, cím, profilok). */
+export function davelopmentOrgNode(rating?: RatingData): Record<string, unknown> {
+  const node: Record<string, unknown> = {
+    '@type': 'Organization',
+    '@id': DAVELOPMENT_ORG_ID,
+    name: '[davelopment]©',
+    legalName: 'Vasadi Dávid',
+    url: 'https://davelopment.hu',
+    address: { '@type': 'PostalAddress', streetAddress: 'Szent István utca 19/C.', addressLocality: 'Csomád', addressRegion: 'Pest', postalCode: '2161', addressCountry: 'HU' },
+    sameAs: [
+      'https://maps.app.goo.gl/SfNfrFNHyygiyfdb7',
+      'https://www.instagram.com/davelopment_official/',
+      'https://www.linkedin.com/in/dávid-vasadi-01a3581b8/',
+    ],
+  }
+  if (rating?.rating && rating?.userRatingCount) {
+    node.aggregateRating = { '@type': 'AggregateRating', ratingValue: rating.rating, reviewCount: rating.userRatingCount, bestRating: 5 }
+  }
+  return node
+}
+
+/** A davelopment booking mint szervezet — a davelopment terméke (parentOrganization). */
+export function bookingOrgNode(): Record<string, unknown> {
+  return {
+    '@type': 'Organization',
+    '@id': `${SITE_URL}/#organization`,
+    name: 'davelopment booking',
+    url: SITE_URL,
+    logo: `${SITE_URL}/icons/favico_dark.svg`,
+    parentOrganization: { '@id': DAVELOPMENT_ORG_ID },
+    // A davelopment (anyacég) publikus profiljai más platformokon — segít a Google-nek
+    // egyetlen valós entitásként összekötni a márkát a különböző oldalakon.
+    sameAs: [
+      'https://davelopment.hu',
+      'https://csomad.cylex.hu/ceg-info/davelopment-1317774.html',
+      'https://firmania.hu/csom%C3%A1d/davelopment-532512',
+    ],
+  }
+}
+
+/** A két szervezet-blokk együtt — minden publikus oldal @graph-jába ez kerül (a Google Business is). */
+export function orgGraphNodes(rating?: RatingData): Record<string, unknown>[] {
+  return [bookingOrgNode(), davelopmentOrgNode(rating)]
+}
+
 /** schema.org JSON-LD a főoldalhoz (és az iparági landingekhez) — Organization + SoftwareApplication
  *  (a legalacsonyabb aktuális árral) + FAQPage. `extraFaqItems` az iparági landingek szakma-specifikus
  *  kérdéseit fűzi a lista elejére, ugyanaz az egy forrás, amit a látható GYIK-accordion is renderel. */
-export function siteJsonLd(pricing: Pricing, extraFaqItems?: { q: string; a: string }[]): Record<string, unknown> {
+export function siteJsonLd(pricing: Pricing, extraFaqItems?: { q: string; a: string }[], rating?: RatingData): Record<string, unknown> {
   // A Starter a legolcsóbb belépési pont — a Pro-árral számolt "-tól" ár tévesen drágábbnak
   // mutatta a terméket a Google-találatokban, mint amilyen valójában.
   const lowestPrice = Math.min(pricing.salon_starter_huf, pricing.restaurant_starter_huf)
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      {
-        '@type': 'Organization',
-        '@id': `${SITE_URL}/#organization`,
-        name: 'davelopment booking',
-        url: SITE_URL,
-        logo: `${SITE_URL}/icons/favico_dark.svg`,
-        // A davelopment (anyacég) publikus profiljai más platformokon — segít a Google-nek
-        // egyetlen valós entitásként összekötni a márkát a különböző oldalakon.
-        sameAs: [
-          'https://davelopment.hu',
-          'https://csomad.cylex.hu/ceg-info/davelopment-1317774.html',
-          'https://firmania.hu/csom%C3%A1d/davelopment-532512',
-        ],
-      },
+      ...orgGraphNodes(rating),
       {
         '@type': 'SoftwareApplication',
         name: 'davelopment booking',

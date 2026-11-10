@@ -1,15 +1,17 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowUpRight, Calculator, LayoutGrid, Lightbulb, Rocket } from 'lucide-react'
-import { SiteNav } from '@/components/landing/sections/Hero'
-import { ContactSection } from '@/components/landing/sections/ContactSection'
-import { FaqAccordion, FaqCta } from '@/components/landing/sections/Faq'
+import { ChevronRight } from 'lucide-react'
+import { FeatureHeroCentered } from '@/components/landing/FeatureHeroCentered'
+import { ContactSection } from '@/components/blocks/landing-contact'
+import { FaqAccordion, FaqCta } from '@/components/blocks/landing-faq'
 import { CtaGlow } from '@/components/landing/sections/CtaGlow'
-import { Footer } from '@/components/landing/sections/Footer'
-import { Reveal, RevealText } from '@/components/landing/Motion'
+import { ConceptLightFooter, SectionHead } from '@/components/blocks/landing-concepts'
+import { Reveal } from '@/components/landing/Motion'
+import { IconCircle } from '@/components/ui-kit'
 import { getPricing } from '@/lib/pricing'
 import { getCachedGoogleRating } from '@/lib/google-rating'
-import { SITE_URL } from '@/lib/publicSeo'
+import { SITE_URL, orgGraphNodes } from '@/lib/publicSeo'
 import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_TEL, SUPPORT_HOURS, SUPPORT_HOURS_TEXT, SUPPORT_RESPONSE_TEXT } from '@/lib/brand'
 import { featurePath } from '@/lib/landingFeatures'
 
@@ -29,15 +31,12 @@ export const metadata: Metadata = {
   openGraph: { type: 'website', title: TITLE, description: DESCRIPTION, url: URL, siteName: 'davelopment booking' },
 }
 
-const SECTION = 'mx-auto max-w-7xl px-4 lg:px-5 py-10 lg:py-14'
-const PILL = 'inline-flex self-start items-center rounded-[8px] bg-white px-3 py-1.5 font-onest text-[14px] font-medium text-[#1D1C19]'
-const H2 = 'font-semibold text-[clamp(2rem,4.2vw,52px)] leading-[0.98] tracking-[-0.05em] text-brand-ink'
 
 export default async function ContactPage() {
   const [pricing, googleRating] = await Promise.all([getPricing(), getCachedGoogleRating()])
 
   const quick = [
-    { icon: Calculator, title: 'Árak és kalkulátor', body: 'Csomagok, összehasonlítás és díjkalkulátor.', href: '/arak' },
+    { icon: Calculator, title: 'Árak és kalkulátor', body: 'Csomagok, összehasonlítás és díjkalkulátor.', href: '/arak#kalkulator' },
     { icon: LayoutGrid, title: 'Funkciók', body: 'Foglalás, naptár, vendégek, pénz, marketing, csapat.', href: featurePath('/funkciok') },
     { icon: Lightbulb, title: 'Tippek', body: 'Gyakorlati cikkek a foglalásról és a vendégmegtartásról.', href: '/tips' },
     { icon: Rocket, title: `${pricing.trial_days} nap ingyen`, body: 'Próbáld ki bankkártya nélkül, minden funkcióval.', href: '/register' },
@@ -54,6 +53,7 @@ export default async function ContactPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
+      ...orgGraphNodes(googleRating),
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
@@ -95,51 +95,51 @@ export default async function ContactPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F7F7] font-geist text-brand-ink" style={{ '--page-bg': '#F7F7F7' } as React.CSSProperties}>
+    // a főoldal (2. koncepció) elemei: fehér oldal, Onest, ui-* színek; a kártyák #F7F7F7 sávon
+    <main className="min-h-screen bg-white font-onest text-ui-text">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <SiteNav />
+      <FeatureHeroCentered
+        label="Kapcsolat"
+        h1="Kapcsolat: beszéljünk a foglalásaidról."
+        lead={`Hívj minket ${SUPPORT_HOURS_TEXT.toLowerCase()} a ${CONTACT_PHONE} számon, vagy írj bármikor. ${SUPPORT_RESPONSE_TEXT}`}
+        trialDays={pricing.trial_days}
+        secondary={{ href: '#kapcsolat', label: 'Írj nekünk' }}
+        breadcrumb={
+          <nav aria-label="Morzsamenü" className="flex items-center gap-1.5 text-ui-body">
+            <Link href="/">Főoldal</Link>
+            <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+            <span>Kapcsolat</span>
+          </nav>
+        }
+      />
 
-      <nav aria-label="Morzsamenü" className="mx-auto flex max-w-7xl items-center gap-1.5 px-4 pt-6 text-[14px] text-brand-ink/45 lg:px-5">
-        <Link href="/" className="hover:text-brand-ink">Főoldal</Link>
-        <span aria-hidden>›</span>
-        <span className="text-brand-ink/70">Kapcsolat</span>
-      </nav>
+      <ContactSection googleRating={googleRating} title="Írj nekünk, vagy hívj fel." />
 
-      <ContactSection googleRating={googleRating} asPage />
-
-      {/* Mielőtt írsz — gyorslinkek */}
-      <section className={SECTION}>
-        <div className="mb-7 flex flex-col gap-4">
-          <Reveal><span className={PILL}>Mielőtt írsz</span></Reveal>
-          <RevealText text="Lehet, hogy itt a válasz." delay={0.1} className={H2} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {quick.map(({ icon: Icon, title, body, href }, i) => (
-            <Reveal key={href} delay={i * 0.05}>
-              <Link href={href} className="group flex h-full flex-col rounded-[18px] bg-white p-5 transition-shadow hover:shadow-[0_14px_36px_-18px_rgba(30,28,20,.35)]">
+      {/* Mielőtt írsz — gyorslinkek: fehér kártyák #F7F7F7 sávon, mint a főoldal ikonos kártyái */}
+      <section className="bg-[#F7F7F7] px-4 py-24">
+        <SectionHead pill="Mielőtt írsz" title="Lehet, hogy itt a válasz." className="mb-12" />
+        <div className="mx-auto grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {quick.map(({ icon, title, body, href }, i) => (
+            <Reveal key={href} delay={i * 0.06} className="h-full">
+              <Link href={href} className="group flex h-full flex-col rounded-ui-card bg-white p-6 transition-transform hover:-translate-y-1">
                 <span className="flex items-center justify-between">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#F4F4F4] text-brand-ink transition-colors group-hover:bg-brand-ink group-hover:text-white">
-                    <Icon aria-hidden className="h-[18px] w-[18px]" strokeWidth={1.8} />
-                  </span>
-                  <ArrowUpRight aria-hidden className="h-4 w-4 text-brand-ink/30 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-ink" />
+                  <IconCircle icon={icon} tone="cell" size="md" />
+                  <ArrowUpRight aria-hidden className="h-4 w-4 text-ui-muted transition-colors group-hover:text-ui-text" />
                 </span>
-                <span className="mt-4 text-[17px] font-semibold tracking-[-0.03em] text-brand-ink">{title}</span>
-                <span className="mt-1 text-[14px] leading-[1.5] text-brand-ink/55">{body}</span>
+                <span className="mt-10 text-ui-title font-medium">{title}</span>
+                <span className="mt-2 text-ui-meta text-ui-muted">{body}</span>
               </Link>
             </Reveal>
           ))}
         </div>
       </section>
 
-      {/* Ügyfélszolgálati GYIK */}
-      <section className={`${SECTION} flex flex-col gap-7`}>
-        <div className="flex flex-col gap-4">
-          <Reveal><span className={PILL}>FAQ</span></Reveal>
-          <RevealText text="Gyakori kérdések." delay={0.1} className={H2} />
-        </div>
+      {/* Ügyfélszolgálati GYIK — ugyanaz, mint a főoldalon */}
+      <section className="mx-auto max-w-7xl px-4 py-24 lg:px-5">
+        <SectionHead pill="GYIK" title="Gyakori kérdések." className="mb-12" />
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-10">
-          <FaqCta trialDays={pricing.trial_days} title="Próbáld ki, mielőtt döntesz." body="A legtöbb kérdésre a saját fiókod válaszol a legjobban — a próbaidő alatt minden funkciót kipróbálhatsz." />
-          <FaqAccordion items={faq} compact />
+          <FaqCta k2 trialDays={pricing.trial_days} title="Próbáld ki, mielőtt döntesz." body="A legtöbb kérdésre a saját fiókod válaszol a legjobban — a próbaidő alatt minden funkciót kipróbálhatsz." />
+          <FaqAccordion items={faq} compact k2 />
         </div>
       </section>
 
@@ -149,8 +149,11 @@ export default async function ContactPage() {
         label="Kezdd el ma"
         title="Indulj el most, kérdezz közben."
         lead="Regisztrálj ingyen, állítsd be az oldalad — ha bárhol elakadsz, egy üzenetnyire vagyunk."
+        bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp"
+        plain
+        bgPosition="object-[center_75%]"
       />
-      <Footer trial_days={pricing.trial_days} googleRating={googleRating} />
+      <ConceptLightFooter trialDays={pricing.trial_days} />
     </main>
   )
 }

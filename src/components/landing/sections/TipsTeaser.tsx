@@ -53,38 +53,18 @@ function TipCard({ tip, k2 = false }: { tip: Tip; k2?: boolean }) {
   )
   return (
     <motion.div variants={cardOuter} className={`shrink-0 ${k2 ? 'w-[80%] sm:w-[45%] lg:w-[30%]' : 'w-[85%] sm:w-[55%] lg:w-[38%]'}`}>
-      <Link
-        href={`/tips/${tip.slug}`}
-        className={`group flex flex-col gap-4 ${k2 ? 'rounded-ui-container bg-ui-cell p-3' : 'rounded-[20px] bg-white p-4'}`}
-      >
-        <motion.div variants={cardInner} className={`relative overflow-hidden p-4 ${k2 ? 'h-[240px] rounded-ui-card sm:h-[280px]' : 'h-[275px] sm:h-[360px] rounded-[16px]'}`} style={{ background: '#f7f7f7' }}>
-          <img
-            src={tip.image}
-            alt={tip.title}
-            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.04] ${
-              tip.coverPositionX == null ? (tip.imagePosition === 'center' ? 'object-center' : 'object-top') : ''
-            }`}
-            style={
-              tip.coverPositionX != null
-                ? ({
-                    objectPosition: `${typeof tip.coverPositionX === 'number' ? `${tip.coverPositionX}%` : tip.coverPositionX} ${tip.imagePosition === 'center' ? '50%' : '0%'}`,
-                  } as CSSProperties)
-                : undefined
-            }
-          />
-          <span
-            className="relative inline-flex items-center rounded-full px-3 py-1.5 font-onest text-[12px] font-medium"
-            style={{ background: '#FFD85F', color: '#1D1C19' }}
-          >
-            {tip.category}
-          </span>
-        </motion.div>
-        <motion.div variants={cardInner} className={`flex flex-col gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.02] ${k2 ? 'px-2 pb-2' : ''}`}>
-          <p className={`font-onest font-medium tracking-[-0.03em] text-brand-ink leading-[1.2] group-hover:underline underline-offset-2 ${k2 ? 'text-ui-title' : 'text-[19px]'}`}>
-            {tip.title}
-          </p>
-          <p className={`leading-[1.5] text-brand-ink/55 ${k2 ? 'text-ui-body' : 'text-[14px]'}`}>{tip.excerpt}</p>
-        </motion.div>
+      <Link href={`/tips/${tip.slug}`} className={`group flex h-full flex-col p-3 ${k2 ? 'rounded-ui-container bg-ui-cell' : 'rounded-ui-container bg-[#F7F7F7]'}`}>
+        {/* ugyanaz a kártya, mint a főoldali tippeké (TipsK2): fehér, 190 px-es képmező, alatta pill, cím, leírás */}
+        <div className="relative h-[190px] overflow-hidden rounded-ui-card bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={tip.image} alt={tip.title} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:-translate-y-1" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
+        </div>
+        <div className="flex flex-1 flex-col px-3 pb-3 pt-4 font-onest">
+          <span className="self-start rounded-[8px] bg-[#FFF9E7] px-2.5 py-1 text-ui-meta font-medium text-ui-text/80">{tip.category}</span> {/* ui-allow: a koncepció pill-formája */}
+          <h3 className="mt-3 text-ui-row font-medium text-ui-text group-hover:underline group-hover:underline-offset-4">{tip.title}</h3>
+          <p className="mt-1.5 line-clamp-2 text-ui-body text-ui-muted">{tip.excerpt}</p>
+        </div>
       </Link>
     </motion.div>
   )

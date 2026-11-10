@@ -14,17 +14,17 @@ const grid = {
 } as const
 
 const cardOuter = {
-  hidden: { opacity: 0, scale: 0.94 },
+  hidden: { opacity: 0, transform: 'scale(0.94)' },
   show: {
     opacity: 1,
-    scale: 1,
+    transform: 'scale(1)',
     transition: { duration: 0.55, ease: EASE, staggerChildren: 0.07, delayChildren: 0.06 },
   },
 } as const
 
 const cardInner = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
+  hidden: { opacity: 0, transform: 'translateY(24px)' },
+  show: { opacity: 1, transform: 'translateY(0px)', transition: { duration: 0.5, ease: EASE } },
 } as const
 
 export function TipsIndexGrid({ tips }: { tips: Tip[] }) {
@@ -37,36 +37,20 @@ export function TipsIndexGrid({ tips }: { tips: Tip[] }) {
       className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
     >
       {tips.map((tip) => (
-        <motion.div key={tip.slug} variants={cardOuter}>
-          <Link href={`/tips/${tip.slug}`} className="group flex flex-col rounded-[20px] bg-white p-4 gap-4">
-            <motion.div variants={cardInner} className="relative h-[320px] rounded-[16px] p-4 overflow-hidden" style={{ background: '#f7f7f7' }}>
-              <img
-                src={tip.image}
-                alt={tip.title}
-                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.04] ${
-                  tip.coverPositionX == null ? (tip.imagePosition === 'center' ? 'object-center' : 'object-top') : ''
-                }`}
-                style={
-                  tip.coverPositionX != null
-                    ? ({
-                        objectPosition: `${typeof tip.coverPositionX === 'number' ? `${tip.coverPositionX}%` : tip.coverPositionX} ${tip.imagePosition === 'center' ? '50%' : '0%'}`,
-                      } as CSSProperties)
-                    : undefined
-                }
-              />
-              <span
-                className="relative inline-flex items-center rounded-full px-3 py-1.5 font-onest text-[12px] font-medium"
-                style={{ background: '#FFD85F', color: '#1D1C19' }}
-              >
-                {tip.category}
-              </span>
-            </motion.div>
-            <motion.div variants={cardInner} className="flex flex-col gap-1.5 transition-transform duration-300 ease-out group-hover:scale-[1.02]">
-              <p className="font-onest font-medium text-[19px] tracking-[-0.03em] text-brand-ink leading-[1.2] group-hover:underline underline-offset-2">
-                {tip.title}
-              </p>
-              <p className="text-[14px] leading-[1.5] text-brand-ink/55">{tip.excerpt}</p>
-            </motion.div>
+        <motion.div key={tip.slug} variants={cardOuter} className="h-full">
+          {/* ugyanaz a kártya, mint a főoldali tippeké (TipsK2): fehér, 190 px-es képmező a telefon tetejével, alatta
+              kategória-pill, cím és kétsoros leírás */}
+          <Link href={`/tips/${tip.slug}`} className="group flex h-full flex-col rounded-ui-container bg-[#F7F7F7] p-3">
+            <div className="relative h-[190px] overflow-hidden rounded-ui-card bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={tip.image} alt={tip.title} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:-translate-y-1" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
+            </div>
+            <div className="flex flex-1 flex-col px-3 pb-3 pt-4 font-onest">
+              <span className="self-start rounded-[8px] bg-[#FFF9E7] px-2.5 py-1 text-ui-meta font-medium text-ui-text/80">{tip.category}</span> {/* ui-allow: a koncepció pill-formája */}
+              <h3 className="mt-3 text-ui-row font-medium text-ui-text group-hover:underline group-hover:underline-offset-4">{tip.title}</h3>
+              <p className="mt-1.5 line-clamp-2 text-ui-body text-ui-muted">{tip.excerpt}</p>
+            </div>
           </Link>
         </motion.div>
       ))}

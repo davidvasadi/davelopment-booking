@@ -3,6 +3,8 @@ import { SITE_URL } from '@/lib/publicSeo'
 export type TipSection = { title: string; body: string }
 
 export type Tip = {
+  /** tipp = a rendszer használata (hogyan csináld nálunk); cikk = általános blogcikk. Alapból cikk. */
+  kind?: 'tipp' | 'cikk'
   slug: string
   category: string
   date: string
@@ -120,6 +122,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
   },
   {
     slug: 'csapat-beosztas-hatekonyan',
+    kind: 'tipp',
     category: 'Csapat',
     date: '2026. augusztus 1.',
     title: 'Hogyan oszd be a csapatot, hogy ne ütközzenek a foglalások',
@@ -135,6 +138,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
   },
   {
     slug: 'emlekeztetok-automatizalasa',
+    kind: 'tipp',
     category: 'Csapat',
     date: '2026. augusztus 1.',
     title: 'Így ne csússzon el semmi a csapatodnál (torta-rendeléstől a beosztásig)',

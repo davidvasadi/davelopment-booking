@@ -155,7 +155,7 @@ export function ConceptOurs({ rating, trialDays = 14, tail }: { rating?: Rating;
       {/* hero: világos, nagy vékony cím, értékelés, gomb — alatta ráúszik a szerkesztő, két lebegő kártyával */}
       <section className="px-4 pb-6 pt-20 text-center">
         <motion.div initial="hidden" animate="show" variants={stagger()}>
-          <motion.div variants={rise} className="flex justify-center"><Pill tone="white" className="gap-2">{rating ? <><SharpStar className="h-3.5 w-3.5 text-ui-yellow" />{fmtRating(rating)} · {rating.userRatingCount} Google-értékelés</> : 'Szakembereknek és szolgáltató vállalkozásoknak'}</Pill></motion.div>
+          <motion.div variants={rise} className="flex justify-center"><Pill tone="white" className="gap-2">{rating ? <><SharpStar className="h-3.5 w-3.5 text-ui-yellow" />{fmtRating(rating)} · Google-értékelés</> : 'Szakembereknek és szolgáltató vállalkozásoknak'}</Pill></motion.div>
           <motion.h1 variants={rise} className="mx-auto mt-6 max-w-[1000px] text-[clamp(2.75rem,7vw,104px)] font-light leading-[0.95] tracking-[-0.05em]">Foglalás. Csapat.<br /><span className="text-ui-muted">Vendégek. Egy helyen.</span></motion.h1> {/* ui-allow: hero H1 */}
           <motion.p variants={rise} className="mx-auto mt-6 max-w-[560px] text-ui-row text-ui-muted">Online foglalás, beosztás, előleg és hírlevél — szalonnak és étteremnek is, a te arculatoddal.</motion.p>
           <motion.div variants={rise} className="mt-8 flex justify-center"><HeroButton href="/register" label={`Próbáld ki ${trialDays} napig ingyen`} /></motion.div>
@@ -269,7 +269,7 @@ export function ConceptDark({ rating, trialDays = 14, tail }: { rating?: Rating;
         <div className="relative">
           <div className="text-ui-meta text-white/60">Szakembereknek és szolgáltató vállalkozásoknak</div>
           {/* csak valós Google-adattal (kitalált értékelés nincs) */}
-          {rating && <div className="mt-1 flex items-center justify-center gap-1 text-ui-yellow">{[0, 1, 2, 3, 4].map((i) => <SharpStar key={i} className="h-3.5 w-3.5" />)}<span className="ml-1 text-ui-meta text-white">{fmtRating(rating)} · {rating.userRatingCount} Google-értékelés</span></div>}
+          {rating && <div className="mt-1 flex items-center justify-center gap-1 text-ui-yellow">{[0, 1, 2, 3, 4].map((i) => <SharpStar key={i} className="h-3.5 w-3.5" />)}<span className="ml-1 text-ui-meta text-white">{fmtRating(rating)} · Google-értékelés</span></div>}
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mx-auto mt-6 max-w-[860px] text-[clamp(2.5rem,5.5vw,76px)] font-light leading-[1.02] tracking-[-0.045em]">Töltsd meg a <span className="text-ui-yellow">naptárad</span> — magától.</motion.h1> {/* ui-allow: hero H1 */}
           <p className="mx-auto mt-5 max-w-[520px] text-ui-row text-white/60">Online foglalás, emlékeztető és előleg: a vendég akkor is foglal, amikor te dolgozol.</p>
           <div className="mx-auto mt-8 flex max-w-[460px] items-center gap-2 rounded-full bg-white/10 p-1.5 pl-5 backdrop-blur">
@@ -529,7 +529,7 @@ function NavOnScrollUp() {
   }, [])
   return (
     <div aria-hidden={!show} className={`fixed inset-x-0 top-0 z-[60] border-b border-ui-divider bg-white px-4 py-2 lg:bg-white/85 lg:backdrop-blur-xl transition-[transform,visibility] duration-300 ease-out lg:px-5 ${show ? 'visible translate-y-0' : 'pointer-events-none invisible -translate-y-full'}`}>
-      <div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="k2-nav-sticky" variant="plain" cta="login" /></div>
+      <div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="k2-nav-sticky" variant="plain" /></div>
     </div>
   )
 }
@@ -587,7 +587,7 @@ export function ConceptLightHero({ trialDays = 14 }: { trialDays?: number }) {
       {/* a menü, ugyanaz, mint az aloldalakon */}
       {/* a menü középre összehúzva (nem a két szélen szétszórva) */}
       <motion.div style={{ transform: textT }} className="relative z-20 will-change-transform">
-      <div className="px-4 py-2.5 lg:px-5"><div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="concept2-hero-nav" variant="plain" cta="login" /></div></div>
+      <div className="px-4 py-2.5 lg:px-5"><div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="concept2-hero-nav" variant="plain" /></div></div>
       <div className="mx-auto mt-[clamp(0.5rem,4vh,4rem)] max-w-[900px] px-4 text-center">
         {/* belépő: CSS (ui-hero-rise), nem framer — így a JS betöltése előtt is megjelenik (gyors első kép, LCP) */}
         <h1 className="ui-hero-rise text-[clamp(2rem,min(5.4vw,7.6vh),76px)] font-medium leading-[1.02] tracking-[-0.045em]">Kezeld a naptárad.<br />Foglaljanak azonnal.<br /><span className="text-ui-muted">Építsd az üzleted.</span></h1> {/* ui-allow: hero H1 */}
@@ -709,7 +709,7 @@ function PhotoBand({ rating, src, alt, card, title, text, cta = 'Próbáld ki in
   const stars = (
     <motion.div variants={rise} className="flex items-center gap-2">
       <motion.span variants={stagger(0.07)} className="flex gap-0.5 text-ui-yellow">{[0, 1, 2, 3, 4].map((i) => <motion.span key={i} variants={pop}><SharpStar className="h-4 w-4" /></motion.span>)}</motion.span>
-      {rating && <span className={`text-ui-meta ${card === 'center' ? 'text-white/75' : 'text-ui-muted'}`}>{fmtRating(rating)} · {rating.userRatingCount} Google-értékelés</span>}
+      {rating && <span className={`text-ui-meta ${card === 'center' ? 'text-white/75' : 'text-ui-muted'}`}>{fmtRating(rating)} · Google-értékelés</span>}
     </motion.div>
   )
   return (

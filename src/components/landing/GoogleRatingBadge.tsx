@@ -39,7 +39,8 @@ export function GoogleRatingBadge({
         </div>
         <span className="font-semibold">{rating}/5</span>
       </div>
-      <span>· {userRatingCount} Google-értékelés alapján</span>
+      {/* a darabszám (még kevés) nem látszik — a strukturált adatban benne van */}
+      <span>· Google-értékelés</span>
     </div>
   )
 }

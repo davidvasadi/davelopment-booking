@@ -2,6 +2,7 @@ import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import { safeHttpUrl } from '@/lib/safeUrl'
 import { depositSummary } from '@/lib/depositSummary'
 import type { Metadata } from 'next'
+import { getCachedGoogleRating } from '@/lib/google-rating'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
 import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL } from '@/lib/publicSeo'
@@ -82,7 +83,7 @@ export default async function SalonPublicPage({
       <>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing, landing.faqItems)) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing, landing.faqItems, await getCachedGoogleRating())) }}
         />
         <HomeClient pricing={pricing} industry={landing} />
       </>

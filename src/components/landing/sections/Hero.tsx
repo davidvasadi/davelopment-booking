@@ -399,11 +399,11 @@ const PAIRS: [CardFn, CardFn][] = [
 ]
 
 // ─── HeroNav — hero-ba épített navigáció (nem sticky) ────────────────────────
-export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'pill', login = true, cta = 'trial' }: {
+export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'pill', login = true, cta = 'login' }: {
   theme?: 'dark' | 'light'; pillId?: string
   /** false: a Bejelentkezés link nélkül (pl. a 2. koncepció hero-ja) */
   login?: boolean
-  /** a desktopos jobb oldali gomb (ugyanaz a stílus): `trial` — Próbáld ki ingyen, `login` — Belépés (a főoldalon; a mobil menü nem változik) */
+  /** a desktopos jobb oldali gomb (ugyanaz a stílus): `login` — Belépés (alapból, minden oldalon), `trial` — Próbáld ki ingyen; a mobil menü nem változik */
   cta?: 'trial' | 'login'
   /** `plain`: sötét, videó nélküli hero-kon — doboz nélküli, fehér szöveges linkek + fehér CTA (Optivio-minta) */
   variant?: 'pill' | 'plain'
@@ -582,13 +582,13 @@ export function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill', variant = 'p
             </motion.a>
           ) : (
             <motion.a
-              href="/register"
+              href={cta === 'login' ? '/login' : '/register'}
               variants={buttonHover}
               initial="rest"
               whileHover="hover"
               className="hidden min-[1033px]:flex items-center rounded-full px-4 py-2.5 font-onest font-medium text-[14px] leading-5"
               style={{ background: '#3b3b3b', color: '#ffffff' }}>
-              Próbáld ki ingyen
+              {cta === 'login' ? 'Belépés' : 'Próbáld ki ingyen'}
             </motion.a>
           )}
           {/* Inline toggle — scrollozik a navval, referenciapontként szolgál */}
