@@ -125,8 +125,9 @@ export function VoucherDetail({ v = SAMPLE_DETAIL, restaurant = false, biz, onRe
   const live = !!onMenu
   return (
     <div className={className}>
-      {/* a jegy a részletek kártyáján belül, a cím alatt — mint a típus-szerkesztőben */}
-      <Card>
+      {/* a jegy a részletek kártyáján belül, a cím alatt — mint a típus-szerkesztőben. Mobilon a lapban jelenik meg, ami
+          már ad térközt: ott a kártya kerete / háttere / belső térköze nincs (különben dupla margó) */}
+      <Card className="max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:p-0 max-lg:shadow-none max-lg:ring-0 max-lg:backdrop-blur-none">
         <div className="flex items-center justify-between"><CardTitle>Részletek</CardTitle><StatusPill status={V_STATUS[v.status].pill}>{V_STATUS[v.status].label}</StatusPill></div>
         <div className="mt-4">
           {v.design
@@ -290,7 +291,7 @@ export function VoucherTypeEditor({ value = SAMPLE_TYPE, onChange, top, backgrou
         {!textOnly && <FieldRow className="!border-t" label="Megvásárolható" hint="Kikapcsolva nem jelenik meg a foglalóoldalon.">{live ? <Switch checked={value.active} onChange={(on) => set({ active: on })} ariaLabel="Megvásárolható" /> : <DesignSwitch defaultOn={value.active} />}</FieldRow>}
         </div>
       </div>
-      <div className="mt-5 flex justify-end gap-1.5 border-t border-dashed border-ui-divider pt-5">
+      <div className="mt-5 flex justify-end gap-1.5 border-t border-dashed border-ui-divider pt-5 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1">
         {onDelete && <Button variant="danger" className="mr-auto" onClick={onDelete} disabled={busy}>Törlés</Button>}
         <Button variant="cell" onClick={onCancel}>Mégse</Button>
         <Button onClick={onSave} loading={busy}>Mentés</Button>

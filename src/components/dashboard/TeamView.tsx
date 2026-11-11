@@ -570,7 +570,7 @@ export function TeamView({ restaurant = false, businessId, members, services = [
         )}
         {roleFor && (
           <PopupModal open onClose={() => setRoleFor(null)} title="Szerep módosítása" subtitle={roleFor.length > 1 ? `${roleFor.length} munkatárs` : roleFor[0]?.name}
-            footer={<div className="flex justify-end gap-2"><Button variant="cell" onClick={() => setRoleFor(null)}>Mégse</Button><Button onClick={() => void saveRole()} loading={busy}>Mentés</Button></div>}>
+            footer={<><Button variant="cell" onClick={() => setRoleFor(null)}>Mégse</Button><Button onClick={() => void saveRole()} loading={busy}>Mentés</Button></>}>
             <div className="space-y-1">
               {roles.map((r) => (
                 <button key={r.id} type="button" onClick={() => setRoleId(r.id)} className="block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">

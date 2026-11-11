@@ -139,7 +139,8 @@ export function PopupModal({
               {children}
               {aside && <div className="-mx-6 -mb-5 mt-4 lg:hidden">{aside}</div>}
             </motion.div>
-            {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 px-6 pb-6">{footer}</div>}
+            {/* mobilon a lábléc gombjai egyforma szélesek és kitöltik a sort (mint a ui-kit Modal), gépen jobbra zárva */}
+            {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 px-6 pb-6 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1">{footer}</div>}
             </div>
             {/* a szürke oldalsávon a cella-színű elemek (mezők, sorok, gombok) fehérek — különben beleolvadnának */}
             {aside && (

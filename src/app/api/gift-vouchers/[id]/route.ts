@@ -30,6 +30,22 @@ export async function GET(_request: NextRequest, { params }: Ctx) {
 
   const ref = (r: unknown) => (r && typeof r === 'object' ? r as { id: string | number; date?: string; start_time?: string; customer_name?: string } : null)
   const rb = ref(v.redeemed_booking) ?? ref(v.redeemed_reservation)
+
+  // a kiállító melyik munkatárs — a Munkatársak oldal mély-linkjéhez (?profil=<id>): szalonnál a Staff-sor (a tulaj is
+  // lehet munkatárs-sor), étteremnél a tagság; ha a tulaj és nincs saját sora: 'owner'
+  const rid = (r: unknown) => (r == null ? null : typeof r === 'object' ? String((r as { id: unknown }).id) : String(r))
+  const issuerId = rid(v.issued_by)
+  let issuerMemberId: string | null = null
+  if (issuerId && bizId != null) {
+    const owner = bizRef && typeof bizRef === 'object' ? rid((bizRef as { owner?: unknown }).owner) : null
+    const row = (await payload.find({
+      collection: kind === 'salon' ? 'staff' : 'memberships',
+      where: { and: [{ [kind]: { equals: bizId } }, { user: { equals: issuerId } }] },
+      limit: 1, depth: 0, overrideAccess: true,
+    }).catch(() => ({ docs: [] }))).docs[0] as { id: string | number } | undefined
+    issuerMemberId = row ? String(row.id) : owner === issuerId ? 'owner' : null
+  }
+
   return NextResponse.json({
     id: String(v.id),
     code: v.code,
@@ -56,6 +72,7 @@ export async function GET(_request: NextRequest, { params }: Ctx) {
           name: (v.issued_by as { name?: string | null }).name ?? null,
           email: (v.issued_by as { email?: string | null }).email ?? null,
           avatarUrl: fixMediaUrl((v.issued_by as { avatar_url?: string | null }).avatar_url) ?? null,
+          memberId: issuerMemberId,
         }
       : null,
   })

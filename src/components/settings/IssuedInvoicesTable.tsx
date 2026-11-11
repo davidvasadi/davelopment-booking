@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
@@ -49,6 +50,18 @@ export function IssuedInvoicesTable({ variant, businessId }: { variant: 'salon' 
       .then((j) => setRows(j.rows ?? []))
       .catch((e) => setError(e instanceof Error ? e.message : 'Nem sikerült betölteni'))
   }, [variant, businessId])
+
+  // mély-link (?invoice=<számlaszám>, lib/invoiceLinks): betöltés után rákeres a számlára és meg is nyitja
+  const deepInvoice = useSearchParams().get('invoice')
+  const deepDone = useRef(false)
+  useEffect(() => {
+    if (!rows || !deepInvoice || deepDone.current) return
+    deepDone.current = true
+    const hit = rows.find((r) => r.number === deepInvoice)
+    setQ(deepInvoice)
+    if (hit) setOpenId(hit.id)
+    else toast.error(`A ${deepInvoice} számla nem található a listában`)
+  }, [rows, deepInvoice])
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()

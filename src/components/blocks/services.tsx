@@ -301,7 +301,7 @@ export function CategoryEditPanel({ value, onChange, onImage, onImageRemove, upl
     <Panel className={className}>
       <div className="flex items-center justify-between"><CardTitle>{v.name || 'Új kategória'}</CardTitle><IconButton icon={X} label="Bezárás" variant="cell" size="sm" onClick={onCancel} /></div>
       {fields}
-      <div className="mt-5 flex justify-end gap-1.5">
+      <div className="mt-5 flex justify-end gap-1.5 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1">
         {onDelete && <Button variant="bad" className="mr-auto" onClick={onDelete} disabled={busy}>Törlés</Button>}
         <Button variant="cell" onClick={onCancel}>Mégse</Button><Button onClick={onSave} loading={busy}>Mentés</Button>
       </div>

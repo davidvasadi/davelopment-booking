@@ -1,6 +1,7 @@
 'use client'
 
 
+import { invoiceHref } from '@/lib/invoiceLinks'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -529,9 +530,12 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
         headerExtra={isEdit && !isDraft ? <><StatusPill status={statusOf(status).tone}>{statusLabelOf(status)}</StatusPill>
                       {source && source !== 'online' && <Pill tone="cell" size="sm">{sourceLabelOf[source]}</Pill>}
                       {target?.booking?.payment_status === 'paid' && (
-                        <span title={target.booking.invoice_status === 'issued' ? `Számla: ${target.booking.invoice_number}` : 'Bizonylat még nincs kiállítva'}>
-                          <StatusPill status="ok">Előleg befizetve{target.booking.deposit_amount_huf ? ` · ${target.booking.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}</StatusPill>
-                        </span>
+                        target.booking.invoice_status === 'issued' && target.booking.invoice_number
+                          // van számla: a pill a Számlák listára visz, és ott meg is nyitja
+                          ? <a href={invoiceHref('salon', target.booking.invoice_number)} title={`Számla: ${target.booking.invoice_number} — megnyitás`} className="transition-opacity hover:opacity-80">
+                              <StatusPill status="ok">Előleg befizetve{target.booking.deposit_amount_huf ? ` · ${target.booking.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''} · számla ↗</StatusPill>
+                            </a>
+                          : <span title="Bizonylat még nincs kiállítva"><StatusPill status="ok">Előleg befizetve{target.booking.deposit_amount_huf ? ` · ${target.booking.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}</StatusPill></span>
                       )}
                       {target?.booking?.payment_status === 'failed' && <StatusPill status="bad">Sikertelen előleg-fizetés</StatusPill>}
                       {target?.booking?.payment_status === 'refunded' && <StatusPill status="warn">Előleg visszatérítve</StatusPill>}

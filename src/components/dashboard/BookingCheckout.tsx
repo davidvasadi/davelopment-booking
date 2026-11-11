@@ -1,5 +1,6 @@
 'use client'
 
+import { invoiceHref } from '@/lib/invoiceLinks'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { PopupModal } from '@/components/ui/popup-modal'
@@ -53,7 +54,7 @@ export function BookingCheckout({ open, onClose, onDone, booking, settings, sett
   useEffect(() => { if (method === 'link' && !payLink) void makeLink(false) }, [method]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const deducts: CheckoutLine[] = [
-    ...(booking.deposit > 0 ? [{ key: 'd', name: 'Előleg', meta: booking.depositInvoice ? `Kártyával fizetve · előlegszámla ${booking.depositInvoice}` : 'Kártyával fizetve', amount: -booking.deposit, kind: 'deposit' as const }] : []),
+    ...(booking.deposit > 0 ? [{ key: 'd', name: 'Előleg', meta: booking.depositInvoice ? <>Kártyával fizetve · előlegszámla <a href={invoiceHref('salon', booking.depositInvoice)} className="underline underline-offset-2 hover:text-ui-text">{booking.depositInvoice}</a></> : 'Kártyával fizetve', amount: -booking.deposit, kind: 'deposit' as const }] : []),
     ...(booking.voucher > 0 ? [{ key: 'v', name: 'Ajándékutalvány', meta: booking.voucherCode ?? undefined, amount: -booking.voucher, kind: 'voucher' as const }] : []),
   ]
   const setField = (k: keyof typeof buyer) => (e: React.ChangeEvent<HTMLInputElement>) => setBuyer((b) => ({ ...b, [k]: e.target.value }))

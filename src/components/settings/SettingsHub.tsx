@@ -15,6 +15,7 @@
  */
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { VatInfoNote } from '@/components/blocks/money'
 import { vatFromTaxNumber } from '@/lib/vatFromTaxNumber'
 import { Avatar, Button as KitButton, Card as KitCard, CardTitle, Field, IconButton, Input, Modal, ListRow, Menu, MenuItem, Meta, PageHead, Pagination, Pill, SearchField, Segmented, Select, SheetHandle, SLIDE_SPRING, StatusPill, MarqueeText } from '@/components/ui-kit'
 import { AuditTable, NewsletterSettings, NotificationsSettings, type NotifRow, SitesPage, SettingsMobileList, SettingsNav, SettingsPage, SetupProgressCard, SubscriptionPage, TrialChecklist, TeamMembers, type MemberRow, type NewsletterSummary, type SettingsTopic, type SettingsTopicGroup } from '@/components/blocks/settings'
@@ -1269,7 +1270,7 @@ export function SettingsHub({
           )}
 
           {/* Számlák (16.7.1): a vendégeknek kiállított számlák — külön téma, a Fizetés & számlázás aljáról ide került */}
-          {active === 'invoices' && activeBusinessId && <IssuedInvoicesTable variant={variant} businessId={activeBusinessId} />}
+          {active === 'invoices' && activeBusinessId && <><VatInfoNote kind="both" className="mb-4" /><IssuedInvoicesTable variant={variant} businessId={activeBusinessId} /></>}
 
           {/* Értesítések (design 16.18) — a SAJÁT értesítéseid: az App / E-mail kapcsolók a személyes beállításból azonnal
               mentődnek; a csapat foglalás-értesítése és a napi összefoglaló e-mailje üzleti beállítás (a közös sávon). */}

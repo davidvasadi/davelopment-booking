@@ -46,10 +46,11 @@ export const expandHeight = {
  * Wizard lépés-átmenet (slide + fade). `dir` = +1 előre (befelé jobbról),
  * -1 vissza (befelé balról). Visszafogott tempó (fast), mert sokszor használt.
  */
+// egy `transform` (nem x): így a framer natívan (WAAPI) animálja
 export const stepSlide = {
-  enter: (dir: number) => ({ opacity: 0, x: dir > 0 ? 40 : -40 }),
-  center: { opacity: 1, x: 0 },
-  exit: (dir: number) => ({ opacity: 0, x: dir > 0 ? -40 : 40 }),
+  enter: (dir: number) => ({ opacity: 0, transform: `translateX(${dir > 0 ? 40 : -40}px)` }),
+  center: { opacity: 1, transform: 'translateX(0px)' },
+  exit: (dir: number) => ({ opacity: 0, transform: `translateX(${dir > 0 ? -40 : 40}px)` }),
 }
 
 export const stepSlideTransition: Transition = { duration: DUR.fast, ease: EASE }

@@ -77,7 +77,7 @@ export function InviteModal({ stacked = false, value = SAMPLE_INVITE, onChange, 
           {preview && <GuestSees label={`${value.name || 'A meghívott'} ezt kapja`} className="mt-4">{preview}</GuestSees>}
         </div>
       </div>
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-5 flex justify-end gap-2 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1">
         <Button variant="cell" onClick={onCancel}>Mégse</Button>
         <Button variant="dark" onClick={onSubmit} loading={busy}>{submitLabel}</Button>
       </div>

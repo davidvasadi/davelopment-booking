@@ -8,7 +8,7 @@ import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Pricing } from '@/lib/pricing'
 import { LocaleEditBar } from './LocaleEditBar'
 import { consentTemplate } from './contentTemplates'
-import { BillingDataCard, ConnectionCard, DepositSettingsCard, VoucherSettings, type DepositValue, type VoucherSummary } from '@/components/blocks/money'
+import { BillingDataCard, ConnectionCard, DepositSettingsCard, VatInfoNote, VoucherSettings, type DepositValue, type VoucherSummary } from '@/components/blocks/money'
 import { Button, Field, FieldRow, Input, Meta, Note, Pill, Segmented, StatusPill, Textarea } from '@/components/ui-kit'
 import { SettingsGroup } from '@/components/blocks/settings'
 import { GuestSees } from '@/components/blocks/team'
@@ -122,7 +122,9 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
     setTimeout(() => setStripeAlert(false), 1600)
   }
 
-  const [d, setD] = useState<DepositSettingsData>(deposit)
+  // ingyenes lemondás: csak 12 vagy 24 óra választható — ha más van elmentve (pl. egy régi, szabadon beírt 49), a
+  // legközelebbire igazítjuk; a következő mentéssel ez lesz érvényes
+  const [d, setD] = useState<DepositSettingsData>(() => ({ ...deposit, refundHoursBefore: [12, 24].includes(deposit.refundHoursBefore) ? deposit.refundHoursBefore : deposit.refundHoursBefore <= 18 ? 12 : 24 }))
   const [v, setV] = useState<VoucherSettingsData>(voucher)
   const [c, setC] = useState<ConsentSettingsData>(consent)
 
@@ -367,6 +369,23 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
     }
   }
 
+  // a figyelmeztetésből: automatikus megerősítés bekapcsolása helyben — a jelenlegi foglalási szabályokat beolvassa, és
+  // CSAK az auto_confirm-ot állítja át (a csoport többi mezője változatlanul megy vissza)
+  const [autoConfirmOn, setAutoConfirmOn] = useState(false)
+  const enableAutoConfirm = async () => {
+    try {
+      const cur = await fetch(apiBase, { credentials: 'include' }).then((r) => r.json()).catch(() => null)
+      const rules = (cur?.booking_rules ?? cur?.doc?.booking_rules ?? {}) as Record<string, unknown>
+      const res = await fetch(apiBase, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ booking_rules: { ...rules, auto_confirm: true } }) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error ?? 'Nem sikerült bekapcsolni')
+      setAutoConfirmOn(true)
+      toast.success('Automatikus megerősítés bekapcsolva — most már kérhetsz előleget')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Hiba történt')
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Előleg (design 16.1) — szalon: fix vagy az ár %-a, étterem: fix vagy fő után; típusváltáskor a többi összeg-mező
@@ -376,7 +395,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
         const value: DepositValue = { enabled: d.enabled, type: d.type, amount: d.type === 'percent' ? d.percentValue : d.type === 'per_pax' ? d.perPaxAmountHuf : d.fixedAmountHuf, refundHours: d.refundHoursBefore, when: d.applyWhen, minPriceHuf: d.minPriceHuf, minPax: d.minPax, weekdays: d.specialWeekdays, dates: d.specialDates }
         return (
           <>
-          <DepositSettingsCard save={false} restaurant={variant === 'restaurant'} value={value} manualApproval={manualApproval} rulesHref={variant === 'salon' ? '/dashboard/settings?tab=site' : '/restaurant/settings?tab=site'}
+          <DepositSettingsCard save={false} restaurant={variant === 'restaurant'} value={value} manualApproval={manualApproval && !autoConfirmOn} onEnableAutoConfirm={enableAutoConfirm} rulesHref={variant === 'salon' ? '/dashboard/settings?tab=site' : '/restaurant/settings?tab=site'}
             datePicker={<DatePickerPopover value={todayYmd()} onChange={(day) => setD((s) => ({ ...s, specialDates: s.specialDates.includes(day) ? s.specialDates : [...s.specialDates, day] }))} triggerClassName="inline-flex h-9 items-center gap-1.5 rounded-full bg-ui-cell px-3.5 text-ui-meta text-ui-text ui-press"><Plus className="h-3.5 w-3.5" /> Dátum</DatePickerPopover>}
             onChange={(x) => setD((s) => ({ ...s, enabled: x.enabled, type: x.type, refundHoursBefore: x.refundHours, applyWhen: x.when, minPriceHuf: x.minPriceHuf, minPax: x.minPax, specialWeekdays: x.weekdays, specialDates: x.dates, fixedAmountHuf: x.type === 'fixed' ? x.amount : null, percentValue: x.type === 'percent' ? x.amount : null, perPaxAmountHuf: x.type === 'per_pax' ? x.amount : null }))}
             prereqs={{
@@ -384,8 +403,8 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               stripe: stripeConnectOnboarded ? { state: 'ok', okLabel: 'Bekötve' } : { state: 'missing', action: 'Bekötöm', href: paymentsHref },
               invoicing: !invLive ? { state: 'loading' } : invLive.ok ? { state: 'ok', okLabel: invLive.detail ?? 'Bekötve' } : { state: 'optional', action: 'Beállítom', href: paymentsHref },
             }} />
-          {/* a számlázás szabálya (docs/manual): foglaló — áfa a végszámlán */}
-          {d.enabled && <Note className="mx-6 mt-3"><strong>Jogilag foglaló.</strong> Befizetéskor áfa nélküli bizonylat megy a vendégnek. A helyszínen beszámít a végösszegbe: a végszámla (vagy a pénztárgép) a teljes összegről szól, áfával — a foglaló ott csak fizetési mód. Ha a vendég nem jön el, vagy későn mond le, a foglaló a tiéd.</Note>}
+          {/* a számlázás szabálya (docs/manual) — állandó tájékoztató, akkor is, ha az előleg ki van kapcsolva */}
+          <VatInfoNote kind="deposit" className="mx-6 mt-3 max-lg:mx-0" />
           </>
         )
       })()}
@@ -397,8 +416,8 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
           value={{ enabled: v.enabled, validityMonths: v.validityMonths, minAmountHuf: v.minAmountHuf, maxAmountHuf: v.maxAmountHuf, allowCompany: v.allowCompany !== false }}
           onChange={(x) => setV((s) => ({ ...s, ...x }))} />
       )}
-      {/* a számlázás szabálya (docs/manual): az utalvány eladása áfa nélküli, az ÁFA a beváltáskor */}
-      {show('voucher') && v.enabled && <Note className="mx-6 mt-3"><strong>Az utalvány eladásakor nincs ÁFA</strong> — áfa nélküli számla megy (ÁFA tv. hatályán kívül), mert ekkor még nem tudni, mire költik. Az ÁFA a beváltáskor keletkezik: a lezárásnál / a pénztárgépen a teljes összeget számlázd, az utalvány ott fizetési mód. A korábban, áfásan eladott utalványok a régi módon mennek tovább.</Note>}
+      {/* a számlázás szabálya (docs/manual) — állandó tájékoztató */}
+      {show('voucher') && <VatInfoNote kind="voucher" className="mx-6 mt-3 max-lg:mx-0" />}
 
       {/* Beleegyező nyilatkozat — mindig nyitott kártya (nincs nyit/zár gomb), EGY mezőkészlet
           van, amit a nyelvváltó sáv vezérel (nem külön HU + külön fordítás-blokk). */}
@@ -469,6 +488,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
                   btn={{ label: on ? 'Beállítás lent' : 'Bekapcsolás', primary: !on, onClick: () => { if (!on) setInvoiceProvider(savedInv.provider !== 'none' ? savedInv.provider : 'szamlazz'); document.getElementById('invoice-key')?.focus() } }} />
               )}
             </div>
+            {show('invoicing') && <VatInfoNote kind="both" className="mb-3" />}
             {show('invoicing') && (
               <BillingDataCard title="Automatikus számla" rows={[
                 // ki számláz (design 16.7): szakemberenként a csapat vállalkozó — mindenki a saját profiljában köti be

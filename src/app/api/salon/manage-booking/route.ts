@@ -27,6 +27,8 @@ async function getOwnerSalon(user: User) {
 
 interface Body {
   bookingId?: string | number
+  /** csak ellenőrzés (az offline vázlatok ütközés-vizsgálata a net visszajöttekor) — nem ment semmit */
+  dryRun?: boolean
   serviceId: string | number
   staffId: string | number
   date: string
@@ -142,6 +144,7 @@ export async function POST(req: NextRequest) {
   if (onBreak) {
     return NextResponse.json({ error: `A szakembernek ${onBreak.start_time}–${onBreak.end_time} között szünete van — erre az időre nem lehet foglalni` }, { status: 409 })
   }
+  if (body.dryRun) return NextResponse.json({ ok: true, dryRun: true })
 
   const data: Partial<Booking> = {
     service: Number(serviceId) as unknown as Booking['service'],

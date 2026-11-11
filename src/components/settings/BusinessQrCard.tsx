@@ -68,8 +68,9 @@ export function BusinessQrCard({ url, businessName, subtitle, logoUrl = null, ho
       <BusinessQr url={ready ? url : 'https://booking.davelopment.hu'} logo={logoUrl}
         hours={withHours} onHours={setWithHours} hasHours={hours.length > 0}
         socials={withSocials} onSocials={setWithSocials} hasSocials={socials.length > 0}
-        onDownload={() => void download()} onPrint={print} busy={busy || !ready} />
-      {preview && <QrPrintSheet className="mx-auto" name={businessName} subtitle={subtitle} url={ready ? url : 'https://booking.davelopment.hu'} logo={logoUrl} hours={withHours ? hours : []} socials={withSocials ? socials : []} />}
+        onDownload={() => void download()} onPrint={print} busy={busy || !ready} withPreview={preview} />
+      {/* mobilon az előnézet kerül felülre (ez az egy QR-kód), alatta a jelölők és a gombok */}
+      {preview && <QrPrintSheet className="mx-auto max-md:order-first" name={businessName} subtitle={subtitle} url={ready ? url : 'https://booking.davelopment.hu'} logo={logoUrl} hours={withHours ? hours : []} socials={withSocials ? socials : []} />}
       {printing && createPortal(
         <div id="qr-print-sheet">
           <style>{`@page { size: A5; margin: 0 } @media screen { #qr-print-sheet { position: fixed; left: -10000px; top: 0 } } @media print { body > *:not(#qr-print-sheet) { display: none !important } #qr-print-sheet { position: static; -webkit-print-color-adjust: exact; print-color-adjust: exact } html, body { background: #fff !important } }`}</style>

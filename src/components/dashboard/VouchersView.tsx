@@ -1,11 +1,14 @@
 'use client'
 
 import { sortRows, useTableSort } from '@/lib/tableSort'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { stepSlide, stepSlideTransition } from '@/lib/motion'
+import { invoiceHref } from '@/lib/invoiceLinks'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Ban, Check, Gift, Plus, RotateCcw, Tag, TicketCheck, Trash2, Undo2, Wallet } from 'lucide-react'
-import { Button, Card, EmptyState, Kpi, Menu, MenuItem, Meta, Modal, Note, PageHead, Pill, SegmentBar } from '@/components/ui-kit'
+import { Avatar, Button, Card, EmptyState, Kpi, Menu, MenuItem, Meta, Modal, Note, PageHead, Pill, SegmentBar } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ChipToolbar } from '@/components/blocks/toolbar'
@@ -44,7 +47,7 @@ type Detail = {
   purchaser_name: string; purchaser_email: string; recipient_name: string | null; recipient_email: string | null; message: string | null
   expires_at: string; redeemed_at: string | null; redeemed_for: { date: string | null; time: string | null; name: string | null } | null
   invoice_status: 'none' | 'issued' | 'failed' | 'skipped'; invoice_number: string | null; invoice_pdf_url: string | null
-  issued_by: { name: string | null; email: string | null } | null; createdAt: string
+  issued_by: { name: string | null; email: string | null; avatarUrl?: string | null; memberId?: string | null } | null; createdAt: string
 }
 
 interface Props {
@@ -76,8 +79,6 @@ const PAID_LABEL: Record<string, string> = { cash: 'Készpénz', pos_card: 'Bank
  */
 export function VouchersView({ restaurant = false, businessId, vouchers: initial, types: initialTypes, biz, stripe, locales = ['hu'], minAmount, maxAmount, canManage = false, base }: Props) {
   const router = useRouter()
-  const [vatNotice, setVatNotice] = useState(false)
-  useEffect(() => { try { setVatNotice(localStorage.getItem('vat-notice-2026-11') !== '1') } catch { /* privát mód */ } }, [])
   const [vouchers, setVouchers] = useState(initial)
   useEffect(() => { setVouchers(initial) }, [initial])
   const [types, setTypes] = useState(initialTypes)
@@ -199,9 +200,16 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
       ['Vásárló', detail.purchaser_name],
       ...(detail.recipient_name || detail.recipient_email ? [['Megajándékozott', detail.recipient_name || detail.recipient_email] as [string, React.ReactNode]] : []),
       ['Fizetés', <PayCell key="p" pay={detail.payment_method ?? 'other'} />],
-      ['Kiállította', `${detail.issued_by?.name || detail.issued_by?.email || (detail.payment_method === 'online' ? 'Foglalóoldal' : '—')} · ${dayLbl(detail.createdAt, false)}`],
+      // a kiállító avatarral; ha munkatárs, a Munkatársak oldalra visz, és ott rögtön az ő profilja nyílik (?profil=)
+      ['Kiállította', detail.issued_by ? (() => {
+        const ib = detail.issued_by
+        const inner = <span className="inline-flex items-center gap-2"><Avatar size="xs" src={ib.avatarUrl ?? undefined} name={ib.name || ib.email || undefined} />{ib.name || ib.email}<span className="text-ui-muted">· {dayLbl(detail.createdAt, false)}</span></span>
+        return ib.memberId
+          ? <a href={`${restaurant ? '/restaurant/staff' : '/dashboard/staff'}?profil=${encodeURIComponent(ib.memberId)}`} className="transition-opacity hover:opacity-75">{inner}</a>
+          : inner
+      })() : `${detail.payment_method === 'online' ? 'Foglalóoldal' : '—'} · ${dayLbl(detail.createdAt, false)}`],
       [detail.status === 'redeemed' ? 'Beváltva' : 'Lejár', detail.status === 'redeemed' ? `${dayLbl(detail.redeemed_at, false)}${detail.redeemed_for?.name ? ` · ${detail.redeemed_for.name}` : ''}` : dayLbl(detail.expires_at)],
-      ...(detail.invoice_status === 'issued' ? [['Számla', detail.invoice_number ?? 'kiállítva'] as [string, React.ReactNode]] : detail.invoice_status === 'failed' ? [['Számla', 'sikertelen'] as [string, React.ReactNode]] : []),
+      ...(detail.invoice_status === 'issued' ? [['Számla', detail.invoice_number ? <a href={invoiceHref(restaurant ? 'restaurant' : 'salon', detail.invoice_number)} className="underline underline-offset-2 hover:text-ui-text">{detail.invoice_number}</a> : 'kiállítva'] as [string, React.ReactNode]] : detail.invoice_status === 'failed' ? [['Számla', 'sikertelen'] as [string, React.ReactNode]] : []),
     ],
   } : null
   const statusMenu = menu && openRow && (
@@ -414,6 +422,10 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
       setEmailSent(true); toast.success('Elküldve')
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Nem sikerült elküldeni.') } finally { setWizBusy(false) }
   }
+  // a lépésváltás iránya (előre +1, vissza −1) — a csúszás oldalához
+  const lastStep = useRef(0)
+  const stepDir = wiz && wiz.step < lastStep.current ? -1 : 1
+  useEffect(() => { if (wiz) lastStep.current = wiz.step }, [wiz?.step]) // eslint-disable-line react-hooks/exhaustive-deps
   const closeWizard = () => { setWiz(null); setWizDone(null); setWizLink(null); loadPending() }
   const preview = wizType ? <VoucherFit><VoucherCard lang={wiz?.buyer.lang} to={wiz?.buyer.toName.split(' ').slice(-1)[0] || undefined} amount={`${nf(wizType.amount_huf)} Ft`} code="—" bg={wizType.image?.url ? 'photo' : 'dark'} photo={wizType.image?.url} design={wizType.design} restaurant={restaurant} biz={biz} expires="kiállításkor" /></VoucherFit> : null
   const STEP_LABELS = ['Típus', 'Vásárló', 'Fizetés', 'Ellenőrzés']
@@ -495,6 +507,8 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
           <Modal size="lg" title="Új utalvány" subtitle={wizDone ? 'Kész' : wizLink ? 'Fizetésre vár' : `${wiz.step + 1} / 4 · ${['Típus', 'Vásárló adatai', 'Fizetés módja', 'Ellenőrzés'][wiz.step]}`} onClose={closeWizard}
             footer={wizDone || wizLink ? undefined : <>
               {wiz.step > 0 && <Button variant="cell" className="mr-auto" onClick={() => setWiz({ ...wiz, step: wiz.step - 1 })}>Vissza</Button>}
+              {/* első lépés: új utalványtípus innen is — a varázsló bezárul, és a típus-szerkesztő nyílik */}
+              {wiz.step === 0 && canManage && <Button variant="cell" icon={Plus} className="mr-auto" onClick={() => { closeWizard(); setTypesOpen(true); openType(null) }}>Új típus</Button>}
               {wiz.step < 3 ? <Button onClick={next}>{wiz.step === 1 ? 'Tovább a fizetéshez' : 'Tovább'}</Button> : <Button onClick={() => void submitWizard()} loading={wizBusy}>{wiz.payChoice === 'link' ? 'Fizetési link készítése' : 'Utalvány kiállítása'}</Button>}
             </>}>
             {wizDone ? (
@@ -511,6 +525,9 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
                 <Steps active={wiz.step} labels={STEP_LABELS} className="mb-5" />
                 <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
                   <div className="min-w-0">
+                    {/* lépésváltás: ugyanaz a csúszás, mint a többi varázslóban (előre jobbról, vissza balról) */}
+                    <AnimatePresence mode="wait" custom={stepDir} initial={false}>
+                    <motion.div key={wiz.step} custom={stepDir} variants={stepSlide} initial="enter" animate="center" exit="exit" transition={stepSlideTransition}>
                     {wiz.step === 0 && <WizTypeStep types={types.filter((t) => t.active).map((t) => ({ id: t.id, name: t.name, amount: `${nf(t.amount_huf)} Ft`, image: t.image?.url ?? null, design: t.design }))} selected={wiz.typeId} onSelect={(id) => setWiz({ ...wiz, typeId: id })} restaurant={restaurant} biz={biz} />}
                     {wiz.step === 1 && <WizBuyerStep langs={locales} value={wiz.buyer} errors={wiz.errors}
                       onChange={(b, f) => { setWiz({ ...wiz, buyer: b, errors: { ...wiz.errors, [f]: undefined } }); if (f === 'name' || f === 'email') { setLookFor('buyer'); gl.type(f, String(b[f])) } else if (f === 'toName' || f === 'toEmail') { setLookFor('to'); gl.type(f === 'toName' ? 'name' : 'email', String(b[f])) } }}
@@ -519,6 +536,8 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
                     {wiz.step === 3 && wizType && <WizConfirmStep rows={[['Utalvány', `${wizType.name} · ${nf(wizType.amount_huf)} Ft`], ['Vásárló', `${wiz.buyer.name} · ${wiz.buyer.email}`], ...(wiz.buyer.toName || wiz.buyer.toEmail ? [['Megajándékozott', [wiz.buyer.toName, wiz.buyer.toEmail].filter(Boolean).join(' · ')] as [string, string]] : []), ['Fizetés', PAID_LABEL[wiz.payChoice ?? 'cash']]]}
                       invoice={wiz.payChoice === 'link' ? true : wiz.invoice && !!invoicing?.ok} onInvoice={(on) => setWiz({ ...wiz, invoice: on })} invoiceDisabled={wiz.payChoice === 'link' || !invoicing?.ok}
                       invoiceHint={!invoicing ? 'Ellenőrzés…' : invoicing.ok ? `${invoicing.detail ?? 'Számlázó'} · e-mailben megy ki` : invoicing.reason ?? 'A számlázó nincs bekötve'} />}
+                    </motion.div>
+                    </AnimatePresence>
                   </div>
                   <div className="space-y-[5px] max-lg:hidden"><Meta className="mb-1">Előnézet</Meta>{preview}</div>
                 </div>
@@ -547,16 +566,7 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
 
   return (
     <div className="p-4 lg:p-0">
-      {/* egyszeri tájékoztatás a számlázás változásáról (docs/manual) — bezárás után ebben a böngészőben nem jön elő */}
-      {vatNotice && (
-        <Note tip className="mb-4">
-          <strong>Változott az utalványok és a foglaló számlázása.</strong> Az utalvány eladásakor és a foglaló befizetésekor
-          mostantól áfa nélküli bizonylat megy (még nem tudni, mire költik). Az ÁFA a beváltáskor / a látogatáskor keletkezik:
-          a lezárásnál vagy a pénztárgépen a teljes összeget számlázd, az utalvány és a foglaló ott fizetési mód. A korábban
-          áfásan eladott utalványok a régi módon mennek tovább.{' '}
-          <button type="button" className="font-medium underline" onClick={() => { setVatNotice(false); try { localStorage.setItem('vat-notice-2026-11', '1') } catch { /* privát mód */ } }}>Megértettem</button>
-        </Note>
-      )}
+      {/* (a számlázás-változás egyszeri tájékoztatója kikerült — még nincs aktív felhasználó, akit érintene; Dave, 2026-11-10) */}
       {/* ── desktop (12.1) ── */}
       <div className="max-lg:hidden">
         <PageHead title="Utalványok" actions={actions} bar={bar()} kpis={kpis} />

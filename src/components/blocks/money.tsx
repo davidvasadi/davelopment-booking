@@ -188,7 +188,8 @@ export type DepositValue = {
 }
 /** Egy előfeltétel állapota: kész / hiányzik (gombbal a beállításához) / nem kötelező / ellenőrzés alatt. */
 export type DepositPrereq = { state: 'ok' | 'missing' | 'optional' | 'loading'; okLabel?: string; href?: string; action?: string }
-const REFUND_H = [12, 24, 48, 72]
+// ingyenes lemondási határidő: csak 12 vagy 24 óra (Dave, 2026-11-10)
+const REFUND_H = [12, 24]
 /** a hét napjai hétfőtől — [felirat, getDay() szám] */
 const WEEK: [string, number][] = [['H', 1], ['K', 2], ['Sze', 3], ['Cs', 4], ['P', 5], ['Szo', 6], ['V', 0]]
 const MON = ['Jan.', 'Febr.', 'Márc.', 'Ápr.', 'Máj.', 'Jún.', 'Júl.', 'Aug.', 'Szept.', 'Okt.', 'Nov.', 'Dec.']
@@ -198,9 +199,11 @@ const dayLabel = (d: string) => { const x = new Date(`${d}T12:00:00`); return `$
  *  Élőben `value` + `onChange` (szalon: fix vagy az ár %-a, étterem: fix vagy fő után), `prereqs` (feltételek, Stripe,
  *  számlázó), `datePicker` (a kiemelt dátum hozzáadása — élőben a közös dátumválasztó), `save={false}` (a hub közös
  *  mentés-sávja); nélkülük a minta. */
-export function DepositSettingsCard({ className = '', value, onChange, restaurant = false, prereqs, datePicker, save = true, manualApproval = false, rulesHref }: {
+export function DepositSettingsCard({ className = '', value, onChange, restaurant = false, prereqs, datePicker, save = true, manualApproval = false, rulesHref, onEnableAutoConfirm }: {
   /** kézi jóváhagyás van beállítva — mellette nem kérhető előleg (fizetett foglalást nem hagyunk függőben) */
   manualApproval?: boolean; rulesHref?: string
+  /** a figyelmeztetésből egy koppintással bekapcsolja az automatikus megerősítést (ha nincs, a rulesHref link marad) */
+  onEnableAutoConfirm?: () => void
   className?: string; value?: DepositValue; onChange?: (v: DepositValue) => void; restaurant?: boolean
   prereqs?: { terms: DepositPrereq; stripe: DepositPrereq; invoicing: DepositPrereq }; datePicker?: React.ReactNode; save?: boolean
 }) {
@@ -208,7 +211,8 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
   const set = (p: Partial<DepositValue>) => v && onChange?.({ ...v, ...p })
   const types = restaurant ? (['fixed', 'per_pax'] as const) : (['fixed', 'percent'] as const)
   const unit = v?.type === 'percent' ? '%' : v?.type === 'per_pax' ? 'Ft / fő' : 'Ft'
-  const hours = v ? (REFUND_H.includes(v.refundHours) ? REFUND_H : [...REFUND_H, v.refundHours].sort((a, b) => a - b)) : REFUND_H
+  // (ha más érték van elmentve, a beállítás-lap a betöltéskor a legközelebbire igazítja — PaymentsSettingsPanel)
+  const hours = REFUND_H
   const ex = !v || !v.amount ? null
     : v.type === 'percent' ? `Egy 12 000 Ft-os szolgáltatáshoz ${Math.round((12000 * v.amount) / 100).toLocaleString('hu-HU')} Ft előleg szükséges`
     : v.type === 'per_pax' ? (() => { const n = v.when === 'min_pax' ? Math.max(4, (v.minPax ?? 0) + 1) : 4; return `A foglaláshoz ${(v.amount * n).toLocaleString('hu-HU')} Ft előleg szükséges (${n} fő × ${v.amount.toLocaleString('hu-HU')} Ft)` })()
@@ -272,7 +276,14 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
       </div>
       {manualApproval && (
         <div className="px-6 pt-4 max-lg:px-0">
-          <Note warn>Kézi jóváhagyás mellett nem kérhető előleg — a már kifizetett foglalást elutasításkor vissza kellene utalni. Ha előleget kérnél, kapcsold be az automatikus megerősítést.{rulesHref && <> <a href={rulesHref} className="underline">Foglalási szabályok</a></>}</Note>
+          <Note warn>
+            <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <span>Előleget csak automatikus megerősítésnél kérhetsz.</span>
+              {onEnableAutoConfirm
+                ? <button type="button" onClick={onEnableAutoConfirm} className="ui-press shrink-0 rounded-full bg-ui-dark px-3.5 py-1.5 text-ui-meta font-medium text-white">Bekapcsolom</button>
+                : rulesHref && <a href={rulesHref} className="shrink-0 underline">Beállítom</a>}
+            </span>
+          </Note>
         </div>
       )}
       {sections.map((sec) => (
@@ -782,7 +793,7 @@ function SingleLayout({ L, message, layout, bg, photo, biz, to, amount, code, ex
 /* ── Fizetés a helyszínen (a /design 6.7.1 és 16.7) — szalon ────────────────────────────── */
 
 /** Egy tétel a lezáráskor: a foglalás szolgáltatása, hozzáadott termék / szolgáltatás, vagy levonás (előleg, utalvány). */
-export type CheckoutLine = { key: string; name: string; meta?: string; amount: number; kind: 'service' | 'product' | 'deposit' | 'voucher' }
+export type CheckoutLine = { key: string; name: string; meta?: React.ReactNode; amount: number; kind: 'service' | 'product' | 'deposit' | 'voucher' }
 /** Hogyan ad bizonylatot az üzlet: pénztárgépen (nálunk csak rögzítés) vagy a bekötött számlázóból. */
 export type ReceiptMode = 'register' | 'invoice'
 export const PAY_METHODS = [
@@ -1089,4 +1100,16 @@ export function StaffBillingCard({ name = 'Viktória', provider = 'szamlazz', ke
       </Card>
     </div>
   )
+}
+
+/** Állandó tájékoztató a számlázás szabályáról (docs/manual): az utalvány eladása és az előleg (jogilag foglaló) befizetése
+ *  áfa nélküli bizonylat, az ÁFA a beváltáskor / a látogatáskor keletkezik. Minden pénzkezelési / számlázási helyen
+ *  ugyanez a szöveg: utalvány- és előleg-beállítás, számlázó-beállítás, Számlák lista. */
+export function VatInfoNote({ kind, className = '' }: { kind: 'voucher' | 'deposit' | 'both'; className?: string }) {
+  const text = kind === 'voucher'
+    ? <><strong>Az utalvány eladásakor nincs ÁFA.</strong> Ekkor áfa nélküli bizonylat megy, mert még nem tudni, mire költik. Az ÁFA a beváltáskor keletkezik: ott a teljes összeget számlázd, az utalvány fizetési mód.</>
+    : kind === 'deposit'
+      ? <><strong>Az előleg befizetésekor nincs ÁFA.</strong> Jogilag foglaló, áfa nélküli bizonylat megy. Az ÁFA a látogatáskor keletkezik: a végszámla vagy a pénztárgép a teljes összegről szól, az előleg ott fizetési mód. Ha a vendég nem jön el vagy későn mond le, az előleg a tiéd.</>
+      : <><strong>Utalvány és előleg: az ÁFA nem a befizetéskor keletkezik.</strong> Eladáskor / befizetéskor áfa nélküli bizonylat megy. A beváltáskor vagy a látogatáskor a teljes összeget számlázd, az utalvány és az előleg ott fizetési mód.</>
+  return <Note className={className}>{text}</Note>
 }

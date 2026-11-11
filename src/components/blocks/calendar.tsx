@@ -529,7 +529,7 @@ export function DayEditor({ type = 0, bare = false, person = { name: 'Viktória'
       )}
       <div className="mt-5 flex gap-1.5">
         <Button className="flex-1" onClick={onSave} disabled={busy}>{busy ? 'Mentés…' : 'Mentés'}</Button>
-        <Button variant="cell" onClick={onCancel}>Mégse</Button>
+        <Button variant="cell" className="flex-1" onClick={onCancel}>Mégse</Button>
         {onDelete && <IconButton icon={Trash2} label="Bejegyzés törlése" variant="cell" className="text-ui-bad" onClick={onDelete} disabled={busy} />}
       </div>
     </Box>
@@ -880,7 +880,7 @@ export function NewShiftForm({ title = 'Új beosztás', stacked = false, framed 
           {live ? <Switch checked={v.template} onChange={(on) => set({ template: on })} ariaLabel="Mentés sablonként" /> : <MockSwitch defaultOn={v.template} />} Mentés sablonként
         </span>
         {stacked
-          ? <><Button className="flex-1" onClick={onSubmit} disabled={busy}>{busy ? 'Létrehozás…' : submitLabel}</Button><Button variant="cell" onClick={onCancel}>Mégse</Button></>
+          ? <><Button className="flex-1" onClick={onSubmit} disabled={busy}>{busy ? 'Létrehozás…' : submitLabel}</Button><Button variant="cell" className="flex-1" onClick={onCancel}>Mégse</Button></>
           : <><Button variant="cell" onClick={onCancel}>Mégse</Button><Button variant="dark" onClick={onSubmit} disabled={busy}>{busy ? 'Létrehozás…' : submitLabel}</Button></>}
       </div>
     </Box>

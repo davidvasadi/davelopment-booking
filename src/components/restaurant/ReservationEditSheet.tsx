@@ -1,6 +1,7 @@
 'use client'
 
 
+import { invoiceHref } from '@/lib/invoiceLinks'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -642,9 +643,12 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                           {source && source !== 'online' && <Pill tone="cell" size="sm">{sourceLabelOf[source]}</Pill>}
                           {urgency && <StatusPill status={urgency.tone}>{urgency.label}</StatusPill>}
                           {reservation?.payment_status === 'paid' && (
-                            <span title={reservation.invoice_status === 'issued' ? `Számla: ${reservation.invoice_number}` : 'Bizonylat még nincs kiállítva'}>
-                              <StatusPill status="ok">Előleg befizetve{reservation.deposit_amount_huf ? ` · ${reservation.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}</StatusPill>
-                            </span>
+                            reservation.invoice_status === 'issued' && reservation.invoice_number
+                              // van számla: a pill a Számlák listára visz, és ott meg is nyitja
+                              ? <a href={invoiceHref('restaurant', reservation.invoice_number)} title={`Számla: ${reservation.invoice_number} — megnyitás`} className="transition-opacity hover:opacity-80">
+                                  <StatusPill status="ok">Előleg befizetve{reservation.deposit_amount_huf ? ` · ${reservation.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''} · számla ↗</StatusPill>
+                                </a>
+                              : <span title="Bizonylat még nincs kiállítva"><StatusPill status="ok">Előleg befizetve{reservation.deposit_amount_huf ? ` · ${reservation.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}</StatusPill></span>
                           )}
                           {reservation?.payment_status === 'failed' && <StatusPill status="bad">Sikertelen előleg-fizetés</StatusPill>}
                           {reservation?.payment_status === 'refunded' && <StatusPill status="warn">Előleg visszatérítve</StatusPill>}

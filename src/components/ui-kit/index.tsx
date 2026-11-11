@@ -567,9 +567,13 @@ export function UploadBox({ children = 'Kép', className }: Children) {
 /** Egysoros szöveg, ami ha nem fér ki, lassan oda-vissza végiggördül (szalag), hogy végig olvasható legyen; ha elfér,
  *  áll. Így a kártyák egyforma, kisebb méretűek maradnak (pl. szolgáltatás-választó). */
 export function Marquee({ children, className }: Children) {
+  // flex + min-w-full: ha a szöveg elfér, a belső doboz kitölti a sort, és a szöveg a sor igazítása szerint (jobbra / balra)
+  // áll; ha nem fér el, a belső doboz a tartalom szélességű, és MINDIG a sor elejéről indul — így a görgés pontosan addig
+  // megy, amíg a vége a sor széléhez ér. (Korábban inline-block volt: jobbra igazított, kilógó sorban a Safari a kilógást
+  // balra tolta, a görgés pedig ehhez még egyszer hozzáadta → túlfutott üres sávig.)
   return (
-    <span className={cn('block overflow-hidden whitespace-nowrap [container-type:inline-size]', className)}>
-      <span className="inline-block animate-ui-marquee motion-reduce:animate-none">{children}</span>
+    <span className={cn('flex overflow-hidden whitespace-nowrap [container-type:inline-size]', className)}>
+      <span className="block min-w-full shrink-0 animate-ui-marquee motion-reduce:animate-none">{children}</span>
     </span>
   )
 }
@@ -686,7 +690,8 @@ export function Modal({ title, subtitle, onClose, footer, size = 'md', children,
         <IconButton icon={X} variant="cell" size="sm" label="Bezárás" onClick={onClose} className="max-sm:hidden" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
-      {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 px-6 pb-6">{footer}</div>}
+      {/* mobilon a lábléc gombjai egyforma szélesek és kitöltik a sort (két gomb egymás mellett — Dave), gépen jobbra zárva */}
+      {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 px-6 pb-6 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1">{footer}</div>}
     </Panel>
   )
 }

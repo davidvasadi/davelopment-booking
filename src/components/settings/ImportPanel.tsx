@@ -453,7 +453,7 @@ export function ImportPanel({ kind = 'salon', sampleHref }: { kind?: 'salon' | '
           {mappedCols.length > 0 && rows.length > 0 && (
             <ImportPreview className="mt-6" total={rows.length} head={mappedCols.map((i) => fieldLabel(mapping[i]))} rows={rows.slice(0, 5).map((r) => mappedCols.map((i) => r[i] ?? ''))} />
           )}
-          <div className="mt-6 flex flex-wrap justify-end gap-1.5">
+          <div className="mt-6 flex flex-wrap justify-end gap-1.5 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1">
             <Button variant="cell" onClick={reset}>Mégse</Button>
             <Button loading={matchLoading || loading} disabled={blocked || !rows.length || !mappedCols.length} onClick={checkMatches}>Tovább: párosítás</Button>
           </div>

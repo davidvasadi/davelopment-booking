@@ -27,6 +27,8 @@ async function getOwnerRestaurant(user: User) {
 
 interface Body {
   reservationId?: string | number
+  /** csak ellenőrzés (az offline vázlatok ütközés-vizsgálata a net visszajöttekor) — nem ment semmit */
+  dryRun?: boolean
   date: string
   start_time: string
   pax: number
@@ -104,6 +106,7 @@ export async function POST(req: NextRequest) {
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: 409 })
   }
+  if (body.dryRun) return NextResponse.json({ ok: true, dryRun: true })
 
   const data: Partial<Reservation> = {
     date,

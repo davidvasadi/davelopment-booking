@@ -40,28 +40,32 @@ const logoImg = (src: string) => <img src={src} alt="" className="h-full w-full 
 
 /** QR-kód a foglalóoldalhoz (Foglalóoldal-szerkesztő › Link & QR): előnézet a logóval, mi kerüljön a nyomtatott lapra
  *  (nyitvatartás, közösségi oldalak), letöltés PNG-ben, nyomtatás. Élőben a szerkesztő adataival; a mintán a minta. */
-export function BusinessQr({ url = BOOKING_URL, logo = BIZ_LOGO, hours = true, onHours, socials = true, onSocials, hasHours = true, hasSocials = true, onDownload, onPrint, busy = false, className = '' }: {
+export function BusinessQr({ url = BOOKING_URL, logo = BIZ_LOGO, hours = true, onHours, socials = true, onSocials, hasHours = true, hasSocials = true, onDownload, onPrint, busy = false, withPreview = false, className = '' }: {
   url?: string; logo?: string | null
   /** a nyomtatott lapra kerül-e a nyitvatartás / a közösségi oldalak */
   hours?: boolean; onHours?: (v: boolean) => void; socials?: boolean; onSocials?: (v: boolean) => void
   /** van-e egyáltalán mit rátenni (nincs beállított nyitvatartás / link → a jelölő nem látszik) */
   hasHours?: boolean; hasSocials?: boolean
   onDownload?: () => void; onPrint?: () => void; busy?: boolean; className?: string
+  /** mellette a nyomtatott lap előnézete is látszik: mobilon (md alatt) a saját kis QR és a cím-leírás nem kell (az előnézet
+   *  mutatja), és a kártya kerete / térköze sem (a felugró lap ad) — csak a jelölők és a gombok maradnak */
+  withPreview?: boolean
 }) {
+  const m = withPreview ? 'max-md:hidden' : ''
   const box = (label: string, on: boolean, set?: (v: boolean) => void) => <Checkbox label={label} {...(set ? { checked: on, onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(e.target.checked) } : { defaultChecked: on })} />
   return (
-    <Card tone="white" className={`flex flex-col gap-4 sm:flex-row sm:items-center ${className}`}>
-      <Card tone="cell" inner pad="sm" className="h-36 w-36 shrink-0 self-center sm:self-auto"><QrSvg url={url} logo={logo ? logoImg(logo) : undefined} className="h-full w-full" /></Card>
+    <Card tone="white" className={`flex flex-col gap-4 sm:flex-row sm:items-center ${withPreview ? 'max-md:bg-transparent max-md:p-0' : ''} ${className}`}>
+      <Card tone="cell" inner pad="sm" className={`h-36 w-36 shrink-0 self-center sm:self-auto ${m}`}><QrSvg url={url} logo={logo ? logoImg(logo) : undefined} className="h-full w-full" /></Card>
       <div className="min-w-0 flex-1">
-        <CardTitle>QR-kód a foglaló oldalhoz</CardTitle>
-        <Meta className="mt-1 leading-relaxed">Tedd ki a pultra, kirakatba vagy névjegyre — beolvasva rögtön a foglaló oldal nyílik meg.{logo ? ' A közepén a logód.' : ' Ha feltöltesz logót, a közepére kerül.'}</Meta>
+        <CardTitle className={m}>QR-kód a foglaló oldalhoz</CardTitle>
+        <Meta className={`mt-1 leading-relaxed ${m}`}>Tedd ki a pultra, kirakatba vagy névjegyre — beolvasva rögtön a foglaló oldal nyílik meg.{logo ? ' A közepén a logód.' : ' Ha feltöltesz logót, a közepére kerül.'}</Meta>
         {(hasHours || hasSocials) && (
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-ui-meta text-ui-text">
             {hasHours && box('Nyitvatartás a lapon', hours, onHours)}
             {hasSocials && box('Közösségi oldalak', socials, onSocials)}
           </div>
         )}
-        <div className="mt-3 flex flex-wrap gap-1.5"><Button variant="glass" icon={Download} onClick={onDownload} disabled={busy}>Letöltés (PNG)</Button><Button icon={Printer} onClick={onPrint} disabled={busy}>Nyomtatás</Button></div>
+        <div className="mt-3 flex flex-wrap gap-1.5 max-lg:[&>*]:min-w-0 max-lg:[&>*]:flex-1"><Button variant="glass" icon={Download} onClick={onDownload} disabled={busy}>Letöltés (PNG)</Button><Button icon={Printer} onClick={onPrint} disabled={busy}>Nyomtatás</Button></div>
       </div>
     </Card>
   )
