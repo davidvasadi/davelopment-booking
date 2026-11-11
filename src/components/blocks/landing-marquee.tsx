@@ -144,6 +144,18 @@ function Laurel({ flip = false }: { flip?: boolean }) {
   )
 }
 
+/** Babérágas „díj”-jelvény: két sor szöveg a két babérág között (a főoldali iparág-szalag fejléce). `as`: a szöveg
+ *  eleme — ahol szakaszcím, ott `h2` (SEO). */
+export function LaurelBadge({ lines, as: Tag = 'div', className = '' }: { lines: [string, string]; as?: 'div' | 'h2'; className?: string }) {
+  return (
+    <div className={`flex items-center justify-center gap-3 px-4 font-onest text-ui-grey ${className}`}>
+      <Laurel />
+      <Tag className="text-center text-ui-title font-medium leading-tight tracking-[-0.02em] lg:text-ui-sub">{lines[0]}<br />{lines[1]}</Tag>
+      <Laurel flip />
+    </div>
+  )
+}
+
 export function Marquee({ pill, laurel }: { /** koncepció 2: pill-címke a cím fölött */ pill?: string; /** koncepció 2: babérágas „díj”-jelvény a cím helyén (két sor) */ laurel?: [string, string] } = {}) {
   const track = [...PHOTO_INDUSTRIES, ...PHOTO_INDUSTRIES]
   // érintőképernyőn az első koppintás csak kiemeli a képet és kiírja a szakma nevét (a szalag megáll); a NÉV a link
@@ -183,11 +195,7 @@ export function Marquee({ pill, laurel }: { /** koncepció 2: pill-címke a cím
         </div>
       </div>
       {laurel ? (
-        <div className="mt-12 flex items-center justify-center gap-3 px-4 font-onest text-ui-grey">
-          <Laurel />
-          <div className="text-center text-ui-title font-medium leading-tight tracking-[-0.02em] lg:text-ui-sub">{laurel[0]}<br />{laurel[1]}</div>
-          <Laurel flip />
-        </div>
+        <LaurelBadge lines={laurel} className="mt-12" />
       ) : (
       <div className="mt-10 px-4 text-center">
         {pill && <span className="mb-5 inline-flex items-center rounded-[8px] bg-ui-yellow/15 px-3.5 py-1.5 font-onest text-[14px] font-medium text-ui-text/80">{pill}</span>} {/* ui-allow: a CtaGlow pillje (8 / 14 px) */}

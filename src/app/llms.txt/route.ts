@@ -1,6 +1,6 @@
 import { getPricing } from '@/lib/pricing'
 import { SITE_URL } from '@/lib/publicSeo'
-import { FEATURE_GROUPS, featurePagesOn } from '@/lib/landingFeatures'
+import { FEATURE_GROUPS } from '@/lib/landingFeatures'
 import { billingFacts, priceSummary } from '@/lib/pricingContent'
 import { CONTACT_EMAIL, CONTACT_PHONE, SUPPORT_HOURS_TEXT } from '@/lib/brand'
 import { TIPS } from '@/lib/tips-content'
@@ -31,12 +31,12 @@ Részletek, kalkulátor és csomag-összehasonlítás: ${SITE_URL}/arak
 
 ## Funkciók
 
-${groups.map((g) => `### ${featurePagesOn ? `[${g.label}](${SITE_URL}/funkciok/${g.slug})` : g.label}\n${g.tagline}\n${g.items.map((f) => `- ${f.title}: ${f.desc}`).join('\n')}`).join('\n\n')}
+${groups.map((g) => `### [${g.label}](${SITE_URL}/funkciok/${g.slug})\n${g.tagline}\n${g.items.map((f) => `- ${f.title}: ${f.desc}`).join('\n')}`).join('\n\n')}
 
 ## Fő oldalak
 
 - [Főoldal](${SITE_URL}/): termékbemutató, funkciók, árak, GYIK.
-${featurePagesOn ? `- [Funkciók](${SITE_URL}/funkciok): az összes funkció csoportonként.\n` : ''}- [Árak](${SITE_URL}/arak): csomagok, díjkalkulátor, összehasonlító táblázat, árazási GYIK.
+- [Funkciók](${SITE_URL}/funkciok): az összes funkció csoportonként.\n- [Árak](${SITE_URL}/arak): csomagok, díjkalkulátor, összehasonlító táblázat, árazási GYIK.
 - [Tippek és cikkek](${SITE_URL}/tips): útmutatók a rendszer használatához és gyakorlati cikkek kisvállalkozásoknak.
 - [Kapcsolat](${SITE_URL}/kapcsolat): ügyfélszolgálat — ${CONTACT_PHONE}, ${CONTACT_EMAIL} (${SUPPORT_HOURS_TEXT.toLowerCase()}).
 - [Regisztráció](${SITE_URL}/register): ${p.trial_days} napos ingyenes próbaidő szakembereknek.

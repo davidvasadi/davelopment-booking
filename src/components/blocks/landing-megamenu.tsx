@@ -8,7 +8,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { ArrowRight, ArrowUpRight, ChevronDown, ChevronRight, Scissors, UtensilsCrossed } from 'lucide-react'
 import { SERVICES } from '@/lib/davelopmentServices'
 import { EASE, SHEET_SPRING } from '@/lib/motion'
-import { FEATURE_GROUPS, featureHref, featurePath, groupCoverImage, groupHref, type FeatureGroupId } from '@/lib/landingFeatures'
+import { FEATURE_GROUPS, featureHref, groupCoverImage, groupHref, type FeatureGroupId } from '@/lib/landingFeatures'
 import { INDUSTRY_LANDINGS, INDUSTRY_SHORT_LABEL } from '@/lib/industryLandings'
 import { CoverStage } from '@/components/landing/CoverStage'
 import { GROUP_COVERS } from '@/components/blocks/covers'
@@ -360,7 +360,7 @@ export function MobileMegaAccordion({ onPick }: { onPick: () => void }) {
                     })}
                   </ul>
                   <motion.div variants={SUB_ITEM} className="px-2 pt-4">
-                    <Link href={featurePath('/funkciok')} onClick={onPick} className="flex w-full items-center justify-between rounded-full bg-ui-dark py-3.5 pl-6 pr-3 font-onest text-ui-row font-medium text-white">
+                    <Link href={'/funkciok'} onClick={onPick} className="flex w-full items-center justify-between rounded-full bg-ui-dark py-3.5 pl-6 pr-3 font-onest text-ui-row font-medium text-white">
                       Összes funkció egy helyen
                       <IconCircle icon={ChevronRight} tone="yellow" size="md" />
                     </Link>

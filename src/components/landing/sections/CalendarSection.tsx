@@ -7,7 +7,6 @@ import { motion, useInView } from 'framer-motion'
 import { RevealText } from '@/components/landing/Motion'
 import { FitCard } from '@/components/landing/FitCard'
 import { EASE, SPRING_QUICK } from '@/lib/motion'
-import { featurePath } from '@/lib/landingFeatures'
 
 const cardV = {
   hidden: { opacity: 0, scale: 0.94 },
@@ -211,7 +210,7 @@ export function CalendarSection({
           <p className="text-[16px] leading-[1.6] text-brand-ink/55">
             {subtitle ?? 'Valós idejű foglalások, szakembersávok, szabadnapok — húzd át, kattints, kész.'}
           </p>
-          <Link href={featurePath('/funkciok/foglalas#elo-asztalallapot')} className="inline-flex items-center gap-1 text-[15px] font-semibold text-brand-ink">Részletek <ChevronRight className="h-4 w-4" strokeWidth={2.2} /></Link>
+          <Link href={'/funkciok/foglalas#elo-asztalallapot'} className="inline-flex items-center gap-1 text-[15px] font-semibold text-brand-ink">Részletek <ChevronRight className="h-4 w-4" strokeWidth={2.2} /></Link>
           </div>
         </div>
       </motion.div>

@@ -7,7 +7,7 @@ import { motion, AnimatePresence, useReducedMotion, type Variants } from 'framer
 import { ArrowRight, ArrowUpRight, ChevronDown, ChevronRight, Scissors, UtensilsCrossed } from 'lucide-react'
 import { SERVICES } from '@/lib/davelopmentServices'
 import { EASE } from '@/lib/motion'
-import { FEATURE_GROUPS, featurePath, groupCoverImage, groupHref, type FeatureGroupId } from '@/lib/landingFeatures'
+import { FEATURE_GROUPS, groupCoverImage, groupHref, type FeatureGroupId } from '@/lib/landingFeatures'
 import { INDUSTRY_LANDINGS, INDUSTRY_SHORT_LABEL } from '@/lib/industryLandings'
 import { CoverStage } from '@/components/landing/CoverStage'
 import { GROUP_COVERS } from '@/components/blocks/covers'
@@ -307,7 +307,7 @@ export function MobileMegaAccordion({ onPick }: { onPick: () => void }) {
                     })}
                   </ul>
                   <motion.div variants={SUB_ITEM} className="px-2 pt-4">
-                    <Link href={featurePath('/funkciok')} onClick={onPick} className="flex h-12 w-full items-center justify-center rounded-full bg-ui-dark text-ui-row font-medium text-white">
+                    <Link href={'/funkciok'} onClick={onPick} className="flex h-12 w-full items-center justify-center rounded-full bg-ui-dark text-ui-row font-medium text-white">
                       Összes funkció egy helyen
                     </Link>
                   </motion.div>

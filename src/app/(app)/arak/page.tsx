@@ -103,6 +103,8 @@ export default async function PricingPage() {
           </nav>
         }
       />
+      {/* a hero után: fehér, felső réteg — egyenes éllel rácsúszik a fél sebességgel lemaradó hero-ra (mint a főoldalon) */}
+      <div className="relative z-10 flow-root bg-white">
 
       {/* Csomagkártyák — ugyanaz a komponens és stílus, mint a főoldalon */}
       <Pricing pricing={pricing} title="Válaszd ki a csomagod." compact look="k2" />
@@ -147,11 +149,12 @@ export default async function PricingPage() {
         label="Árak"
         title="Kezdd ingyen, döntsd el később."
         lead="Minden funkció a tiéd a próbaidő alatt — csomagot csak akkor választasz, ha már látod, mennyit spórolsz vele."
-        bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp"
+        bg="/landing/cta/cta-hatter-davelopment-booking.webp"
         plain
         bgPosition="object-[center_75%]"
       />
       <ConceptLightFooter trialDays={pricing.trial_days} />
+      </div>
     </main>
   )
 }

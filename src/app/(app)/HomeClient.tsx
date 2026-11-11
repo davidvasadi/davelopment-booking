@@ -22,7 +22,8 @@ import { CookieBanner } from '@/components/landing/CookieBanner'
 import { LandingClickTracker } from '@/components/landing/LandingClickTracker'
 import { getCachedGoogleRating, getCachedGoogleReviews } from '@/lib/google-rating'
 import { homeVisuals } from '@/components/landing/designVisuals'
-import { ConceptLight, DarkFeatureBlock, StepsK2, TipsK2 } from '@/components/blocks/landing-concepts'
+import { ConceptLight, DarkFeatureBlock, TipsK2 } from '@/components/blocks/landing-concepts'
+import { HomeSteps } from '@/components/blocks/landing-stepvisuals'
 import { Pricing as PricingK2 } from '@/components/blocks/landing-pricing'
 import { Faq as FaqK2 } from '@/components/blocks/landing-faq'
 
@@ -60,7 +61,7 @@ export default async function HomeClient({
           rating={googleRating}
           trialDays={pricing.trial_days}
           tail={<>
-            <StepsK2 />
+            <HomeSteps />
             <PricingK2 pricing={pricing} look="k2" />
             <DarkFeatureBlock />
             <FaqK2 pricing={pricing} look="k2" />

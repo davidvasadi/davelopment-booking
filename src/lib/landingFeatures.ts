@@ -29,6 +29,8 @@ export type LandingFeature = {
   body?: string
   /** egy rövid, valószerű példa a használatra */
   example?: string
+  /** a funkció-oldal fülén a gomb szövege (a regisztrációra visz) — funkcióhoz illő, hogy ne ismétlődjön a „Kipróbálom ingyen” */
+  cta?: string
   /** a funkció képe (hero-diák, szakasz-kép) — public/landing/funkciok/<csoport>/<slug>.webp */
   image?: string
 }
@@ -95,7 +97,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         title: 'Miért kell saját foglalóoldal?',
         paragraphs: [
           'A vendégek ma már nem akarnak telefonálni: este, zárás után, a kanapéról foglalnának, és ha nálad nem tudnak, egy kattintással máshol foglalnak. Egy saját foglalóoldal a nap 24 órájában veszi fel a foglalásokat helyetted, miközben te dolgozol.',
-          'A legtöbb foglalórendszer csak egy űrlapot ad. A davelopment booking egy teljes bemutatkozó weboldalt: szolgáltatások, árak, csapat, értékelések és foglalás egy helyen — így külön weboldalra sincs szükséged.',
+          'A legtöbb foglalórendszer csak egy űrlapot ad. A davelopment booking egy teljes bemutatkozó weboldalt: szolgáltatások, árak, csapat, értékelések és foglalás egy helyen — így külön weboldalra sincs szükséged. A kinézetét is te szabod meg, kódolás nélkül.',
           'A foglalás után sem marad magára a vendég: visszaigazolást és emlékeztetőt kap, te pedig eldöntöd, hogy a foglalás magától megerősítődik, vagy te hagyod jóvá.',
         ],
       },
@@ -138,24 +140,27 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         slug: 'elo-asztalallapot', title: 'Élő asztal-állapot és asztal-összetolás', icon: Timer,
         desc: 'Asztalonként látod, mennyi van még hátra — és nagy társaságnál asztalt tol össze.',
         pain: 'Péntek este tele a terem, a pultnál senki nem tudja, melyik asztal mikor szabadul, és hová fér le egy hatfős társaság.',
-        points: ['Asztalonként „még X perc”, „mindjárt szabadul” vagy „késik X perc”, a következő foglalással', 'Ha a társaság nem fér el, felajánlja a szabad, összetolható asztalokat', 'A foglalást áthúzod másik asztalhoz vagy időpontra, ütközésnél szól'],
-        body: 'Az élő terem-nézetben minden asztal kártyája mutatja, mi történik vele éppen: szabad, hamarosan érkezik hozzá valaki, ül rajta egy társaság, vagy jóváhagyásra vár. Ahol ülnek, ott látod, mennyi idő telt el és hány perc van még hátra, ha a vendég késik, azt is jelzi, és minden asztalnál ott a következő foglalás. Ha egy társaság nem fér el egy asztalnál, a rendszer felajánlja a szabad, összetolható asztalokat, a foglalást pedig egyszerűen áthúzod másik asztalhoz vagy időpontra — ütközésnél szól, a vendég pedig automatikusan értesül.',
+        points: ['Egy pillantással látod, melyik asztal szabadul hamarosan', 'Nem ültetsz le senkit foglalt asztalhoz', 'A foglalást áthúzod másik asztalhoz, a vendég automatikusan értesül'],
+        body: 'Az élő terem-nézetben minden asztalon látod, szabad-e, ülnek-e rajta és meddig, vagy késik-e a vendég. Ha egy társaság nem fér el, a rendszer felajánlja az összetolható asztalokat.',
+        cta: 'Nézd meg a termedet élőben',
         example: 'Szombat este beesik egy hatfős társaság. A pultos ránéz a teremre: a 4-es és az 5-ös asztal szabad, a rendszer összevonja őket, és a következő foglalás csak egy óra múlva jön — leülteti őket, telefon és találgatás nélkül.',
       },
       {
         slug: 'gyors-felvetel', title: 'Korábbi vendég kitöltése', icon: UserSearch,
         desc: 'A visszatérő vendéget a nevéből felismeri, és kitölti az adatait.',
         pain: 'Telefonon foglal a törzsvendég, te pedig közben a telefonszámát és az e-mailjét gépeled.',
-        points: ['A név gépelésére javaslatot kapsz a korábbi vendégek közül', 'Egy kattintással kitölti a telefonszámot, az e-mailt és a többi adatot', 'Rögzíted a forrást is: online, telefon vagy beeső'],
-        body: 'Amikor kézzel veszel fel egy foglalást, elég elkezdeni gépelni a vendég nevét: a rendszer felajánlja a korábbi vendégeid közül, akire illik, és egy kattintással kitölti az adatait. A foglaláshoz azt is megjelölöd, honnan jött — online, telefonon vagy beesőként —, étteremben pedig az alkalmat is, például születésnapot vagy évfordulót. Így a vendégkártyája is egyben marad, nem lesz belőle két külön vendég.',
+        points: ['Gyorsabban végzel a telefonnal, kevesebbet gépelsz', 'Nem lesz egy vendégből két külön kártya', 'Azt is rögzíted, honnan jött a foglalás: online, telefon vagy beeső'],
+        body: 'Telefonos foglalásnál elég elkezdeni gépelni a vendég nevét: a rendszer felajánlja a korábbi vendégeid közül, és egy kattintással kitölti az adatait.',
+        cta: 'Vegyél fel foglalást pár mozdulattal',
         example: 'Csörög a telefon, Kovács Anna jövő keddre kér időpontot. Beírod, hogy „Kov”, rákattintasz a javaslatra, kiválasztod az időpontot — tíz másodperc, és a foglalás kész.',
       },
       {
         slug: 'offline-mod', title: 'Net nélkül is működik', icon: WifiOff,
         desc: 'Elment a net? Vázlatként rögzíted, és később véglegesíted.',
         pain: 'Akadozik a wifi a pultnál, a vendég pedig ott áll előtted és foglalni szeretne.',
-        points: ['Internet nélkül is felveheted a foglalást, vázlatként', 'A vázlatok az eszközön maradnak, nem vesznek el', 'Amint visszajön a net, egy gombnyomással véglegesíted őket'],
-        body: 'Ha megszakad az internetkapcsolat, a rendszer szól, hogy vázlat módban dolgozol, és a foglalásokat ugyanúgy felveheted. A vázlatok az eszközön maradnak, amíg vissza nem jön a net. Utána egy gombnyomással véglegesíted őket, a rendszer pedig még egyszer ellenőrzi, hogy közben nem foglalta-e le valaki ugyanazt az időpontot.',
+        points: ['Akkor sem vész el foglalás, ha akadozik a wifi', 'Nem kell papírra írni, aztán utólag bepötyögni', 'Nem kell megvárnod, hogy visszajöjjön a net, a pultnál folyamatosan dolgozhatsz'],
+        body: 'Ha elmegy az internet, a rendszer vázlat módba vált, és ugyanúgy veszed fel a foglalásokat. Amint visszajön a net, a rendszer rögtön jelzi, ha közben online valaki ugyanarra az időpontra foglalt, a többit pedig egy gombbal véglegesíted.',
+        cta: 'Rögzíts foglalást net nélkül is',
         example: 'Délután két órára elmegy az internet a szalonban. A recepciós közben két telefonos foglalást rögzít vázlatként, és amikor visszajön a net, egy gombbal mindkettőt véglegesíti.',
       },
       {
@@ -163,16 +168,18 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/foglalas/elo-szerkeszto.webp',
         desc: 'Saját oldal foglalással, 6 nyelven, kész sablonokkal — nem kell nulláról fordítanod.',
         pain: 'Weboldal nélkül a vendég nem talál meg, egy külön weboldal viszont drága és lassan készül el.',
-        points: ['Borítókép, bemutatkozás, szolgáltatások árakkal, csapat és értékelések egy oldalon', 'Élőben szerkeszted, minden változás azonnal látszik, gépen és telefonon is', '6 nyelven, nyelvenként kész sablonnal: egy kattintás, és nem kell nulláról fordítanod'],
-        body: 'A foglalóoldalad egy teljes bemutatkozó weboldal: borítókép, bemutatkozás, szolgáltatások árakkal, a csapatod, a nyitvatartás, a térkép és a vendégek értékelései — és ugyanott a foglalás, a nap 24 órájában, hat nyelven. Nem űrlapot töltesz ki: rákattintasz egy szövegre, átírod, és azonnal látod, hogyan fog kinézni, gépen és telefonon is. A külföldi vendégnek sem kell fordítóirodát fizetned: a foglalási feltételek, a „Jó tudni” rész, a hozzájáruló nyilatkozat és az e-mailek mind a hat nyelven kész sablonnal indulnak — betöltöd, átírod a saját adataidra, és kész. Saját, rövid linket kapsz, amit a Google Cégprofilodba, az Instagram-bióba és a névjegyre is kiteszel.',
+        points: ['Nem kell külön weboldalt csináltatnod', 'Saját rövid linket kapsz az Instagramra és a Google Cégprofilba', 'A külföldi vendég a saját nyelvén foglal, kész sablonokkal'],
+        body: 'Teljes bemutatkozó weboldalt kapsz foglalással: szolgáltatások árakkal, csapat, nyitvatartás, térkép és értékelések. Rákattintasz egy szövegre, átírod, és azonnal látod az eredményt, hat nyelven.',
+        cta: 'Készítsd el a foglalóoldalad',
         example: 'Este fél tizenegykor egy vendég az Instagramon rákattint a linkre, megnézi az árakat és a véleményeket, és lefoglalja a csütörtöki időpontot. Reggel már ott van a naptárban, telefonálás nélkül.',
       },
       {
         slug: 'emlekeztetok', title: 'Emlékeztetők és értesítések', icon: BellRing,
         desc: 'E-mail és push — kevesebb elmaradó vendég.',
         pain: 'A vendég elfelejti az időpontot, a helye pedig üresen marad.',
-        points: ['Automatikus visszaigazolás és emlékeztető e-mail a vendégnek', 'Azonnali értesítés neked minden új foglalásról és lemondásról', 'A vendég egy kattintással lemondhat, így a hely felszabadul'],
-        body: 'Foglaláskor a vendég azonnal visszaigazoló e-mailt kap, benne a lemondás linkjével, a foglalás előtt pedig automatikus emlékeztetőt — te állítod be, hány órával előtte. Te minden új foglalásról és lemondásról értesítést kapsz az appban és a telefonodon is. Ha a vendég mégsem tud jönni, egy kattintással lemondja, így az időpont azonnal felszabadul, és más foglalhatja le.',
+        points: ['Kevesebb vendég felejti el az időpontját', 'Ha mégsem jön, időben lemondja, és a hely felszabadul', 'Nem kell egyesével felhívnod senkit'],
+        body: 'A vendég foglaláskor visszaigazolást, előtte pedig automatikus emlékeztetőt kap, benne a lemondás linkjével. Te minden új foglalásról és lemondásról azonnal értesülsz.',
+        cta: 'Kapcsold be az emlékeztetőket',
         example: 'A vendég 24 órával a foglalás előtt emlékeztetőt kap. Rájön, hogy nem ér rá, és a levélben lévő linkkel lemondja — a hely felszabadul, és másnap reggel már más foglalja le.',
       },
       {
@@ -180,8 +187,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/foglalas/jovahagyas.webp',
         desc: 'Elfogadás egy koppintással, az értesítésből.',
         pain: 'Van, akit azonnal fogadnál, és van, akit előbb megnéznél.',
-        points: ['Automatikus megerősítés, vagy minden foglalást te hagysz jóvá', 'Elfogadás vagy elutasítás egy koppintással, közvetlenül az értesítésből', 'A vendég mindkét esetben automatikusan e-mailt kap'],
-        body: 'Te döntöd el, hogyan érkeznek a foglalások. Automatikus megerősítésnél a vendég azonnal visszaigazolást kap. Ha inkább te hagynád jóvá, a foglalás jóváhagyásra vár, te pedig az értesítésből egy koppintással elfogadod vagy elutasítod. Elfogadáskor a vendég megkapja a visszaigazolást, elutasításkor pedig egy udvarias e-mailt, amely a foglalóoldalra irányítja, hogy másik időpontot válasszon.',
+        points: ['Te szabod meg, kit és mikor fogadsz', 'Elutasításkor a vendég udvarias e-mailt kap, hogy válasszon másik időpontot', 'Nem kell külön üzenetet írnod, a vendég minden esetben értesül'],
+        body: 'Te döntöd el, hogy a foglalások maguktól megerősítődnek, vagy mindegyiket te hagyod jóvá. Jóváhagyásnál az értesítésből egy koppintással elfogadod vagy elutasítod.',
+        cta: 'Állítsd be, hogyan foglalnak',
         example: 'Egy magánrendelő minden új vendéget előbb átnéz. Az értesítésben látja, ki és mire foglalt, egy koppintással elfogadja, a vendég pedig azonnal megkapja a visszaigazolást.',
       },
     ],
@@ -248,8 +256,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/naptar/beosztas.webp',
         desc: 'Műszakok és fedetlen napok egy nézetben.',
         pain: 'Nem látszik előre, melyik napon nincs elég ember.',
-        points: ['Havi és heti beosztás munkatársanként', 'A fedetlen napok azonnal látszanak', 'A munkatárs a saját beosztását telefonon is látja'],
-        body: 'A beosztás-naptárban hónap vagy hét szerint látod, ki mikor dolgozik, és egy kattintással osztasz be műszakot. A rendszer kiemeli a fedetlen napokat, amikor nincs elég ember beosztva, így még időben tudsz lépni. A munkatárs a saját beosztását a telefonján is látja, és értesítést kap, ha változik — nem kell külön csoportba írni vagy papírt kitenni.',
+        points: ['Időben kiderül, melyik napra nincs elég ember', 'Nem kell csoportba írni vagy papírt kitenni', 'Ha változik a beosztás, a munkatárs értesítést kap'],
+        body: 'A beosztás-naptárban hétre vagy hónapra látod, ki mikor dolgozik, és egy kattintással osztasz be műszakot. A munkatárs a saját beosztását a telefonján látja.',
+        cta: 'Készítsd el a heti beosztást',
         example: 'Egy étteremvezető péntek délután látja, hogy a jövő szombat este fedetlen. Beoszt még egy pincért, aki a telefonján azonnal értesítést kap a műszakról.',
       },
       {
@@ -257,8 +266,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/naptar/szabadsag.webp',
         desc: 'Szabadság, betegség, korai távozás nyomon követve.',
         pain: 'Év végén senki sem tudja pontosan, ki mennyi szabadságot vett ki és hányszor hiányzott.',
-        points: ['Szabadság, betegszabadság és szabadnap munkatársanként', 'A korai távozás is rögzíthető', 'Eltérő nyitvatartás egy-egy napra — ilyenkor a vendég sem foglalhat'],
-        body: 'Minden munkatársnál rögzítheted a szabadságot, a betegszabadságot és a szabadnapot, akár több napra egyszerre, tól–ig. Ha valaki korábban távozik, azt is jelölheted. Ünnepnapra vagy egy-egy rövidített napra eltérő nyitvatartást állíthatsz be — ilyenkor a vendégek erre az időre nem tudnak foglalni, így nem kell utólag lemondanod senkit.',
+        points: ['Látod, kinek mennyi szabadsága maradt az évből', 'A vendég nem foglal olyan időre, amikor zárva vagy', 'Nem kell utólag lemondanod senkit'],
+        body: 'Minden munkatársnál rögzíted a szabadságot, a betegszabadságot és a szabadnapot, akár több napra egyszerre. Ünnepnapra vagy rövidített napra eltérő nyitvatartást állíthatsz be.',
+        cta: 'Rögzítsd a szabadságokat',
         example: 'Egy fodrász két hét szabadságot rögzít augusztusra. Arra az időre a vendégek nem tudnak hozzá foglalni, a szabadság pedig a havi összesítésben is megjelenik.',
       },
       {
@@ -266,16 +276,18 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/naptar/munkaido.webp',
         desc: 'Napok, órák és hiányzások havonta összesítve.',
         pain: 'A ledolgozott órákat hónap végén kézzel számolod össze.',
-        points: ['Ledolgozott napok és órák munkatársanként', 'Hiányzás és szabadság egy pillantásra', 'Összevetés az előző időszakkal'],
-        body: 'A rendszer a beosztásból és a rögzített hiányzásokból magától összesíti, ki hány napot és hány órát dolgozott az adott hónapban, mennyi szabadságot vett ki és hányszor hiányzott. Munkatársanként és összesítve is látod, és összevetheted az előző időszakkal. Hónap végén nem kell táblázatból összeszámolni, a számok készen vannak.',
+        points: ['Hónap végén nem kell táblázatból számolni', 'Egy pillantásra látod a hiányzást és a szabadságot', 'Összevetheted az előző hónappal'],
+        body: 'A rendszer a beosztásból és a hiányzásokból magától összesíti, ki hány napot és órát dolgozott a hónapban.',
+        cta: 'Nézd meg a ledolgozott órákat',
         example: 'Hónap végén az üzletvezető megnyitja az összesítést: ki hány napot és órát dolgozott, ki hányszor hiányzott — és egy kattintással továbbküldi a számokat a könyvelőnek.',
       },
       {
         slug: 'berezes', title: 'Bér és borravaló', icon: HandCoins,
         desc: 'Napidíj vagy órabér alapján, automatikusan.',
         pain: 'A bért és a borravalót táblázatban, kézzel számolod — és mindig kérdés, kinek mennyi jár.',
-        points: ['Bér napidíj vagy órabér alapján, a ledolgozott idő szerint számolva', 'A napi borravaló automatikusan elosztva az aznap dolgozók között', 'Mindenki látja a saját összesítését'],
-        body: 'Minden munkatársnál beállítod, hogy napidíjat vagy órabért kap, és mennyit. A rendszer a ledolgozott napok vagy órák és a fizetett szabadság alapján kiszámolja, mennyi bér jár neki. A napi borravalót egy összegként adod meg, és az automatikusan elosztódik az aznap dolgozók között. Mindenki látja a saját összesítését, így kevesebb a kérdés és a vita.',
+        points: ['Nem kell kézzel számolni a fizetést', 'A borravaló igazságosan oszlik el', 'Mindenki látja a saját összesítését, kevesebb a kérdés'],
+        body: 'Munkatársanként beállítod a napidíjat vagy az órabért, a rendszer pedig a ledolgozott idő alapján kiszámolja a bért. A napi borravaló automatikusan elosztódik az aznap dolgozók között.',
+        cta: 'Számold ki a béreket',
         example: 'Egy pincér órabérben dolgozik, a hónapban 142 órát. A rendszer kiszámolja a bérét, és hozzáadja az aznapi borravalókból rá eső részt — ő pedig a telefonján látja a saját összesítését.',
       },
     ],
@@ -343,8 +355,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/vendegek/vendegkartya.webp',
         desc: 'Előzmények, megjegyzések, látogatások.',
         pain: 'Nem emlékszel, mit kért a vendég legutóbb, és hányszor járt már nálad.',
-        points: ['Minden foglalás és látogatás egy kártyán', 'Saját megjegyzések minden vendéghez', 'Gyors keresés név, telefonszám vagy e-mail alapján'],
-        body: 'Minden vendégnek saját kártyája van, amely magától épül a foglalásokból: elérhetőségek, születésnap, látogatások száma, lemondások, el nem jött alkalmak és az összes költése. Saját megjegyzést írhatsz hozzá (pl. allergia, kedvenc szakember), és csoportba sorolhatod. Foglaláskor a név vagy a telefonszám beírásakor a rendszer felajánlja a meglévő vendéget, így nem jönnek létre duplikátumok.',
+        points: ['Minden vendégről tudod, mit szeret és hányszor járt nálad', 'A törzsvendégeket egy pillantással felismered', 'Nem jönnek létre duplikált vendégek'],
+        body: 'Minden vendégnek saját kártyája van, amely magától épül a foglalásokból: elérhetőség, látogatások, lemondások és költés. Saját megjegyzést is írhatsz hozzá, például allergiát vagy kedvenc szakembert.',
+        cta: 'Ismerd meg a vendégeidet',
         example: 'A vendég felhív, hogy jönne a szokásos kezelésre. Beírod a nevét, és rögtön látod, hogy legutóbb mit kért, ki volt a szakembere, és hogy allergiás egy anyagra.',
       },
       {
@@ -352,8 +365,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/vendegek/feketelista.webp',
         desc: 'Aki rendszeresen nem jön el, nem foglalhat újra.',
         pain: 'Ugyanaz a vendég újra és újra lefoglal, aztán nem jön el.',
-        points: ['Egy kattintással tiltólistára teheted', 'Indoklást is írhatsz hozzá', 'A tiltott vendég nem tud online foglalni'],
-        body: 'Ha egy vendég rendszeresen lefoglal, aztán nem jön el, egy kattintással tiltólistára teszed, és indoklást is írhatsz mellé. A tiltott vendég ezután nem tud online foglalni — a rendszer e-mail-cím és telefonszám alapján is felismeri, és egy általános üzenetet mutat neki, nem árulja el a tiltást. A tiltást bármikor feloldhatod.',
+        points: ['Nem foglal le újra feleslegesen egy időpontot', 'A vendég nem tudja meg, hogy le van tiltva, csak egy általános üzenetet lát', 'A tiltást bármikor feloldhatod'],
+        body: 'Ha egy vendég rendszeresen nem jön el, egy kattintással tiltólistára teszed, indoklással. A rendszer e-mail-cím és telefonszám alapján is felismeri, és nem engedi online foglalni.',
+        cta: 'Védd meg az időpontjaidat',
         example: 'Egy vendég harmadszor foglal 6 főre, és harmadszor sem jön el. Tiltólistára kerül, és a következő online foglalási kísérletnél egy általános üzenetet lát.',
       },
       {
@@ -361,16 +375,18 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/vendegek/vendeg-terkep.webp',
         desc: 'Lásd, honnan érkeznek a vendégeid.',
         pain: 'Nem tudod, melyik környékre érdemes hirdetni.',
-        points: ['A vendégek települései térképen', 'Látszik, honnan jön a legtöbb vendég', 'Segít eldönteni, hol hirdess'],
-        body: 'A vendég-térkép megmutatja, mely településekről érkeznek a vendégeid, és honnan jön a legtöbb. Ez segít eldönteni, melyik környékre érdemes hirdetni, hol érdemes szórólapozni, vagy mennyire vagy helyi kedvenc. A térkép a vendégek által megadott településből készül, külön adatgyűjtés nélkül.',
+        points: ['Tudod, hol érdemes hirdetni vagy szórólapozni', 'Kiderül, mennyire vagy helyi kedvenc', 'Nem kell semmit külön beállítanod'],
+        body: 'A vendég-térkép megmutatja, mely településekről érkeznek a vendégeid, és honnan jön a legtöbb. A vendégek által megadott településből készül, külön adatgyűjtés nélkül.',
+        cta: 'Nézd meg, honnan jönnek a vendégeid',
         example: 'Egy pilates stúdió a térképen látja, hogy a vendégek negyede a szomszéd kerületből jön. A következő szórólapos kampányt oda célozza.',
       },
       {
         slug: 'export', title: 'Export', icon: FileDown,
         desc: 'Foglalások és vendégek egy kattintással, CSV-ben.',
         pain: 'Az adataid be vannak zárva a rendszerbe, nem tudod könyvelőnek vagy táblázatba átadni.',
-        points: ['Foglalások, vendégek és munkatársak exportja CSV-be', 'Excelben és Google Táblázatban is megnyitható', 'Gépről és telefonról is működik'],
-        body: 'A foglalásaidat, a vendéglistádat és a munkatársaidat egy kattintással letöltheted CSV-fájlba, amely Excelben és Google Táblázatban is megnyílik. Így bármikor átadhatod a könyvelőnek, készíthetsz saját kimutatást, vagy egyszerűen biztonsági másolatot tarthatsz. Az adataid a tieid — nem vagy bezárva a rendszerbe.',
+        points: ['Gyorsan átadhatod a könyvelőnek', 'Saját kimutatást készíthetsz belőle', 'Az adataid a tieid, nem vagy bezárva a rendszerbe'],
+        body: 'A foglalásokat, a vendéglistát és a munkatársakat egy kattintással letöltöd CSV-ben, ami Excelben és Google Táblázatban is megnyílik.',
+        cta: 'Töltsd le az adataidat',
         example: 'Év végén a könyvelő kéri a foglalások listáját. Egy kattintással letöltöd CSV-ben, és Excelben már szűrheti is.',
       },
     ],
@@ -435,8 +451,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         slug: 'eloleg', title: 'Előleg', icon: HandCoins,
         desc: 'Kártyás előleg, automatikus visszatérítéssel.',
         pain: 'Lefoglalják az időpontot, aztán nem jönnek el — és a kiesett bevételt te fizeted meg.',
-        points: ['A vendég foglaláskor kártyával fizet: fix összeget, százalékot vagy fejenkénti díjat', 'Időben lemondott foglalásnál az előleg automatikusan visszajár', 'A pénz egyenesen a te Stripe-fiókodba érkezik, mi nem nyúlunk hozzá'],
-        body: 'Te döntöd el, mennyi előleget kérsz: fix összeget, a szolgáltatás árának egy százalékát, vagy étteremben fejenkénti díjat. A vendég már foglaláskor látja a pontos összeget és a lemondási határidőt, így nincs meglepetés. Ha a határidő előtt mond le, az előleg magától visszamegy a kártyájára — neked semmit nem kell tenned. Ha később mond le vagy nem jön el, az előleg nálad marad, és kompenzálja a kiesett bevételt.',
+        points: ['Kevesebb vendég marad el szó nélkül', 'Ha mégis elmarad, az előleg kompenzálja a kiesést', 'A pénz egyenesen a te Stripe-fiókodba érkezik'],
+        body: 'Fix összeget, százalékot vagy étteremben fejenkénti díjat kérhetsz előlegként, amit a vendég foglaláskor kártyával fizet. Időben lemondott foglalásnál magától visszajár.',
+        cta: 'Kérj előleget foglaláskor',
         example: 'Egy masszázsszalon 30%-os előleget kér a 90 perces kezelésekre. A vendég két nappal előtte lemondja — az előleg magától visszamegy a kártyájára, a szalonnak nincs teendője.',
       },
       {
@@ -444,16 +461,18 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/penz/ajandekutalvany.webp',
         desc: 'Online vásárlás, QR-kódos beváltás.',
         pain: 'Az ajándékutalványt papíron állítod ki, és nehéz követni, mi lett beváltva.',
-        points: ['A vendég online vásárol utalványt a foglalóoldaladon', 'Helyben is kiállíthatsz, fizetési linkkel vagy készpénzes fizetéssel', 'Beváltás QR-kóddal, a lejárat és az állapot mindig látszik'],
-        body: 'Létrehozod az utalvány-típusokat (pl. 10 000 Ft-os ajándékkártya vagy egy konkrét kezelés), beállítod az érvényességet és az összeghatárt, a vendég pedig a foglalóoldaladon kártyával megveszi. A vásárló és a megajándékozott is e-mailben kapja meg, saját kóddal és QR-kóddal. Helyben is kiállíthatsz utalványt: fizetési linket küldesz, vagy rögzíted, hogy a vendég már kifizette. Beváltáskor beírod a kódot vagy beolvasod a QR-kódot, és a rendszer azonnal jelzi, érvényes-e.',
+        points: ['Plusz bevétel akkor is, amikor épp nincs foglalás', 'Beváltáskor a QR-kód beolvasása után azonnal látod, érvényes-e', 'Minden utalvány lejárata és állapota egy helyen'],
+        body: 'A vendég a foglalóoldaladon kártyával vesz ajándékutalványt, és e-mailben kapja meg saját kóddal és QR-kóddal. Helyben is kiállíthatsz utalványt, fizetési linkkel vagy készpénzes fizetéssel.',
+        cta: 'Árulj ajándékutalványt online',
         example: 'December közepén egy vendég online vesz egy 20 000 Ft-os utalványt az édesanyjának. Mindketten megkapják e-mailben, januárban pedig a pultnál egy QR-kód beolvasásával beváltják.',
       },
       {
         slug: 'automatikus-szamla', title: 'Automatikus számla', icon: ReceiptText,
         desc: 'Számlázz.hu vagy Billingo, magától kiállítva.',
         pain: 'Minden előlegről és utalványról kézzel kell számlát kiállítani.',
-        points: ['Sikeres fizetés után a számla magától elkészül', 'A saját Számlázz.hu vagy Billingo fiókodból, a vendég e-mailben kapja', 'Cégként vásárló vendégnek adószámos számla'],
-        body: 'Összekötöd a saját Számlázz.hu vagy Billingo fiókodat, és minden sikeres kártyás fizetés után — előlegnél és ajándékutalványnál is — a számla magától elkészül a te nevedre, a te számlázódban. A vendég e-mailben kapja meg közvetlenül a számlázótól. Ha a vendég cégként vásárol, megadhatja a cégnevet és az adószámát, és adószámos számlát kap. A kapcsolat állapotát a beállításokban élőben látod, így azonnal kiderül, ha valami nem működik.',
+        points: ['Nem kell egyesével számlát kiállítanod', 'Cégként vásárló vendég adószámos számlát kap', 'Ha a kapcsolat hibás, a beállításokban azonnal látod'],
+        body: 'Összekötöd a Számlázz.hu vagy Billingo fiókodat, és minden kártyás fizetés után a számla magától elkészül a nevedre. A vendég e-mailben kapja meg.',
+        cta: 'Kösd be a számlázódat',
         example: 'Egy cég ajándékutalványt vásárol a munkatársainak. Megadja az adószámát, és a fizetés után néhány perccel megkapja az adószámos számlát a Számlázz.hu-ból.',
       },
       {
@@ -461,8 +480,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/penz/szamlak.webp',
         desc: 'Kiállított számlák, PDF-előnézet, letöltés.',
         pain: 'A kiállított számlák a számlázóban vannak, külön kell keresgélni őket.',
-        points: ['Az összes kiállított számla egy listában', 'Szűrés típus és állapot szerint', 'PDF-előnézet és letöltés egy kattintással'],
-        body: 'A rendszerben kiállított összes számla egy táblázatban látszik: típus, vevő, összeg, dátum és állapot szerint, kereséssel és szűrőkkel. Így egy pillantással látod, melyik előlegről vagy utalványról készült már számla, és melyiknél volt hiba. Számlázz.hu-nál a számla PDF-je egy kattintással megnyílik előnézetben, és le is töltheted — nem kell külön belépned a számlázóba, ha a könyvelőnek vagy a vendégnek kell.',
+        points: ['Egy pillantással látod, melyik fizetésről készült már számla', 'A hibás számla azonnal kiderül', 'Számlázz.hu-nál a PDF egy kattintással megnyílik, nem kell külön belépned'],
+        body: 'Az összes kiállított számla egy listában látszik típus, vevő, összeg és állapot szerint, kereséssel és szűrőkkel.',
+        cta: 'Nézd meg a számláidat',
         example: 'A könyvelő kéri a múlt havi előleg-számlákat. Típusra és hónapra szűrsz, megnyitod a PDF-eket, és letöltöd őket — a számlázóba be sem kell lépned.',
       },
     ],
@@ -530,32 +550,36 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/marketing/hirlevel.webp',
         desc: 'Szerkesztő, kampányok, megnyitás-mérés.',
         pain: 'A visszatérő vendég a legolcsóbb vendég, de nincs egyszerű módod elérni őket.',
-        points: ['Hírlevél-szerkesztő élő előnézettel', 'Csak a feliratkozott vendégeknek, leiratkozási lehetőséggel', 'Látod, ki nyitotta meg a levelet'],
-        body: 'A hírlevél-szerkesztőben élő előnézettel írod meg a levelet, és csak azoknak a vendégeknek küldöd ki, akik foglaláskor feliratkoztak. Minden levélben ott a leiratkozás lehetősége, így megfelel a szabályoknak. Kiküldés után látod, kik nyitották meg, a korábbi kampányaid pedig egy listában visszakereshetők. Ország szerint is szűrheted a címzetteket.',
+        points: ['Visszahozod a rég nem látott vendégeket', 'Megfelel a szabályoknak, minden levélben ott a leiratkozás', 'Ország szerint is szűrheted a címzetteket'],
+        body: 'A hírlevél-szerkesztőben élő előnézettel írod meg a levelet, és csak a feliratkozott vendégeknek küldöd ki. Kiküldés után látod, kik nyitották meg.',
+        cta: 'Írd meg az első hírleveled',
         example: 'Egy szalon új arckezelést vezet be. Ír egy rövid hírlevelet a feliratkozott vendégeknek, és másnap látja, hányan nyitották meg — az első foglalások aznap be is jönnek.',
       },
       {
         slug: 'google-ertekeles', title: 'Google-értékelés gyűjtése', icon: Star,
         desc: 'Értékeléskérés automatikusan, a látogatás után.',
         pain: 'Az elégedett vendégek ritkán írnak értékelést maguktól.',
-        points: ['A látogatás után a vendég automatikusan értékeléskérő e-mailt kap', 'Egy kattintással a Google-értékeléshez jut', 'Te döntöd el, mennyi idő múlva menjen ki'],
-        body: 'A látogatás után a vendég automatikusan kap egy rövid e-mailt, amely egy kattintással a Google-értékelésedhez viszi. Te döntöd el, mennyi idő múlva menjen ki — egy, két órával később vagy másnap. Így az elégedett vendégek is értékelnek, nem csak az elégedetlenek, és az értékeléseid száma folyamatosan nő.',
+        points: ['Az elégedett vendégek is értékelnek, nem csak az elégedetlenek', 'Folyamatosan nő az értékeléseid száma', 'Nem kell senkit külön megkérned'],
+        body: 'A látogatás után a vendég automatikusan kap egy rövid e-mailt, amely egy kattintással a Google-értékelésedhez viszi. Te döntöd el, mennyi idő múlva menjen ki.',
+        cta: 'Gyűjts több Google-értékelést',
         example: 'Egy étteremben a vacsora után két órával a vendég rövid e-mailt kap. Egy kattintással a Google-re jut, és ír egy ötcsillagos értékelést.',
       },
       {
         slug: 'google-cegprofil', title: 'Google Cégprofil', icon: Building2,
         desc: 'Google-értékelések a foglalóoldaladon.',
         pain: 'A jó értékeléseid a Google-ön vannak, a foglalóoldaladon nem látszanak.',
-        points: ['Összekötöd a Google Cégprofiloddal', 'Az értékelésed és a csillagaid megjelennek a foglalóoldalon', 'A vendég egy kattintással a Google-profilodra jut'],
-        body: 'Összekötöd a foglalóoldaladat a Google Cégprofiloddal, és az értékelésed meg a csillagaid megjelennek a foglalóoldalon. Az új vendég így foglalás előtt látja, mit mondanak rólad mások, és egy kattintással a Google-profilodra juthat. A jó értékelések így nem csak a Google-ön, hanem a saját oldaladon is dolgoznak neked.',
+        points: ['Az új vendég foglalás előtt látja, mit mondanak rólad', 'A jó értékelések a saját oldaladon is dolgoznak neked', 'A vendég egy kattintással a Google-profilodra jut'],
+        body: 'Összekötöd a foglalóoldaladat a Google Cégprofiloddal, és az értékelésed meg a csillagaid megjelennek a foglalóoldalon.',
+        cta: 'Kösd össze a Google-profiloddal',
         example: 'Egy új vendég a foglalóoldalon látja a 4,9-es Google-értékelést és a véleményeket, így bizalommal foglal.',
       },
       {
         slug: 'qr-kod', title: 'QR-kód az üzletnek', icon: QrCode,
         desc: 'Kirakatba, asztalra, névjegyre.',
         pain: 'Aki az üzleted előtt sétál el, nem tud azonnal foglalni.',
-        points: ['Kész QR-kód a foglalóoldaladra', 'Letölthető és nyomtatható', 'Kirakatba, asztalra, névjegykártyára'],
-        body: 'A rendszer kész QR-kódot készít a foglalóoldaladhoz, amit letölthetsz és kinyomtathatsz. Tedd ki a kirakatba, a pultra, az asztalokra vagy a névjegykártyádra — aki beolvassa, azonnal a foglalóoldaladon találja magát. Így az is foglalhat, aki éppen az üzleted előtt sétál el, vagy zárás után néz be.',
+        points: ['Az is foglal, aki épp az üzleted előtt sétál el', 'Zárás után is jönnek a foglalások', 'Kirakatba, asztalra vagy névjegykártyára is kiteheted'],
+        body: 'A rendszer kész QR-kódot készít a foglalóoldaladhoz, amit letöltesz és kinyomtatsz. Aki beolvassa, azonnal a foglalóoldaladon van.',
+        cta: 'Töltsd le a QR-kódod',
         example: 'Egy barber szalon a kirakatba tesz egy QR-kódot. Egy járókelő zárás után beolvassa, és másnapra foglal időpontot.',
       },
     ],
@@ -622,16 +646,18 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         slug: 'munkatarsak', title: 'Munkatársak', icon: Users,
         desc: 'Profil, heti óraszám, saját naptár.',
         pain: 'Nem látszik, ki mikor dolgozik, és melyik szolgáltatást ki végzi.',
-        points: ['Munkatárs-profil fotóval, szolgáltatásokkal és heti óraszámmal', 'Mindenkinek saját naptár és saját nyitvatartás', 'Meghívás e-mailben, saját belépéssel'],
-        body: 'Minden munkatársnak profilja van fotóval, pozícióval, a szolgáltatásokkal, amelyeket végez, és a heti óraszámával. Szalonnál mindenkinek saját naptára és saját nyitvatartása lehet, így a vendég csak azt az időpontot látja, amikor az adott szakember valóban ráér. Az új munkatársat e-mailben hívod meg, és saját belépéssel csatlakozik.',
+        points: ['A vendég csak akkor foglal, amikor az adott szakember ráér', 'Az új munkatársat e-mailben hívod meg, saját belépéssel', 'Mindenki a saját telefonján látja a napját'],
+        body: 'Minden munkatársnak profilja van fotóval, pozícióval és a szolgáltatásaival. Szalonban mindenkinek saját naptára és nyitvatartása lehet.',
+        cta: 'Hívd meg a csapatodat',
         example: 'Egy új kolléga érkezik a szalonba. Meghívod e-mailben, beállítod a szolgáltatásait és a heti óraszámát, és a vendégek másnap már foglalhatnak hozzá.',
       },
       {
         slug: 'jogosultsagok', title: 'Jogosultságok', icon: ShieldCheck,
         desc: 'Szerepek: ki mit lát és mit módosíthat.',
         pain: 'Nem szeretnéd, hogy mindenki lássa a bevételt vagy módosíthassa a beállításokat.',
-        points: ['Saját szerepek, pontosan beállított jogokkal', 'Ki látja a statisztikát, ki kezeli a foglalásokat', 'Audit-napló: visszakövethető, ki mit módosított'],
-        body: 'Saját szerepeket hozhatsz létre, és pontosan beállíthatod, ki mit lát és mit módosíthat: ki kezeli a foglalásokat, ki látja a statisztikát és a bevételt, ki módosíthatja a beállításokat. Az audit-naplóban visszakövethető, ki mikor mit változtatott meg, így mindig tudod, mi történt az üzletedben.',
+        points: ['A bevételt csak az látja, akinek kell', 'Senki nem állít át véletlenül egy fontos beállítást', 'Ha kérdés van, kiderül, ki mit csinált'],
+        body: 'Saját szerepeket hozol létre, és beállítod, ki mit lát és mit módosíthat. Az audit-naplóban visszakövethető, ki mikor mit változtatott.',
+        cta: 'Állítsd be a jogosultságokat',
         example: 'A recepciós kezeli a foglalásokat és a vendégeket, de a bevételt és a beállításokat nem látja. Ha valaki módosít egy foglalást, az audit-naplóban visszakereshető.',
       },
       {
@@ -639,16 +665,18 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         image: '/landing/funkciok/csapat/statisztikak.webp',
         desc: 'Bevétel, kihasználtság, foglalás-források.',
         pain: 'Érzésre döntesz, mert nem látod a számokat.',
-        points: ['Kihasználtság, bevétel és foglalások száma időszakonként', 'Honnan jönnek a foglalások: online, telefon, beeső', 'Összevetés az előző időszakkal'],
-        body: 'A statisztikákban látod a foglalások számát, a kihasználtságot és a bevételt napra, hétre vagy hónapra bontva, és összevetheted őket az előző időszakkal. Kiderül, honnan jönnek a foglalások — online, telefonon vagy beeső vendégként —, és mely napok, órák a legerősebbek. Érzés helyett számok alapján dönthetsz nyitvatartásról, beosztásról és árakról.',
+        points: ['Kiderül, melyik nap és óra a legerősebb', 'Látod, honnan jönnek a foglalások: online, telefon vagy beeső', 'Érzés helyett számok alapján döntesz árakról és nyitvatartásról'],
+        body: 'Látod a foglalások számát, a kihasználtságot és a bevételt napra, hétre vagy hónapra, az előző időszakkal összevetve.',
+        cta: 'Nézd meg a számaidat',
         example: 'Egy étterem a statisztikában látja, hogy kedden alig van foglalás, péntek este viszont teltház. Keddre akciós menüt indít, péntekre még egy pincért oszt be.',
       },
       {
         slug: 'mobil-app', title: 'Mobil app', icon: Smartphone,
         desc: 'Telefonra telepíthető, offline is működik.',
         pain: 'Nem mindig ülsz gép előtt, de a foglalásokat mindig látnod kell.',
-        points: ['Telefonra telepíthető, app store nélkül', 'Értesítések a telefonodra', 'Gyenge térerőnél is működik, a változások később szinkronizálódnak'],
-        body: 'A rendszert telefonra telepítheted, mint egy appot, app store nélkül, és a telefonod értesítést küld minden új foglalásról. Gyenge térerőnél sem áll le: amit offline rögzítesz, az vázlatként elmentődik, és amint újra van internet, szinkronizálódik. Így a pultnál, úton vagy otthonról is mindig látod és kezeled a foglalásokat.',
+        points: ['A pultnál, úton vagy otthonról is kezeled a foglalásokat', 'Gyenge térerőnél is működik, a változások később szinkronizálódnak', 'Nem kell semmit letöltened az app store-ból'],
+        body: 'A rendszert app store nélkül telepíted a telefonodra, és értesítést kapsz minden új foglalásról.',
+        cta: 'Telepítsd a telefonodra',
         example: 'Az üzletvezető vasárnap otthonról nézi a hétfői foglalásokat a telefonján, és értesítést kap, amikor beesik egy új foglalás.',
       },
     ],
@@ -659,27 +687,15 @@ export function featureGroupBySlug(slug: string): FeatureGroup | undefined {
   return FEATURE_GROUPS.find((g) => g.slug === slug)
 }
 
-/** Élesek-e már a /funkciok oldalak. Amíg false: élesben (build) minden funkció-link a főoldal
- *  funkció-szekciójára visz és a sitemap/llms.txt sem sorolja fel őket (ne legyen 404); fejlesztés
- *  közben (npm run dev) a linkek már az aloldalakra mutatnak. Ha kész: true, és mehet a push. */
-export const FEATURE_PAGES_PUBLIC = false
-export const featurePagesOn = FEATURE_PAGES_PUBLIC || process.env.NODE_ENV === 'development'
-const FEATURES_FALLBACK = '/#funkciok'
-
-/** Egy /funkciok… útvonal — vagy, amíg az oldalak nem élesek, a főoldal funkció-szekciója. */
-export function featurePath(path: string): string {
-  return featurePagesOn ? path : FEATURES_FALLBACK
-}
-
-/** A csoport-oldal címe (amíg nincs kész, a főoldal funkció-szekciója). */
+/** A csoport-oldal címe (ha a csoport még nincs kész, a főoldal funkció-szekciója). */
 export function groupHref(g: FeatureGroup): string {
-  return g.ready && featurePagesOn ? `/funkciok/${g.slug}` : FEATURES_FALLBACK
+  return g.ready ? `/funkciok/${g.slug}` : '/#funkciok'
 }
 
 /** Hova visz egy funkció menüpontja: a csoport-oldal megfelelő szakaszára. */
 export function featureHref(f: LandingFeature): string {
   const g = FEATURE_GROUPS.find((gr) => gr.items.some((i) => i.slug === f.slug))
-  return g?.ready && featurePagesOn ? `/funkciok/${g.slug}#${f.slug}` : FEATURES_FALLBACK
+  return g?.ready ? `/funkciok/${g.slug}#${f.slug}` : '/#funkciok'
 }
 
 /** A csoport borítóképe: a külön borító (mockup), amíg nincs — az első funkcióképe. Ezt használja

@@ -14,9 +14,10 @@ import { VoucherCard, VoucherSalesCard } from './money'
 import { DayTimelineShot, FeatureChapters, RevealText } from './landing-showcase'
 import { sectionShot } from '@/components/landing/designVisuals'
 import { GROUP_PARTS } from './covers'
-import { FEATURE_GROUPS, featurePath, groupHref } from '@/lib/landingFeatures'
+import { FEATURE_GROUPS, groupHref } from '@/lib/landingFeatures'
 import { FitCard } from '@/components/landing/FitCard'
 import { HeroButton } from '@/components/landing/FeatureHeroCentered'
+import { NavOnScrollUp } from '@/components/landing/NavOnScrollUp'
 import { notificationVisual } from '@/lib/useNotifications'
 import type { Notification } from '@/payload/payload-types'
 import { HeroNav } from '@/components/landing/sections/Hero'
@@ -49,7 +50,7 @@ const FACTS = [
   { icon: Users, v: '13 iparág', l: 'fodrásztól a fine diningig — saját oldallal' },
 ]
 /** 2. koncepció: kulcsszavas funkció-kártyák (SEO: a keresett kifejezések H3-ban, belső linkkel a funkció-oldalra) */
-const grp = (id: string) => { const g = FEATURE_GROUPS.find((x) => x.id === id); return g ? groupHref(g) : featurePath('/funkciok') }
+const grp = (id: string) => { const g = FEATURE_GROUPS.find((x) => x.id === id); return g ? groupHref(g) : '/funkciok' }
 const factsK2 = () => [
   { icon: CalendarCheck, v: 'Online időpontfoglalás', l: 'Saját foglalóoldal, ahol a vendég a nap 24 órájában időpontot foglal — fodrászatnak, szépségszalonnak, rendelőnek, stúdiónak.', href: grp('booking') },
   { icon: Layers, v: 'Online asztalfoglalás', l: 'Éttermeknek asztaltérképpel, létszámmal és alkalmakkal — azonnali visszaigazolással vagy kézi jóváhagyással.', href: '/etterem-asztalfoglalas' },
@@ -86,9 +87,9 @@ const TABS = [
 ]
 const PHOTOS = ['/design/boritokep-szalon-ny.webp', '/design/munkatars-viktoria.webp', '/landing/tips/asztalfoglalas-online-etterem-davelopment-booking.jpg', '/landing/tips/elolegkeres-foglalaskor-davelopment-booking.jpg', '/landing/tips/ajandekutalvany-szepsegszalon-davelopment-booking.jpg', '/landing/tips/jogosultsagkezeles-csapat-davelopment-booking.jpg']
 // a beúszók egy `transform`-ban (nem külön x/y/scale): így a framer a böngésző saját animációjával (WAAPI) futtatja, nem JS-ből
-const rise = { hidden: { opacity: 0, transform: 'translateY(24px)' }, show: { opacity: 1, transform: 'translateY(0px)', transition: { type: 'spring' as const, stiffness: 200, damping: 24 } } }
-const inView = { initial: 'hidden', whileInView: 'show', viewport: { once: true, amount: 0.25 } } as const
-const stagger = (s = 0.08) => ({ show: { transition: { staggerChildren: s } } })
+export const rise = { hidden: { opacity: 0, transform: 'translateY(24px)' }, show: { opacity: 1, transform: 'translateY(0px)', transition: { type: 'spring' as const, stiffness: 200, damping: 24 } } }
+export const inView = { initial: 'hidden', whileInView: 'show', viewport: { once: true, amount: 0.25 } } as const
+export const stagger = (s = 0.08) => ({ show: { transition: { staggerChildren: s } } })
 
 /** Végtelen szalag (iparágak) — a két szélen maszkkal elhalványul. */
 function TagRail({ dark = false }: { dark?: boolean }) {
@@ -140,7 +141,7 @@ function GiantWord({ text = 'Foglalás, egyszerűen.', dark = false }: { text?: 
 }
 
 /** Hegyes csúcsú csillag (a lucide Star kerekített sarkú — értékelésnél élesebb, „Google-szerű” csillag kell). */
-function SharpStar({ className = '' }: { className?: string }) {
+export function SharpStar({ className = '' }: { className?: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden className={className}><path fill="currentColor" d="M12 1.5l3.09 6.97 7.41.68-5.6 4.98 1.65 7.37L12 17.77l-6.55 3.73 1.65-7.37-5.6-4.98 7.41-.68z" /></svg>
 }
 
@@ -248,7 +249,7 @@ export function ConceptLight({ rating, trialDays = 14, tail, footer }: { rating?
       <div className="relative z-10 flow-root bg-white">
       {tail}
       {/* záró: a mostani színezett (festett hátterű) CTA — minden oldalon a saját szövegével */}
-      <CtaGlow trial_days={trialDays} button="dark" label="Kezdd el ma" title="Foglalások, káosz nélkül." bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp" plain bgPosition="object-[center_75%]" lead={`${trialDays} napig ingyen próbálhatod — ma beállítod, holnap már foglalnak.`} />
+      <CtaGlow trial_days={trialDays} button="dark" label="Kezdd el ma" title="Foglalások, káosz nélkül." bg="/landing/cta/cta-hatter-davelopment-booking.webp" plain bgPosition="object-[center_75%]" lead={`${trialDays} napig ingyen próbálhatod — ma beállítod, holnap már foglalnak.`} />
       {footer ?? <ConceptLightFooter trialDays={trialDays} />}
       </div>
     </div>
@@ -295,7 +296,7 @@ export function ConceptDark({ rating, trialDays = 14, tail }: { rating?: Rating;
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div><span className={CHIP}>Funkciók</span><h2 className="mt-4 max-w-[640px] text-[clamp(2rem,3.4vw,44px)] font-light leading-[1.08] tracking-[-0.03em]">Minden, ami a foglaláshoz kell, egy rendszerben.</h2></div> {/* ui-allow */}
-            <HeroButton href={featurePath('/funkciok')} label="Összes funkció" />
+            <HeroButton href={'/funkciok'} label="Összes funkció" />
           </div>
           <motion.div {...inView} variants={stagger(0.08)} className="mt-10 grid gap-3 lg:grid-cols-3">
             {FEATURE_GROUPS.filter((g) => GROUP_PARTS[g.id]).map((g, i) => {
@@ -333,7 +334,7 @@ export function ConceptDark({ rating, trialDays = 14, tail }: { rating?: Rating;
         <img src={PHOTOS[2]} alt="" className="h-[420px] w-full rounded-ui-card object-cover" /> {/* eslint-disable-line @next/next/no-img-element */}
         <div>
           <h2 className="text-[clamp(2rem,3.4vw,44px)] font-light leading-[1.08] tracking-[-0.03em]">Legyen a foglalás a növekedés motorja, ne a telefon.</h2> {/* ui-allow */}
-          <div className="mt-6"><HeroButton href={featurePath('/funkciok')} label="Nézd meg a funkciókat" /></div>
+          <div className="mt-6"><HeroButton href={'/funkciok'} label="Nézd meg a funkciókat" /></div>
           <div className="mt-8 space-y-2.5">{VALUES.map(({ icon: I, t, d }) => <div key={t} className="flex items-start gap-3 text-ui-body text-ui-muted"><I className="mt-0.5 h-4 w-4 shrink-0 text-ui-text" /><span><span className="text-ui-text">{t}.</span> {d}</span></div>)}</div>
         </div>
       </section>
@@ -508,32 +509,6 @@ function NotifTicker() {
 /** A 2. koncepció hero-ja: a sziklás fekete-fehér háttér (felül világos ég, alul a hegygerinc), benne az aloldalak menüje,
  *  középen a háromrészes cím, egy sötét gomb, és a hegyek elől kiemelkedő telefon (Foglalások · nap-idővonal) két
  *  becsúszó értesítés-chippel. */
-/** Visszagörgetéskor előjövő menü: lefelé görgetve rejtve, felfelé görgetve (a hero alatt) lecsúszik a képernyő tetejére —
- *  ugyanaz a középre összehúzott menü, fehér, finoman elmosott sávon. A hero tetején a saját (álló) menü látszik. */
-// mobilon TÖMÖR fehér: az iOS 26 Safari ennek a színét veszi a felső sávnak, az áttetszőt szürkének látja.
-// Elrejtve `invisible` is (nem csak kitolva): különben az iOS 26 Safari ezt a fixed, tetőt érintő elemet veszi a felső
-// sáv színének (fehér), a hero színes rétege helyett
-function NavOnScrollUp() {
-  const [show, setShow] = useState(false)
-  useEffect(() => {
-    let last = window.scrollY
-    const on = () => {
-      const y = window.scrollY
-      if (y < 400) setShow(false)
-      else if (y < last - 4) setShow(true)
-      else if (y > last + 4) setShow(false)
-      last = y
-    }
-    window.addEventListener('scroll', on, { passive: true })
-    return () => window.removeEventListener('scroll', on)
-  }, [])
-  return (
-    <div aria-hidden={!show} className={`fixed inset-x-0 top-0 z-[60] border-b border-ui-divider bg-white px-4 py-2 lg:bg-white/85 lg:backdrop-blur-xl transition-[transform,visibility] duration-300 ease-out lg:px-5 ${show ? 'visible translate-y-0' : 'pointer-events-none invisible -translate-y-full'}`}>
-      <div className="mx-auto max-w-[1040px]"><HeroNav theme="light" pillId="k2-nav-sticky" variant="plain" /></div>
-    </div>
-  )
-}
-
 // Görgetés-animáció hardveresen (framer natív ScrollTimeline/ViewTimeline): csak akkor kapcsol be, ha (1) az offset
 // egy beépített minta (exit = 'start start'→'end start', cover = 'start end'→'end start'), (2) egyben `transform`/`opacity`
 // értéket kap (nem külön y/scale), és (3) a target ref már megvan, amikor a mozgó elem csatlakozik — ezért a target egy
@@ -617,8 +592,16 @@ export function ConceptLightHero({ trialDays = 14 }: { trialDays?: number }) {
 /* ═════════════════════════════ 2/b. KÉZ + BUBORÉKOK (a pillo „how it works” mintájára) ═════════════════════════════ */
 
 /** Fehér háttéren a telefont tartó kéz (a Foglalások nap-idővonala), és görgetésre a telefonból három üveges „buborék”
- *  bomlik ki a kit kártyáival (létszám, utalvány-eladás, jóváhagyásra váró foglalás). A kéz alja fehérbe olvad. */
-export function HandBubbles() {
+ *  bomlik ki a kit kártyáival (létszám, utalvány-eladás, jóváhagyásra váró foglalás). A kéz alja fehérbe olvad.
+ *  Paraméterezve a funkció-oldalak is ezt használják (a csoport kezes képével, címével és buborékjaival) — `bubbles`:
+ *  legfeljebb 3, egymás után úsznak ki (pozíció-osztály, a kártya természetes szélessége, maga a kártya). */
+export type HandBubble = { pos: string; w: number; el: React.ReactNode; /** a saját kártya-kinézetű widget: üveg-keret és árnyék NÉLKÜL */ bare?: boolean }
+export function HandBubbles({ title = 'Minden a zsebedben.', lead = 'Foglalás, bevétel és jóváhagyás egy appban — ott, ahol épp vagy.', img = '/landing/hero/foglalasok-feature-davelopment-booking.webp', alt = 'davelopment booking a telefonon — a Foglalások nap-idővonala', bubbles, late = false }: {
+  title?: string; lead?: string; img?: string; alt?: string; bubbles?: HandBubble[]
+  /** telefonon később bomlanak ki a buborékok (a funkció-oldalakon a blokk rögtön a hero alatt van — különben a bounce
+   *  már az első görgetésnél lefut, mielőtt a kéz a képernyő közepére érne) */
+  late?: boolean
+} = {}) {
   const ref = useRef<HTMLElement>(null)
   const tl = useRef<HTMLDivElement>(null)
   // 'cover' (COVER_OFFSET, natív): a régi 'start end → center center' a 0–0,5 szakasz, ezért a tartományok feleződtek
@@ -633,9 +616,13 @@ export function HandBubbles() {
       [from, from + (to - from) * 0.6, from + (to - from) * 0.8, to],
       [`translate(${dx}, ${dy}) scale(0.35)`, 'translate(0%, 0%) scale(1.06)', 'translate(0%, 0%) scale(0.985)', 'translate(0%, 0%) scale(1)'])),
   })
-  const b1 = bubble(0.175, 0.375, '90%', '60%')
-  const b2 = bubble(0.25, 0.45, '-90%', '20%')
-  const b3 = bubble(0.31, 0.525, '-80%', '-60%')
+  // `late` + telefon: a pálya 0,12-vel később indul (a natív animáció a csatoláskor rögzül → a buborékok key-jel újracsatolnak)
+  const [mob, setMob] = useState(false)
+  useEffect(() => { const m = window.matchMedia('(max-width: 1023px)'); const f = () => setMob(m.matches); f(); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, [])
+  const d = late && mob ? 0.12 : 0
+  const b1 = bubble(0.175 + d, 0.375 + d, '90%', '60%')
+  const b2 = bubble(0.25 + d, 0.45 + d, '-90%', '20%')
+  const b3 = bubble(0.31 + d, 0.525 + d, '-80%', '-60%')
   // a kártyák tartalma akkor animál be (görbe kirajzolódik, oszlopok felnőnek, sorok beúsznak), amikor a szakasz
   // a képernyőre ér — és újra, ha visszagörgetsz. React-renderelés NÉLKÜL: a szakasz data-anim attribútumát közvetlenül
   // a DOM-on váltjuk, a CSS (globals.css, [data-anim="off"]) addig kikapcsolja az animációkat, a visszakapcsolás
@@ -663,18 +650,22 @@ export function HandBubbles() {
     <section ref={ref} data-anim="off" className="relative overflow-clip bg-white px-4 pb-10 pt-24 font-onest">
       <div ref={tl} aria-hidden className="pointer-events-none absolute inset-0" />
       <motion.div key={desk ? 'd' : 'm'} style={{ opacity: titleOpacity, transform: titleT }} className="relative z-0 mx-auto max-w-[640px] text-center">
-        <h2 className="text-[clamp(2rem,3.6vw,48px)] font-medium leading-[1.05] tracking-[-0.035em] text-ui-text">Minden a zsebedben.</h2> {/* ui-allow: szakaszcím */}
-        <p className="mt-4 text-ui-row text-ui-muted">Foglalás, bevétel és jóváhagyás egy appban — ott, ahol épp vagy.</p>
+        <h2 className="text-[clamp(2rem,3.6vw,48px)] font-medium leading-[1.05] tracking-[-0.035em] text-ui-text">{title}</h2> {/* ui-allow: szakaszcím */}
+        <p className="mt-4 text-ui-row text-ui-muted">{lead}</p>
       </motion.div>
       <div className="relative z-10 mt-6 aspect-[2840/1894] w-[180%] max-w-none -translate-x-[22%] sm:w-[130%] sm:-translate-x-[11.5%] lg:mx-auto lg:w-auto lg:max-w-[1100px] lg:translate-x-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/landing/hero/foglalasok-feature-davelopment-booking.webp" alt="davelopment booking a telefonon — a Foglalások nap-idővonala" loading="lazy" className="absolute inset-0 h-full w-full object-contain" />
+        <img src={img} alt={alt} loading="lazy" className="absolute inset-0 h-full w-full object-contain" />
         {/* a kéz alja fehérbe olvad, hogy ne látszódjon a levágás */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[34%] bg-gradient-to-t from-white via-white/75 to-transparent" />
-        {/* a három buborék (a telefonból bomlanak ki) */}
-        <motion.div style={b1} className="absolute left-[22.5%] top-[28%] w-[22%] sm:left-[25%] sm:w-[17%] lg:left-[22%]"><div className={glass}><FitCard w={380}><RestPartyCard animate className="bg-white" /></FitCard></div></motion.div>
-        <motion.div style={b2} className="absolute left-[53%] top-[25%] w-[25%] sm:left-[60%] sm:w-[19%] lg:left-[63%]"><div className={glass}><FitCard w={420}><VoucherSalesCard animate /></FitCard></div></motion.div>
-        <motion.div style={b3} className="absolute left-[55.5%] top-[66%] w-[21%] sm:left-[61%] sm:w-[16%] lg:left-[63%]"><div className={glass}><FitCard w={380}><div className="ui-rise-kids"><PendingApproval className="w-full" /></div></FitCard></div></motion.div>
+        {/* a buborékok (a telefonból bomlanak ki, egymás után) */}
+        {(bubbles ?? ([] as HandBubble[]).concat([
+          { pos: 'left-[22.5%] top-[28%] w-[22%] sm:left-[25%] sm:w-[17%] lg:left-[22%]', w: 380, el: <RestPartyCard animate className="bg-white" /> },
+          { pos: 'left-[53%] top-[25%] w-[25%] sm:left-[60%] sm:w-[19%] lg:left-[63%]', w: 420, el: <VoucherSalesCard animate /> },
+          { pos: 'left-[55.5%] top-[66%] w-[21%] sm:left-[61%] sm:w-[16%] lg:left-[63%]', w: 380, el: <div className="ui-rise-kids"><PendingApproval className="w-full" /></div> },
+        ])).slice(0, 3).map((bb, i) => (
+          <motion.div key={`${i}${d}`} style={[b1, b2, b3][i]} className={`absolute ${bb.pos}`}>{bb.bare ? <FitCard w={bb.w}>{bb.el}</FitCard> : <div className={glass}><FitCard w={bb.w}>{bb.el}</FitCard></div>}</motion.div>
+        ))}
       </div>
     </section>
   )
@@ -804,7 +795,6 @@ function StackCard({ it, i, n, progress }: { it: (typeof STACK)[number]; i: numb
     <motion.a href={`/${it.slug}`} style={{ transform, zIndex: i + 1 }} className="group absolute inset-0 block will-change-transform overflow-hidden rounded-ui-inner shadow-[0_24px_60px_-28px_rgba(0,0,0,.4)]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={`/landing/marquee/${it.slug}-davelopment-booking.webp`} alt={`${it.name.replace(/nak$|nek$/, '')} — online foglalás a davelopment bookinggal`} loading="eager" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-      <span className="absolute bottom-4 left-4 rounded-full bg-white/95 px-4 py-2 text-ui-body text-ui-text">{it.name}</span>
     </motion.a>
   )
 }
@@ -930,7 +920,7 @@ export function DailyOps({ rating }: { rating?: Rating } = {}) {
       <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
         {/* mobilon csak a funkciók gomb (a regisztráció a fejlécben és a szakaszok végén is ott van) */}
         <span className="hidden sm:inline-flex"><HeroButton href="/register" label="Töltsd meg a naptárad" /></span>
-        <a href={featurePath('/funkciok')} className="ui-press inline-flex h-11 items-center rounded-full bg-ui-cell px-5 text-ui-row text-ui-text transition-colors hover:bg-ui-divider">Nézd meg a funkciókat</a>
+        <a href={'/funkciok'} className="ui-press inline-flex h-11 items-center rounded-full bg-ui-cell px-5 text-ui-row text-ui-text transition-colors hover:bg-ui-divider">Nézd meg a funkciókat</a>
       </div>
     </section>
     {/* külön: a magas kártyás két oszlop (lenyitható előnyök + a telefont tartó kéz), cím pill nélkül */}
@@ -950,7 +940,7 @@ export function DailyOps({ rating }: { rating?: Rating } = {}) {
         </motion.div>
         <motion.div variants={rise} className="relative min-h-[440px] overflow-hidden rounded-ui-container bg-ui-yellow/15">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/landing/hero/foglalasok-feature-davelopment-booking.webp" alt="A davelopment booking a telefonon — a Foglalások nap-idővonala" loading="lazy" className="absolute -bottom-6 left-1/2 h-[112%] max-w-none -translate-x-1/2 object-contain" />
+          <img src="/landing/hero/attekintes-feature-davelopment-booking.webp" alt="A davelopment booking a telefonon — az Áttekintés: a mai nap foglalásai és bevétele" loading="lazy" className="absolute -bottom-6 left-1/2 h-[112%] max-w-none -translate-x-1/2 object-contain" />
         </motion.div>
       </motion.div>
     </section>
@@ -972,13 +962,15 @@ const STEP_SCREENS: React.ReactNode[] = [
 /** „Kezdd el 3 egyszerű lépésben” — a régi „Hogyan működik” viselkedése: a három kártya egymás mellett, rámutatva a kártya
  *  kinyílik (szélesebb lesz), és a jobb felében megjelenik a lépés képernyője a rendszerből, iPhone-keretben. Mobilon egymás
  *  alatt, mindegyik a saját telefonjával. A #hogyan horgonyt megtartja. */
-export function StepsK2({ id = 'hogyan', head = { pill: 'Hogyan működik', title: 'Kezdd el 3 egyszerű lépésben.', lead: '5 perc, és éles a foglalóoldalad — nem kell hozzá informatikus.' }, steps = HOW_STEPS, phones }: {
+export function StepsK2({ id = 'hogyan', head = { pill: 'Hogyan működik', title: 'Kezdd el 3 egyszerű lépésben.', lead: '5 perc, és éles a foglalóoldalad — nem kell hozzá informatikus.' }, steps = HOW_STEPS, phones, fills }: {
   id?: string
   head?: { pill: string; title: string; lead?: string }
   /** a lépések (cím + mondat) — alapból a főoldaliak */
   steps?: { title: string; body: string }[]
   /** a lépések kész telefonjai (keretestül) — alapból a főoldali képernyők a PhoneFrameK2-ben */
   phones?: React.ReactNode[]
+  /** telefon helyett a képmezőt teljesen kitöltő képek (pl. a funkció-oldalak kártya-kompozíciói) */
+  fills?: React.ReactNode[]
 } = {}) {
   const [active, setActive] = useState(0)
   const phone = (i: number, cls: string) => phones ? <div className={cls}>{phones[i]}</div> : <PhoneFrameK2 className={cls}>{STEP_SCREENS[i]}</PhoneFrameK2>
@@ -993,13 +985,17 @@ export function StepsK2({ id = 'hogyan', head = { pill: 'Hogyan működik', titl
               className={`relative flex min-h-[260px] cursor-pointer flex-col overflow-hidden rounded-ui-container bg-ui-yellow/15 transition-[flex-grow] duration-500 ease-out lg:min-h-0 ${on ? 'lg:flex-[2_1_0%]' : 'lg:flex-[1_1_0%]'}`}>
               {/* a telefon: mobilon mindig, desktopon csak a kinyílt kártya jobb felében */}
               {/* a telefon fehér, lekerekített képmezőben (krém kártya, fehér képmező — mint a funkció-kártyákon) */}
-              <div className={`pointer-events-none absolute bottom-3 right-3 top-3 w-[240px] overflow-hidden rounded-ui-card bg-white transition-opacity duration-300 max-lg:hidden ${on ? 'opacity-100 delay-200' : 'opacity-0'}`}>
+              <div className={`pointer-events-none absolute bottom-3 right-3 top-3 ${fills ? 'w-[290px]' : 'w-[240px]'} overflow-hidden rounded-ui-card bg-white transition-opacity duration-300 max-lg:hidden ${on ? 'opacity-100 delay-200' : 'opacity-0'}`}>
+                {fills ? fills[i] : <>
                 {phone(i, 'absolute left-1/2 top-7 w-[190px] -translate-x-1/2')}
                 <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
+                </>}
               </div>
               <div className="relative mx-3 mt-3 h-[240px] overflow-hidden rounded-ui-card bg-white lg:hidden">
+                {fills ? fills[i] : <>
                 {phone(i, 'absolute left-1/2 top-6 w-[190px] -translate-x-1/2')}
                 <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
+                </>}
               </div>
               {/* szöveg: felül a sorszám, alul a cím és a mondat (a kinyílt kártyán a bal felében) */}
               <div className="relative z-10 flex flex-1 flex-col justify-between p-6 lg:w-[min(260px,100%)]">

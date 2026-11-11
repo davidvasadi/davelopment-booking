@@ -5,7 +5,6 @@ import { EASE, SPRING_QUICK, SPRING_SNAPPY } from '@/lib/motion'
 import { HeroNav } from '@/components/landing/sections/Hero'
 import { HeroButton } from '@/components/landing/FeatureHeroCentered'
 import { GrainCanvas, DARK_SURFACE_BG } from '@/components/landing/GrainCanvas'
-import { featurePath } from '@/lib/landingFeatures'
 
 /**
  * A 404 oldal hero-ja — ugyanaz a sötét, középre zárt doboz, mint a funkció-oldalaké (benne a
@@ -59,7 +58,7 @@ export function NotFoundHero() {
             className="mt-10 flex flex-wrap items-center justify-center gap-3"
           >
             <HeroButton href="/" label="Vissza a főoldalra" light />
-            <HeroButton href={featurePath('/funkciok')} label="Funkciók" />
+            <HeroButton href={'/funkciok'} label="Funkciók" />
           </motion.div>
         </div>
       </motion.div>

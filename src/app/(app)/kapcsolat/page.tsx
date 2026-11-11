@@ -13,7 +13,6 @@ import { getPricing } from '@/lib/pricing'
 import { getCachedGoogleRating } from '@/lib/google-rating'
 import { SITE_URL, orgGraphNodes } from '@/lib/publicSeo'
 import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_TEL, SUPPORT_HOURS, SUPPORT_HOURS_TEXT, SUPPORT_RESPONSE_TEXT } from '@/lib/brand'
-import { featurePath } from '@/lib/landingFeatures'
 
 /**
  * /kapcsolat — kapcsolatfelvétel: a főoldallal közös kapcsolat-blokk (itt H1-gyel), gyorslinkek,
@@ -37,7 +36,7 @@ export default async function ContactPage() {
 
   const quick = [
     { icon: Calculator, title: 'Árak és kalkulátor', body: 'Csomagok, összehasonlítás és díjkalkulátor.', href: '/arak#kalkulator' },
-    { icon: LayoutGrid, title: 'Funkciók', body: 'Foglalás, naptár, vendégek, pénz, marketing, csapat.', href: featurePath('/funkciok') },
+    { icon: LayoutGrid, title: 'Funkciók', body: 'Foglalás, naptár, vendégek, pénz, marketing, csapat.', href: '/funkciok' },
     { icon: Lightbulb, title: 'Tippek', body: 'Gyakorlati cikkek a foglalásról és a vendégmegtartásról.', href: '/tips' },
     { icon: Rocket, title: `${pricing.trial_days} nap ingyen`, body: 'Próbáld ki bankkártya nélkül, minden funkcióval.', href: '/register' },
   ]
@@ -112,6 +111,8 @@ export default async function ContactPage() {
           </nav>
         }
       />
+      {/* a hero után: fehér, felső réteg — egyenes éllel rácsúszik a fél sebességgel lemaradó hero-ra (mint a főoldalon) */}
+      <div className="relative z-10 flow-root bg-white">
 
       <ContactSection googleRating={googleRating} title="Írj nekünk, vagy hívj fel." />
 
@@ -149,11 +150,12 @@ export default async function ContactPage() {
         label="Kezdd el ma"
         title="Indulj el most, kérdezz közben."
         lead="Regisztrálj ingyen, állítsd be az oldalad — ha bárhol elakadsz, egy üzenetnyire vagyunk."
-        bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp"
+        bg="/landing/cta/cta-hatter-davelopment-booking.webp"
         plain
         bgPosition="object-[center_75%]"
       />
       <ConceptLightFooter trialDays={pricing.trial_days} />
+      </div>
     </main>
   )
 }

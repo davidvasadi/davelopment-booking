@@ -79,6 +79,8 @@ export default async function TipsIndexPage() {
           </nav>
         }
       />
+      {/* a hero után: fehér, felső réteg — egyenes éllel rácsúszik a fél sebességgel lemaradó hero-ra (mint a főoldalon) */}
+      <div className="relative z-10 flow-root bg-white">
 
       {/* tippek és cikkek váltóval — fehér háttéren #F7F7F7 kártyák */}
       <section id="cikkek" className="scroll-mt-[88px] bg-white px-4 py-24">
@@ -93,11 +95,12 @@ export default async function TipsIndexPage() {
         label="Kezdd el ma"
         title="Próbáld ki a saját üzleteden."
         lead="Amit itt olvastál, a fiókodban pár kattintással beállítod — ma elindulsz, holnap már foglalnak."
-        bg="/landing/cta/cta-hatter-ablak-arnyek-davelopment-booking.webp"
+        bg="/landing/cta/cta-hatter-davelopment-booking.webp"
         plain
         bgPosition="object-[center_75%]"
       />
       <ConceptLightFooter trialDays={pricing.trial_days} />
+      </div>
     </main>
   )
 }

@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { motion, AnimatePresence, useInView, useMotionTemplate, useReducedMotion, useScroll, useTransform } from 'framer-motion'
+import { motion, useMotionTemplate, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { EASE, SPRING_QUICK, SPRING_SNAPPY, buttonHover } from '@/lib/motion'
 import { HeroNav } from '@/components/landing/sections/Hero'
-import { useScrollHide } from '@/components/landing/useScrollHide'
+import { NavOnScrollUp } from '@/components/landing/NavOnScrollUp'
+import { padRange } from '@/lib/scrollOffset'
 import { FEATURE_GROUPS, type FeatureGroupId } from '@/lib/landingFeatures'
 
 /** A főoldali hero gombja: kapszula + arany kör, rámutatásra átcsúszó nyíllal. */
@@ -48,55 +48,48 @@ export function FeatureHeroCentered({ groupId, label, h1, lead, trialDays, bread
   breadcrumb: React.ReactNode
 }) {
   const pillLabel = label ?? FEATURE_GROUPS.find((g) => g.id === groupId)?.label ?? ''
-  const [mounted, setMounted] = useState(false)
-  const sectionRef = useRef<HTMLElement>(null)
-  const heroInView = useInView(sectionRef, { once: false, amount: 0 })
-  useEffect(() => setMounted(true), [])
-  // a fix menü a hero után a görgetést követve bújik el / jön elő (lefelé ki, felfelé vissza)
-  const navY = useScrollHide({ startHidden: true })
-  // parallax: lefelé görgetve a hero tartalma lassabban megy, mint az oldal, és az ALJÁTÓL fölfelé fokozatosan eltűnik
-  // (maszk, nem opacity — az egész szöveg áttetszővé válna, és átütne rajta a szemcse)
+  // GÉPEN (lg): lefelé görgetve a hero tartalma lassabban megy, mint az oldal, és az ALJÁTÓL fölfelé fokozatosan eltűnik
+  // (maszk, nem opacity) — az eredeti, élesben is futó effekt. TELEFONON a maszk minden képkockában újrarajzolna (szaggat),
+  // ezért ott ugyanez transform + opacity-vel, natívan. A target a tartalom ELŐTT álló, nem mozgó réteg.
   const reduce = useReducedMotion()
-  // (target: a szakaszt kitöltő, a tartalom ELŐTT álló réteg — a framer natív görgetés-idővonalához; ld. landing-concepts)
+  const [desk, setDesk] = useState(false)
+  useEffect(() => { const m = window.matchMedia('(min-width: 1024px)'); const f = () => setDesk(m.matches); f(); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, [])
   const tl = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: tl, offset: ['start start', 'end start'] })
-  // egy transform (nem y): így a framer natívan, hardveresen futtatja
   const contentY = useTransform(scrollYProgress, [0, 1], ['translateY(0px)', `translateY(${reduce ? 0 : 160}px)`])
   const fadeEdge = useTransform(scrollYProgress, [0.05, 1], [reduce ? 130 : 110, reduce ? 130 : -20])
   const fadeEnd = useTransform(fadeEdge, (v) => v + 35)
   const contentMask = useMotionTemplate`linear-gradient(to bottom, #000 ${fadeEdge}%, transparent ${fadeEnd}%)`
+  // TELEFONON ugyanez natívan (hardveresen): maszk helyett egy transform + opacity — a tartalom lassabban megy és elhalványul
+  const mobT = useTransform(scrollYProgress, [0, 1], ['translateY(0px)', `translateY(${reduce ? 0 : 120}px)`])
+  const mobO = useTransform(scrollYProgress, ...padRange([0.15, 0.8], [1, reduce ? 1 : 0]))
+  // a fehér felső-sáv réteg csak a lap legtetején él: ahogy lefelé görgetsz (10 px), eltűnik (display: none — a Safari a
+  // színváltást nem követi, az eltűnést igen), és a Safari rögtön a saját üveges sávját mutatja; a tetejére visszaérve újra
+  // fehér. (A főoldalon a hero teljes hosszán marad — ott a hero képe a sáv alá ér.)
+  const topBar = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = topBar.current
+    if (!bar) return
+    const on = () => { bar.style.display = window.scrollY > 10 ? 'none' : '' }
+    on(); window.addEventListener('scroll', on, { passive: true })
+    return () => window.removeEventListener('scroll', on)
+  }, [])
 
   return (
-    <>
-      {mounted && createPortal(
-        <AnimatePresence>
-          {!heroInView && (
-            <motion.div
-              className="fixed inset-x-0 top-0 z-[60]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', y: navY }}
-            >
-              <div className="px-4 lg:px-5 py-2.5">
-                <HeroNav theme="light" pillId="feature-fixed-nav-pill-c" variant="plain" />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
-
-      <section ref={sectionRef} className="relative z-10 mx-auto px-4 lg:px-5 pt-3 pb-5">
+    <div className="relative">
+      {/* iPhone (iOS 26 Safari) felső sáv: a lap tetejét érintő fixed elem színével festi — az aloldalakon mindig fehér
+          (≥8px, különben a Safari nem veszi észre; ld. ios-safari-mobile skill, 1. pont). A főoldalnak saját (hero-színű) rétege van. */}
+      <div ref={topBar} aria-hidden data-white-top className="pointer-events-none fixed inset-x-0 top-0 z-[59] h-[max(8px,env(safe-area-inset-top))] bg-white lg:hidden" />
+      {/* visszagörgetéskor előjövő menü — ugyanaz, mint a főoldalon */}
+      <NavOnScrollUp />
+      <section className="relative z-0 mx-auto px-2 pb-2 pt-2 lg:px-5 lg:pb-5 lg:pt-3">
         <div ref={tl} aria-hidden className="pointer-events-none absolute inset-0" />
         {/* belépők: framer, egy `transform`-mal (nem külön y/scale) — így a böngésző animálja (WAAPI) */}
         <motion.div
           initial={{ opacity: 0, transform: 'scale(0.96)' }}
           animate={{ opacity: 1, transform: 'scale(1)' }}
           transition={SPRING_QUICK}
-          className="relative isolate flex min-h-[min(calc(100svh-32px),620px)] flex-col overflow-hidden rounded-[30px] px-5 lg:rounded-[48px] lg:px-8"
-          // a design sötétje (ui-dark #383838), finom fény a jobb felső és árnyék a bal alsó sarokban
+          className="relative isolate flex min-h-[min(calc(100svh-16px),620px)] flex-col overflow-hidden rounded-[26px] px-4 lg:min-h-[min(calc(100svh-32px),620px)] lg:rounded-[48px] lg:px-8"
           // egyszínű, majdnem fekete (#1A1A1C), grain nélkül — Dave, 2026-11-10 (az Optivio hero-jának mintájára)
           style={{ background: '#1A1A1C' }}
         >
@@ -104,7 +97,7 @@ export function FeatureHeroCentered({ groupId, label, h1, lead, trialDays, bread
             <HeroNav variant="plain" />
           </motion.div>
 
-          <motion.div style={{ transform: contentY, maskImage: contentMask, WebkitMaskImage: contentMask }} className="relative z-10 mx-auto flex max-w-[1080px] flex-1 flex-col items-center justify-center px-2 pb-14 pt-10 text-center lg:pb-16 lg:pt-10">
+          <motion.div key={desk ? 'd' : 'm'} style={desk ? { transform: contentY, maskImage: contentMask, WebkitMaskImage: contentMask } : { transform: mobT, opacity: mobO }} className="relative z-10 mx-auto flex max-w-[1080px] flex-1 flex-col items-center justify-center px-2 pb-14 pt-10 text-center lg:pb-16 lg:pt-10">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12, duration: 0.35 }} className="mb-6 [&_*]:!text-white/45 [&_a:hover]:!text-white [&_nav]:justify-center">
               {breadcrumb}
             </motion.div>
@@ -145,6 +138,6 @@ export function FeatureHeroCentered({ groupId, label, h1, lead, trialDays, bread
           </motion.div>
         </motion.div>
       </section>
-    </>
+    </div>
   )
 }

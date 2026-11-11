@@ -4,7 +4,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { SITE_URL } from '@/lib/publicSeo'
 import { TIPS } from '@/lib/tips-content'
 import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
-import { FEATURE_GROUPS, featurePagesOn } from '@/lib/landingFeatures'
+import { FEATURE_GROUPS } from '@/lib/landingFeatures'
 
 /**
  * A statikus (kódban tárolt) tartalom `lastModified`-je AUTOMATIKUSAN a git commit-történetből
@@ -68,9 +68,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entries.push({ url: `${SITE_URL}/kapcsolat`, lastModified: gitLastModified('src/components/landing/sections/ContactSection.tsx'), changeFrequency: 'yearly', priority: 0.5 })
     entries.push({ url: `${SITE_URL}/arak`, lastModified: gitLastModified('src/lib/pricingContent.ts'), changeFrequency: 'monthly', priority: 0.9 })
     const featuresLastModified = gitLastModified('src/lib/landingFeatures.ts')
-    // a /funkciok oldalak csak akkor kerülnek a sitemapbe, ha élesek (landingFeatures FEATURE_PAGES_PUBLIC)
-    if (featurePagesOn) entries.push({ url: `${SITE_URL}/funkciok`, lastModified: featuresLastModified, changeFrequency: 'monthly', priority: 0.8 })
-    for (const g of FEATURE_GROUPS.filter((fg) => fg.ready && featurePagesOn)) {
+    // a /funkciok lista és a kész csoport-oldalak
+    entries.push({ url: `${SITE_URL}/funkciok`, lastModified: featuresLastModified, changeFrequency: 'monthly', priority: 0.8 })
+    for (const g of FEATURE_GROUPS.filter((fg) => fg.ready)) {
       entries.push({ url: `${SITE_URL}/funkciok/${g.slug}`, lastModified: featuresLastModified, changeFrequency: 'monthly', priority: 0.8 })
     }
     for (const s of salons.docs) {
