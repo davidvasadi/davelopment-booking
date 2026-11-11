@@ -27,7 +27,9 @@ export const PricingSettings: GlobalConfig = {
     afterChange: [
       () => {
         try {
-          revalidatePath('/')
+          // az EGÉSZ oldal-fát frissíti (nem csak a főoldalt): a próbaidő / ár a funkció-, ár-, kapcsolat-, tipp- és iparági
+          // oldalakon is megjelenik, amik buildkor előre elkészülnek
+          revalidatePath('/', 'layout')
         } catch {
           // no-op — lásd fenti megjegyzés
         }
