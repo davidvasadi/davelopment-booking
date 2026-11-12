@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { Button, EmptyState, FIELD, IconButton, Input, Panel } from '@/components/ui-kit'
 import { Switch } from '@/components/ui/toggle-switch'
 
-export type EventTypeItem = { icon: string; label: string; enabled: boolean }
+export type EventTypeItem = { id?: string; icon: string; label: string; enabled: boolean }
 
 /**
  * Esemény-típus (alkalom) szerkesztő az étterem-beállításokhoz — a vendég ezekből választ

@@ -373,9 +373,9 @@ export default async function RestaurantSettingsPage() {
               tax_number: r.tax_number ?? '',
               company_reg_number: r.company_reg_number ?? '',
               registered_seat: r.registered_seat ?? '',
-              terms_sections: (r.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
-              good_to_know: (r.good_to_know ?? []).map((s) => ({ icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
-              event_types: (r.event_types ?? []).map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
+              terms_sections: (r.terms_sections ?? []).map((s) => ({ ...(s.id ? { id: s.id } : {}), title: s.title ?? '', body: s.body ?? '' })),
+              good_to_know: (r.good_to_know ?? []).map((s) => ({ ...(s.id ? { id: s.id } : {}), icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
+              event_types: (r.event_types ?? []).map((e) => ({ ...(e.id ? { id: e.id } : {}), icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
               custom_questions: (r.custom_questions ?? []).map((q) => ({
                 id: q.id ?? crypto.randomUUID(),
                 label: q.label ?? '',

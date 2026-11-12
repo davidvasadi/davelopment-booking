@@ -10,7 +10,7 @@ import { goodToKnowTemplate } from './contentTemplates'
 import type { Locale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-export type GoodToKnowItem = { icon: string; title: string; body: string }
+export type GoodToKnowItem = { id?: string; icon: string; title: string; body: string }
 
 /**
  * „Jó tudni" pont-szerkesztő a foglaló oldalhoz (ikon + cím + szöveg). Kontrollált:
@@ -57,7 +57,7 @@ export function GoodToKnowEditor({
       // a kit üres állapota (csíkos doboz, kör-ikon, gombok) — mint a többi üres listánál
       <EmptyState icon={Info} title={value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}
         action={<span className="flex flex-wrap items-center justify-center gap-2">
-          <Button icon={Sparkles} onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}>Sablon betöltése</Button>
+          <Button icon={Sparkles} onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale).map((t, i) => (value[i]?.id ? { ...t, id: value[i].id } : t))))}>Sablon betöltése</Button>
           <Button variant="glass" icon={Plus} onClick={addBlank}>Üres pont</Button>
         </span>}>
         Pl. parkolás, módosítás, kisállat-barát…

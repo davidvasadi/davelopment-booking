@@ -7,7 +7,7 @@ import { Button, IconButton, Input, Meta, Pill, Textarea, MarqueeText } from '@/
 import type { Locale } from '@/lib/i18n'
 import { termsTemplate } from './contentTemplates'
 
-export type TermsSection = { title: string; body: string }
+export type TermsSection = { id?: string; title: string; body: string }
 
 /**
  * Profi kiindulási „Foglalási feltételek" sablon. FIGYELEM: ez csak váz —
@@ -73,7 +73,8 @@ export function TermsSectionsEditor({
   const update = (i: number, patch: Partial<TermsSection>) => onChange(value.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
   const add = () => { onChange([...value, { title: '', body: '' }]); setOpen(value.length) }
   const remove = (i: number) => { onChange(value.filter((_, idx) => idx !== i)); setOpen(null) }
-  const loadTemplate = () => (onLoadTemplate ? onLoadTemplate() : onChange(termsTemplate(locale)))
+  // a sablon a meglévő sorok azonosítóját örökli (sorrend szerint) — különben a többi nyelv szövege elveszne
+  const loadTemplate = () => (onLoadTemplate ? onLoadTemplate() : onChange(termsTemplate(locale).map((t, i) => (value[i]?.id ? { ...t, id: value[i].id } : t))))
 
   // A `Reorder.Item`/React `key` stabil azonosítót igényel — a szakaszoknak nincs saját id-jük, ezért objektum-
   // referenciánként generálunk egyet lustán (a szerkesztés a legtöbb sor referenciáját érintetlenül hagyja).

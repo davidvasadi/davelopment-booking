@@ -69,7 +69,7 @@ export function buildBookingPageEditorInitial(
     brandPage: brandChoice(doc as BrandPlace, 'page') === 'icon' ? 'icon' : 'logo',
     brandEmail: brandChoice(doc as BrandPlace, 'email') === 'icon' ? 'icon' : 'logo',
     brandQr: brandChoice(doc as BrandPlace, 'qr'),
-    goodToKnow: (doc.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+    goodToKnow: (doc.good_to_know ?? []).map((g) => ({ ...(g.id ? { id: g.id } : {}), icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
     showServiceCount: isSalon && (br.show_service_count_on_public ?? br.show_catalog_counts_on_public !== false),
     showStaffCount: isSalon && (br.show_staff_count_on_public ?? br.show_catalog_counts_on_public !== false),
     servicesExpandedOnMain: !!br.services_expanded_on_main,
@@ -142,7 +142,7 @@ export function buildBookingPageEditorInitial(
     slotStepMinutes: isSalon ? 0 : restaurant.slot_step_minutes ?? 30,
     lastSeatingMinutes: isSalon ? 0 : restaurant.last_seating_buffer_minutes ?? 0,
     eventTypes: isSalon ? [] : (restaurant.event_types?.length
-      ? restaurant.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled !== false }))
+      ? restaurant.event_types.map((e) => ({ ...(e.id ? { id: e.id } : {}), icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled !== false }))
       : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label, enabled: true }))),
     maxPax: extra.maxPax ?? 0,
     // ── a foglalóoldal megjelenése (design 21.6: Arculat, Borítókép, Galéria, Értékelések, Közösségi, Foglalás gomb,

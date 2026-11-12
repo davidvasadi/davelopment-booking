@@ -118,8 +118,8 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       feedback_email_intro: parseEmailBlocks(salon.feedback_email_intro),
       notify_email_subject: salon.notify_email_subject ?? '',
       notify_email_intro: parseEmailBlocks(salon.notify_email_intro),
-      terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
-      good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+      terms_sections: (salon.terms_sections ?? []).map((s) => ({ ...(s.id ? { id: s.id } : {}), title: s.title ?? '', body: s.body ?? '' })),
+      good_to_know: (salon.good_to_know ?? []).map((g) => ({ ...(g.id ? { id: g.id } : {}), icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: [], // szalon-only: nincs esemény-típus (étterem-funkció)
       custom_questions: (salon.custom_questions ?? []).map((q) => ({
         id: q.id ?? crypto.randomUUID(),

@@ -491,6 +491,7 @@ export function BookingPageEditor({
       const loaded: LocDraft = {
         description: typeof doc.description === 'string' ? doc.description : '',
         goodToKnow: (Array.isArray(doc.good_to_know) ? doc.good_to_know : []).map((g: Record<string, unknown>) => ({
+          ...(g.id ? { id: g.id as string } : {}),
           icon: (g.icon as string) ?? 'info', title: (g.title as string) ?? '', body: (g.body as string) ?? '',
         })),
         staffBio,
@@ -786,6 +787,19 @@ export function BookingPageEditor({
         })
       }
 
+      // A „Jó tudni” lista szerkezete (sorok, sorrend, ikon) KÖZÖS minden nyelven, csak a cím/szöveg nyelvenkénti. A többi
+      // nyelvet ezért a frissen mentett magyar sorokra (azonosító + sorrend) illesztjük, pozíció szerint — különben egy
+      // nyelv mentése új sorokat hozna létre / törölné a magyarban hozzáadottat, és a többi nyelv szövege elveszne.
+      let huRows: { id?: string; icon?: string | null }[] | null = null
+      if (Object.keys(locDrafts).length > 0 || changed('goodToKnow')) {
+        try {
+          const r = await fetch(`${apiBase}?locale=hu`, { credentials: 'include' })
+          if (r.ok) { const doc = await r.json(); huRows = Array.isArray(doc.good_to_know) ? doc.good_to_know : [] }
+        } catch { /* marad a nyelv saját listája */ }
+      }
+      const alignGtk = (items: LocDraft['goodToKnow']) =>
+        huRows ? huRows.map((row, i) => ({ id: row.id, icon: row.icon ?? 'info', title: items[i]?.title ?? '', body: items[i]?.body ?? '' })) : items
+
       for (const [code, value] of Object.entries(locDrafts) as [Locale, LocDraft][]) {
         const before = locBaseline[code]
         if (!before || JSON.stringify(before) === JSON.stringify(value)) continue
@@ -794,7 +808,7 @@ export function BookingPageEditor({
         if (JSON.stringify(beforeSalon) !== JSON.stringify(valueSalon)) {
           await patchJson(`${apiBase}?locale=${code}`, {
             description: value.description,
-            good_to_know: value.goodToKnow,
+            good_to_know: alignGtk(value.goodToKnow),
             // A csoportot a PATCH egészében cseréli — az `enabled` (nem fordított) mezőt is küldjük.
             consent_settings: { enabled: d.consentEnabled, title: value.consentTitle, template_text: value.consentText },
             custom_questions: value.customQuestions,
@@ -809,8 +823,14 @@ export function BookingPageEditor({
         }
       }
 
-      setBaseline(d)
-      setLocBaseline(locDrafts)
+      // a mentett sorok azonosítója a szerkesztő állapotába is (egy második mentés se hozzon létre új sorokat)
+      const withIds = <T extends { id?: string }>(items: T[]) => (huRows ? items.map((g, i) => ({ ...g, id: huRows![i]?.id ?? g.id })) : items)
+      const savedDraft = { ...d, goodToKnow: withIds(d.goodToKnow) }
+      const savedLoc = Object.fromEntries(Object.entries(locDrafts).map(([k, v]) => [k, { ...v, goodToKnow: withIds(v.goodToKnow) }])) as typeof locDrafts
+      setDraft(savedDraft)
+      setBaseline(savedDraft)
+      setLocDrafts(savedLoc)
+      setLocBaseline(savedLoc)
       router.refresh()
       // Az előnézet a mentett állapotot a szerverről is újratölti (cache-invalidálás után).
       setReady(false)

@@ -22,10 +22,12 @@ export interface LocalizedValues {
   feedback_email_intro: ComposerBlock[]
   notify_email_subject: string
   notify_email_intro: ComposerBlock[]
-  terms_sections: { title: string; body: string }[]
-  good_to_know: { icon: string; title: string; body: string }[]
+  // a sorok `id`-ja (Payload array row id) KELL: a lista maga közös minden nyelven, csak a cím/szöveg nyelvenkénti —
+  // id nélkül a mentés új sorokat hoz létre, és a többi nyelv szövege elveszik
+  terms_sections: { id?: string; title: string; body: string }[]
+  good_to_know: { id?: string; icon: string; title: string; body: string }[]
   /** Étterem-only: esemény-típusok (alkalmak). A `label` localizált, az icon/enabled globális. */
-  event_types: { icon: string; label: string; enabled: boolean }[]
+  event_types: { id?: string; icon: string; label: string; enabled: boolean }[]
   custom_questions: CustomQuestion[]
 }
 
@@ -66,15 +68,18 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
     notify_email_subject: (doc.notify_email_subject as string) ?? '',
     notify_email_intro: parseEmailBlocks(doc.notify_email_intro),
     terms_sections: terms.map((s: Record<string, unknown>) => ({
+      ...(s.id ? { id: s.id as string } : {}),
       title: (s.title as string) ?? '',
       body: (s.body as string) ?? '',
     })),
     good_to_know: gtk.map((g: Record<string, unknown>) => ({
+      ...(g.id ? { id: g.id as string } : {}),
       icon: (g.icon as string) ?? 'info',
       title: (g.title as string) ?? '',
       body: (g.body as string) ?? '',
     })),
     event_types: evt.map((e: Record<string, unknown>) => ({
+      ...(e.id ? { id: e.id as string } : {}),
       icon: (e.icon as string) ?? 'party',
       label: (e.label as string) ?? '',
       enabled: (e.enabled as boolean) ?? true,
@@ -128,6 +133,9 @@ export function useLocalizedFields(opts: {
   // „Mégse" (`discardLocale`). A `cacheRef` a `setField`-del folyamatosan MUTÁLÓDIK, ezért
   // önmagából nem tudná visszaadni az eredetit — ezért kell egy külön, érintetlen másolat.
   const pristineRef = useRef<Partial<Record<Locale, LocalizedValues>>>({})
+  // Mentés után igaz: a közös listák (Jó tudni, feltételek, alkalmak) sorai a szerveren változhattak, ezért a többi
+  // nyelvet (a magyart is) a szerverről kell újratölteni, nem a régi cache-ből / a session-eleji props-ból.
+  const staleRef = useRef(false)
   // Trigger a re-renderhez, amikor a cache vagy az aktív nyelv értéke változik.
   const [, force] = useState(0)
   const rerender = () => force((n) => n + 1)
@@ -142,7 +150,7 @@ export function useLocalizedFields(opts: {
         setEditLocale(loc)
         return
       }
-      if (loc === 'hu') {
+      if (loc === 'hu' && !staleRef.current) {
         cacheRef.current.hu = huValues
         setEditLocale('hu')
         return
@@ -210,9 +218,17 @@ export function useLocalizedFields(opts: {
         const err = await res.json().catch(() => null)
         throw new Error(err?.error ?? `HTTP ${res.status}`)
       }
-      // A sikeresen mentett állapot a mostantól „érintetlen" baseline — így egy KÉSŐBBI
-      // szerkesztés+Mégse ide áll vissza, nem az eredeti, session-eleji értékre.
-      pristineRef.current[editLocale] = values
+      // A mentett nyelvet újratöltjük (így megkapjuk az új sorok azonosítóját), a többi nyelv cache-ét eldobjuk —
+      // nyelvváltáskor frissen töltődnek, a közös listák aktuális soraival.
+      let saved = values
+      try {
+        const r = await fetch(`${apiBase}?locale=${editLocale}&fallback-locale=null`, { credentials: 'include' })
+        if (r.ok) saved = fromDoc(await r.json())
+      } catch { /* marad a küldött érték */ }
+      cacheRef.current = { [editLocale]: saved }
+      pristineRef.current = { [editLocale]: saved }
+      staleRef.current = true
+      rerender()
       setDirty(false)
       return true
     } catch (e) {

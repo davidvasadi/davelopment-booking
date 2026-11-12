@@ -123,9 +123,9 @@ export function RestaurantSettingsForm({
       feedback_email_intro: initial.feedback_email_intro,
       notify_email_subject: initial.notify_email_subject,
       notify_email_intro: initial.notify_email_intro,
-      terms_sections: initial.terms_sections.map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
-      good_to_know: initial.good_to_know.map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
-      event_types: initial.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
+      terms_sections: initial.terms_sections.map((s) => ({ ...(s.id ? { id: s.id } : {}), title: s.title ?? '', body: s.body ?? '' })),
+      good_to_know: initial.good_to_know.map((g) => ({ ...(g.id ? { id: g.id } : {}), icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+      event_types: initial.event_types.map((e) => ({ ...(e.id ? { id: e.id } : {}), icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
       custom_questions: initial.custom_questions.map((q) => ({
         id: q.id ?? crypto.randomUUID(),
         label: q.label ?? '',
