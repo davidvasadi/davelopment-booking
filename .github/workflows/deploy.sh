@@ -16,6 +16,14 @@ if ! pm2 describe "$PM2_NAME" > /dev/null 2>&1; then
   exit 1
 fi
 
+# ── Szerver-szintű deploy-zár ─────────────────────────────────────────────────
+# A davelopment.hu ugyanezen a VPS-en (4 GB RAM) deployol — ha a két deploy egyszerre fut, a booking buildje (3 GB
+# heap) mellett a szerver swapol, és az élő oldalak lelassulnak. A közös zárral a második megvárja az elsőt
+# (a davelopment.hu ship-it.yml-je ugyanezt a fájlt zárolja).
+exec 9>/tmp/vps-deploy.lock
+echo "→ Deploy-zár..."
+flock -w 1800 9 || { echo "❌ A deploy-zár 30 percen belül nem szabadult fel. Leállítva."; exit 1; }
+
 # ── Node 22 ──────────────────────────────────────────────────────────────────
 export NVM_DIR="$DEPLOY_DIR/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
@@ -72,7 +80,8 @@ npx tsx scripts/migrate.ts
 
 # ── 4. Build (a régi verzió még fut közben!) ─────────────────────────────────
 echo "→ Build..."
-NODE_OPTIONS="--max-old-space-size=3072" npm run build
+# alacsonyabb CPU/IO-prioritással: build közben az élő oldalak (booking, davelopment.hu) kapják a gépet
+NODE_OPTIONS="--max-old-space-size=3072" nice -n 10 ionice -c3 npm run build
 
 # ── 5. Graceful reload (régi process az új start után áll csak le) ────────────
 echo "→ Reload..."
