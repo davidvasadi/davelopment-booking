@@ -4,6 +4,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { assertCapability } from '@/lib/apiCapability'
 import type { Booking, Salon } from '@/payload/payload-types'
+import { sendConsentCopy } from '@/lib/email'
 
 /**
  * Beleegyező nyilatkozat helyszíni elfogadása (tablet check-in) — a személyzet a saját
@@ -69,5 +70,7 @@ export async function POST(req: NextRequest) {
     overrideAccess: true,
     user,
   })
+  // a vendég megkapja a saját példányát (best-effort, nem blokkolja a választ)
+  void sendConsentCopy(updated as Booking, salon)
   return NextResponse.json({ ok: true, booking: updated })
 }

@@ -20,6 +20,8 @@ import {
 import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
+import { consentCopyContent } from './consentEmail'
+import { buildConsentPdf, consentPdfFilename } from './pdf/consentPdf'
 import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { isInternalEmailAllowed } from './emailNotifPrefs'
@@ -746,5 +748,40 @@ export async function sendReservationModification(data: ReservationEmailData) {
   } catch (err) {
     console.error('[RestaurantEmail] Modification email failed:', err)
     await logEmail('modification', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
+  }
+}
+
+/**
+ * A beleegyező nyilatkozat másolata a vendégnek — minden elfogadás után (online foglaláskor és helyszíni check-in-nél).
+ * A szöveg a foglaláson tárolt pillanatfelvétel; e-mail cím nélkül nincs kinek küldeni.
+ */
+export async function sendReservationConsentCopy(reservation: Reservation, restaurant: Restaurant) {
+  const resend = getResend()
+  if (!resend) return
+  const to = reservation.customer_email
+  const text = (reservation as { consent_text_snapshot?: string | null }).consent_text_snapshot?.trim()
+  if (!to || !text) return
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  const subject = t(locale, 'email.consent.subject', { place: restaurant.name })
+  const r = reservation as { consent_accepted_at?: string | null; consent_accepted_via?: 'online' | 'onsite' | null }
+  const html = wrap(restaurant, `
+    ${consentCopyContent({ locale, name: reservation.customer_name, date: reservation.date, time: reservation.start_time, acceptedAt: r.consent_accepted_at, via: r.consent_accepted_via, title: restaurant.consent_settings?.title, text })}
+    ${contactInfo(restaurant, locale)}
+    ${bottomSpacer()}
+  `, locale)
+  let attachments: { filename: string; content: Buffer }[] | undefined
+  try {
+    const x = reservation as { customer_phone?: string | null; consent_accepted_ip?: string | null }
+    const pdf = await buildConsentPdf({ locale, placeName: restaurant.name, title: restaurant.consent_settings?.title, name: reservation.customer_name, email: to, phone: x.customer_phone, date: reservation.date, time: reservation.start_time, acceptedAt: r.consent_accepted_at, via: r.consent_accepted_via, ip: x.consent_accepted_ip, text })
+    attachments = [{ filename: consentPdfFilename(locale, reservation.date), content: Buffer.from(pdf) }]
+  } catch (err) {
+    console.error('[Email] Consent PDF failed, sending without attachment:', err)
+  }
+  try {
+    const { data: sendResult } = await resend.emails.send({ from: fromHeader(restaurant.name, restaurant.slug), reply_to: restaurant.email || undefined, to, subject, html, attachments })
+    await logEmail('other', to, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
+  } catch (err) {
+    console.error('[Email] Reservation consent copy failed:', err)
+    await logEmail('other', to, subject, false, String(err), { reservationId: reservation.id })
   }
 }

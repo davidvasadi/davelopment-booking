@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { validateAndAllocate } from '@/lib/restaurantBooking'
-import { sendReservationConfirmation } from '@/lib/restaurantEmail'
+import { sendReservationConfirmation, sendReservationConsentCopy } from '@/lib/restaurantEmail'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
@@ -302,6 +302,8 @@ export async function POST(request: NextRequest) {
     if (restaurant.notification_prefs?.confirm_email !== false && reservationStatus === 'confirmed') {
       for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant })
     }
+    // A beleegyező nyilatkozat másolata a vendégnek — minden elfogadásnál
+    for (const r of created) if ((r as { consent_accepted?: boolean | null }).consent_accepted) void sendReservationConsentCopy(r, restaurant)
     // Nincs owner email — a digest összefoglalja a napot.
     if (depositRequired && depositHuf) {
       void issueDepositInvoiceBestEffort({

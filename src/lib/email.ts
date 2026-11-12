@@ -20,6 +20,8 @@ import {
 import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
+import { consentCopyContent } from './consentEmail'
+import { buildConsentPdf, consentPdfFilename } from './pdf/consentPdf'
 import { formatPrice } from './utils'
 import { getPayloadClient } from './payload'
 import { filterAllowedEmails, isBookingNotifyLevelOff } from './emailNotifPrefs'
@@ -1040,5 +1042,40 @@ export async function sendBookingWindowEmail(data: BookingWindowEmailData) {
   } catch (err) {
     console.error('[Email] Booking window notice failed:', err)
     await logEmail('booking_window', data.to, data.subject, false, String(err))
+  }
+}
+
+/**
+ * A beleegyező nyilatkozat másolata a vendégnek — minden elfogadás után (online foglaláskor és helyszíni check-in-nél).
+ * A szöveg a foglaláson tárolt pillanatfelvétel; e-mail cím nélkül (helyben rögzített foglalás) nincs kinek küldeni.
+ */
+export async function sendConsentCopy(booking: Booking, salon: Salon) {
+  const resend = getResend()
+  if (!resend) return
+  const to = booking.customer_email
+  const text = (booking as { consent_text_snapshot?: string | null }).consent_text_snapshot?.trim()
+  if (!to || !text) return
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const subject = t(locale, 'email.consent.subject', { place: salon.name })
+  const b = booking as { consent_accepted_at?: string | null; consent_accepted_via?: 'online' | 'onsite' | null }
+  const html = wrap(salon, `
+    ${consentCopyContent({ locale, name: booking.customer_name, date: booking.date, time: `${booking.start_time} – ${booking.end_time}`, acceptedAt: b.consent_accepted_at, via: b.consent_accepted_via, title: salon.consent_settings?.title, text })}
+    ${contactInfo(salon, locale)}
+    ${bottomSpacer()}
+  `, locale)
+  let attachments: { filename: string; content: Buffer }[] | undefined
+  try {
+    const x = booking as { customer_phone?: string | null; consent_accepted_ip?: string | null }
+    const pdf = await buildConsentPdf({ locale, placeName: salon.name, title: salon.consent_settings?.title, name: booking.customer_name, email: to, phone: x.customer_phone, date: booking.date, time: `${booking.start_time} – ${booking.end_time}`, acceptedAt: b.consent_accepted_at, via: b.consent_accepted_via, ip: x.consent_accepted_ip, text })
+    attachments = [{ filename: consentPdfFilename(locale, booking.date), content: Buffer.from(pdf) }]
+  } catch (err) {
+    console.error('[Email] Consent PDF failed, sending without attachment:', err)
+  }
+  try {
+    const { data: sendResult } = await resend.emails.send({ from: fromHeader(salon.name, salon.slug), reply_to: salon.email || undefined, to, subject, html, attachments })
+    await logEmail('other', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
+  } catch (err) {
+    console.error('[Email] Consent copy failed:', err)
+    await logEmail('other', to, subject, false, String(err), { bookingId: booking.id })
   }
 }

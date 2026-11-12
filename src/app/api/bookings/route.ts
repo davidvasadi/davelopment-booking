@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getAvailableSlots, resolveAnyStaff } from '@/lib/availability'
 import { hhmmToMinutes } from '@/lib/utils'
-import { sendBookingConfirmation, sendNewBookingNotification } from '@/lib/email'
+import { sendBookingConfirmation, sendConsentCopy, sendNewBookingNotification } from '@/lib/email'
 import { sendPushToUsers } from '@/lib/webPush'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
@@ -388,6 +388,8 @@ export async function POST(request: NextRequest) {
       // A sorozat minden létrejött alkalmára megy visszaigazoló (a meglévő minta szerint).
       for (const b of created) void sendBookingConfirmation({ booking: b, salon, service, staff })
     }
+    // A beleegyező nyilatkozat másolata a vendégnek — minden elfogadásnál (a sorozatnak csak az első alkalma hordozza)
+    for (const b of created) if ((b as { consent_accepted?: boolean | null }).consent_accepted) void sendConsentCopy(b, salon)
     // Bizonylat-kiállítás sikeres előleg után — best-effort, nem blokkolja a választ.
     if (depositRequired && depositHuf) {
       void issueDepositInvoiceBestEffort({
