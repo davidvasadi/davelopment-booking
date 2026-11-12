@@ -145,7 +145,7 @@ export const it: Record<string, string> = {
   'public.seats': 'posti',
   'public.change': 'Modifica',
   'public.whatWouldYouLike': 'Cosa desideri?',
-  'public.staffServices': 'I servizi di {name}',
+  'public.staffServices': 'I servizi di {{name}}',
   'public.all': 'Tutti',
   'public.aboutEyebrow': 'Al nostro tavolo',
   'public.about': 'Chi siamo',
@@ -255,7 +255,7 @@ export const it: Record<string, string> = {
   'public.review.invalidTitle': 'Link non valido',
   'public.review.invalid': 'Questo link di recensione non è valido o è scaduto.',
   'public.review.failed': 'Non è stato possibile inviare la recensione. Riprova.',
-  'public.review.redirecting': 'Grazie! Ti stiamo reindirizzando a {place}…',
+  'public.review.redirecting': 'Grazie! Ti stiamo reindirizzando a {{place}}…',
 
   // ── Struttura email (il testo del titolare va in aggiunta) ──
   'email.greeting': 'Ciao {{name}},',

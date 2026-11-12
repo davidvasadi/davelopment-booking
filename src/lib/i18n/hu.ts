@@ -151,7 +151,7 @@ export const hu: Record<string, string> = {
   'public.seats': 'férőhely',
   'public.change': 'Módosít',
   'public.whatWouldYouLike': 'Mit szeretnél?',
-  'public.staffServices': '{name} szolgáltatásai',
+  'public.staffServices': '{{name}} szolgáltatásai',
   'public.all': 'Mind',
   'public.aboutEyebrow': 'Az asztalunknál',
   'public.about': 'Rólunk',
@@ -261,7 +261,7 @@ export const hu: Record<string, string> = {
   'public.review.invalidTitle': 'Érvénytelen link',
   'public.review.invalid': 'Ez az értékelő-link nem érvényes vagy már lejárt.',
   'public.review.failed': 'Az értékelés elküldése nem sikerült. Kérjük próbáld újra.',
-  'public.review.redirecting': 'Köszönjük! Átirányítunk ide: {place}…',
+  'public.review.redirecting': 'Köszönjük! Átirányítunk ide: {{place}}…',
 
   // ── Email-váz (a tulaj-szöveg ezen felül jön) ──
   'email.greeting': 'Kedves {{name}}!',

@@ -145,7 +145,7 @@ export const fr: Record<string, string> = {
   'public.seats': 'places',
   'public.change': 'Modifier',
   'public.whatWouldYouLike': 'Que souhaites-tu ?',
-  'public.staffServices': 'Les prestations de {name}',
+  'public.staffServices': 'Les prestations de {{name}}',
   'public.all': 'Tout',
   'public.aboutEyebrow': 'À notre table',
   'public.about': 'À propos',
@@ -255,7 +255,7 @@ export const fr: Record<string, string> = {
   'public.review.invalidTitle': 'Lien invalide',
   'public.review.invalid': "Ce lien d'avis n'est pas valide ou a expiré.",
   'public.review.failed': "Impossible d'envoyer votre avis. Veuillez réessayer.",
-  'public.review.redirecting': 'Merci ! Redirection vers {place}…',
+  'public.review.redirecting': 'Merci ! Redirection vers {{place}}…',
 
   // ── Structure de l'e-mail (le texte du propriétaire vient en plus) ──
   'email.greeting': 'Bonjour {{name}},',

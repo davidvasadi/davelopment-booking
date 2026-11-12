@@ -145,7 +145,7 @@ export const de: Record<string, string> = {
   'public.seats': 'Plätze',
   'public.change': 'Ändern',
   'public.whatWouldYouLike': 'Was möchtest du?',
-  'public.staffServices': 'Leistungen von {name}',
+  'public.staffServices': 'Leistungen von {{name}}',
   'public.all': 'Alle',
   'public.aboutEyebrow': 'An unserem Tisch',
   'public.about': 'Über uns',
@@ -255,7 +255,7 @@ export const de: Record<string, string> = {
   'public.review.invalidTitle': 'Ungültiger Link',
   'public.review.invalid': 'Dieser Bewertungslink ist ungültig oder abgelaufen.',
   'public.review.failed': 'Deine Bewertung konnte nicht gesendet werden. Bitte versuche es erneut.',
-  'public.review.redirecting': 'Danke! Du wirst zu {place} weitergeleitet…',
+  'public.review.redirecting': 'Danke! Du wirst zu {{place}} weitergeleitet…',
 
   // ── E-Mail-Gerüst (der Text des Inhabers kommt zusätzlich) ──
   'email.greeting': 'Hallo {{name}},',

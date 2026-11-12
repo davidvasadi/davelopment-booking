@@ -147,7 +147,7 @@ export const en: Record<string, string> = {
   'public.seats': 'seats',
   'public.change': 'Change',
   'public.whatWouldYouLike': 'What would you like?',
-  'public.staffServices': "{name}'s services",
+  'public.staffServices': "{{name}}'s services",
   'public.all': 'All',
   'public.aboutEyebrow': 'At our table',
   'public.about': 'About',
@@ -257,7 +257,7 @@ export const en: Record<string, string> = {
   'public.review.invalidTitle': 'Invalid link',
   'public.review.invalid': 'This review link is not valid or has expired.',
   'public.review.failed': 'Could not submit your review. Please try again.',
-  'public.review.redirecting': 'Thanks! Taking you to {place}…',
+  'public.review.redirecting': 'Thanks! Taking you to {{place}}…',
 
   // ── Email skeleton (owner text comes on top of this) ──
   'email.greeting': 'Dear {{name}},',
