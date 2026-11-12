@@ -16,6 +16,7 @@ import {
   escapeHtml,
   COLORS,
   emailStatus,
+  customAnswerRows,
 } from './emailLayout'
 import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
@@ -581,6 +582,12 @@ function salonAddress(salon: Salon): string | null {
   return salon.address ? `${salon.address}${salon.city ? ', ' + salon.city : ''}` : null
 }
 
+/** Az egyedi kérdésekre adott válaszok külön kártyában (ha vannak). */
+function answersCard(booking: Booking): string {
+  const rows = customAnswerRows((booking as { custom_answers?: unknown }).custom_answers)
+  return rows ? detailsCard(rows) : ''
+}
+
 function bookingRows(data: BookingEmailData): string {
   const { booking, salon, service, staff } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
@@ -619,7 +626,8 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
     }),
     content: `
       ${introBlockFromJson(salon.booking_email_intro, emailVars(data))}
-      ${hasBookingBlock(salon.booking_email_intro) ? '' : `${detailsCard(bookingRows(data))}
+      ${hasBookingBlock(salon.booking_email_intro) ? answersCard(booking) : `${detailsCard(bookingRows(data))}
+      ${answersCard(booking)}
       ${calendarBlock({
         title: `${data.service.name} – ${salon.name}`,
         date: booking.date,
@@ -659,6 +667,7 @@ function notificationHtml(data: BookingEmailData): string {
     infoRow('calendar', 'Dátum', booking.date),
     infoRow('clock', 'Időpont', `${booking.start_time} – ${booking.end_time}`),
     booking.notes ? infoRow('note', 'Megjegyzés', booking.notes) : '',
+    customAnswerRows((booking as { custom_answers?: unknown }).custom_answers),
   ].filter(Boolean).join('')
   return wrap(salon, `
     ${heroBlock({

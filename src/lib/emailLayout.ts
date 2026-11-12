@@ -170,6 +170,15 @@ export function infoRow(icon: DetailIcon, label: string, value: string): string 
   </tr>`
 }
 
+// ── Egyedi kérdések válaszai (a foglaláson tárolt pillanatfelvétel: { [id]: { question, answer } }) ──────────
+export function customAnswerRows(v: unknown): string {
+  if (!v || typeof v !== 'object') return ''
+  return Object.values(v as Record<string, { question?: string; answer?: string } | null>)
+    .filter((a): a is { question: string; answer: string } => !!a?.question?.trim() && !!a?.answer?.trim())
+    .map((a) => infoRow('note', escapeHtml(a.question), escapeHtml(a.answer).replace(/\n/g, '<br>')))
+    .join('')
+}
+
 // ── Detail kártya (borderes, fehér) ────────────────────────────────────────────
 
 export function detailsCard(rows: string): string {

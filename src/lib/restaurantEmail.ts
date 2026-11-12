@@ -16,6 +16,7 @@ import {
   escapeHtml,
   COLORS,
   emailStatus,
+  customAnswerRows,
 } from './emailLayout'
 import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
@@ -496,6 +497,12 @@ export async function sendVoucherPaymentLinkEmail(data: { restaurant: Restaurant
 }
 
 // ── HTML ───────────────────────────────────────────────────────────────────
+/** Az egyedi kérdésekre adott válaszok külön kártyában (ha vannak). */
+function answersCard(reservation: Reservation): string {
+  const rows = customAnswerRows((reservation as { custom_answers?: unknown }).custom_answers)
+  return rows ? detailsCard(rows) : ''
+}
+
 function detailRows(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
@@ -535,6 +542,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
     content: `
       ${introBlockFromJson(restaurant.booking_email_intro, emailVars(data))}
       ${hasBookingBlock(restaurant.booking_email_intro) ? '' : detailsCard(detailRows(data))}
+      ${answersCard(reservation)}
       ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 28px 0">
         <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
       </td></tr>` : ''}
@@ -576,6 +584,7 @@ function notificationHtml(data: ReservationEmailData): string {
     infoRow('mail', 'Email', reservation.customer_email),
     reservation.customer_phone ? infoRow('phone', 'Telefon', reservation.customer_phone) : '',
     reservation.notes ? infoRow('note', 'Megjegyzés', reservation.notes) : '',
+    customAnswerRows((reservation as { custom_answers?: unknown }).custom_answers),
   ].filter(Boolean).join('')
   return wrap(restaurant, `
     ${heroBlock({
