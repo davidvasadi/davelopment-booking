@@ -2,6 +2,9 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type MouseEvent, type PointerEvent } from 'react'
 import Image from 'next/image'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import { DUR, EASE } from '@/lib/motion'
 import { ArrowRight, Clock, MapPin, Phone } from 'lucide-react'
 import { DAYS_OF_WEEK, dayLabels } from '@/lib/restaurantTemplates'
 import { displayCloseTime } from '@/lib/utils'
@@ -181,6 +184,9 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
   const googleUrl = d.kind === 'salon' ? d.card.google?.mapsUrl ?? null : d.card.google?.mapsUrl ?? null
   const ctaLabel = pg.ctaLabel ?? t(locale, d.kind === 'salon' ? 'public.bookCta' : 'public.bookTable')
   const [infoOpen, setInfoOpen] = useState(false)
+  // a mobilos „Jó tudni” lap a body-ra kerül (portál) — mint a többi felcsúszó lap a foglalóoldalon (TermsModal)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
   const [galleryAt, setGalleryAt] = useState<number | null>(null)
   // a borító sötétítése (Beállítások › Foglalóoldal › Borítókép): nincs / enyhe (alap) / erős — a szöveg mindig olvasható
   // a borító sötétítése: Ki (semmi), Enyhe (alap: felül és alul átmenet), Erős (plusz egy teljes réteg)
@@ -203,7 +209,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
     gtk: info.length > 0 ? (
       <div data-edit-id="gtk" className="relative">
         <GoodToKnow items={pills} onMore={() => setInfoOpen(true)} />
-        {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:block" />}
+        {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:flex lg:max-h-[min(58dvh,560px)]" />}
       </div>
     ) : null,
   }
@@ -296,12 +302,33 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
             </div>}
           </div>
 
-          {/* „Jó tudni” mobilon: felcsúszó lap */}
-          {infoOpen && (
-            <div className="fixed inset-0 z-[120] lg:hidden" onClick={() => setInfoOpen(false)}>
-              <div className="absolute inset-0 bg-ui-dark/40" />
-              <div className="absolute inset-x-0 bottom-0" onClick={(e) => e.stopPropagation()}><InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="rounded-b-none pb-[max(1.25rem,env(safe-area-inset-bottom))]" /></div>
-            </div>
+          {/* „Jó tudni” mobilon: felcsúszó lap — ugyanaz a minta, mint a foglalási feltételeknél (TermsModal): portál a
+              body-ra, elmosott sötét háttér (koppintásra zár), alulról becsúszó sötét üveg-lap fogantyúval */}
+          {mounted && createPortal(
+            <AnimatePresence>
+              {infoOpen && (
+                <motion.div
+                  className="fixed inset-0 z-[120] flex items-end bg-black/60 backdrop-blur-md lg:hidden"
+                  onClick={() => setInfoOpen(false)}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: DUR.fast, ease: EASE }}
+                >
+                  <motion.div
+                    className="w-full overflow-hidden rounded-t-3xl"
+                    style={{ background: 'rgba(22,22,26,0.92)', backdropFilter: 'blur(28px) saturate(1.4)', WebkitBackdropFilter: 'blur(28px) saturate(1.4)' }}
+                    onClick={(e) => e.stopPropagation()}
+                    role="dialog" aria-modal="true"
+                    initial={{ y: 40, opacity: 0, scale: 0.98 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 40, opacity: 0, scale: 0.98 }}
+                    transition={{ duration: DUR.base, ease: EASE }}
+                  >
+                    <div className="flex justify-center pt-3"><div className="h-1 w-10 rounded-full bg-white/20" /></div>
+                    <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)}
+                      plain className="pb-[max(1.25rem,env(safe-area-inset-bottom))]" />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>,
+            document.body,
           )}
           {galleryAt !== null && <GalleryViewer fixed mobile={false} items={galleryItems} active={galleryAt} onPick={setGalleryAt} onClose={() => setGalleryAt(null)} />}
         </>

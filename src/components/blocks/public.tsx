@@ -99,12 +99,14 @@ function HoursBlock({ h }: { h: HoursInfo }) {
 
 /** A „Jó tudni” teljes listája a sötét üvegen: cím, soronként ikon és a teljes szöveg; a telefon sora hívható; alul a
  *  nyitvatartás. Élőben `items`, `hours` (null: nincs megadva), `title` (a nyelvén) és `onClose`. */
-export function InfoList({ items, hours = SAMPLE_HOURS, title = 'Jó tudni', onClose, className = '' }: { items?: InfoItem[]; hours?: HoursInfo | null; title?: string; onClose?: () => void; className?: string }) {
+export function InfoList({ items, hours = SAMPLE_HOURS, title = 'Jó tudni', onClose, className = '', plain = false }: { items?: InfoItem[]; hours?: HoursInfo | null; title?: string; onClose?: () => void; className?: string; /** keret és üveg-háttér nélkül (egy felcsúszó lap belsejében) */ plain?: boolean }) {
   const list: InfoItem[] = items ?? INFO.map((x) => ({ ...x }))
   return (
-    <div className={`rounded-ui-card p-5 text-white ${DARK_GLASS} ${className}`}>
-      <div className="flex items-center justify-between"><span className="text-ui-title font-light">{title}</span><IconButton icon={X} label="Bezárás" size="sm" variant="onDark" onClick={onClose} /></div>
-      <div className="mt-3 space-y-1">
+    // magasságkorlát + belső görgetés: hosszú listánál se lógjon ki a képernyőből, a fejléc (bezárás) mindig látszik
+    <div className={`flex max-h-[min(80dvh,720px)] flex-col p-5 text-white ${plain ? '' : `rounded-ui-card ${DARK_GLASS}`} ${className}`}>
+      <div className="flex shrink-0 items-center justify-between"><span className="text-ui-title font-light">{title}</span><IconButton icon={X} label="Bezárás" size="sm" variant="onDark" onClick={onClose} /></div>
+      <div data-lenis-prevent className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
+      <div className="space-y-1">
         {list.map(({ icon: I, d, href }) => {
           const row = <><IconCircle size="sm" tone="onDark" icon={I} /><span className="text-ui-body">{d}</span></>
           return href
@@ -113,6 +115,7 @@ export function InfoList({ items, hours = SAMPLE_HOURS, title = 'Jó tudni', onC
         })}
       </div>
       {hours && <HoursBlock h={hours} />}
+      </div>
     </div>
   )
 }
