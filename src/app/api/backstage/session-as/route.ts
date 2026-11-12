@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
-import { v4 as uuid } from 'uuid'
 import crypto from 'crypto'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getUserBusinesses, businessKey, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
+import { createSession } from '@/lib/authSessions'
+import { authQuery, sql } from '@/lib/authDb'
 
 const TOKEN_EXPIRATION = 60 * 60 * 2 // 2 hours in seconds
 
@@ -32,19 +33,11 @@ export async function POST(req: NextRequest) {
 
   if (!user) return NextResponse.redirect(new URL('/backstage', baseUrl), { status: 303 })
 
-  // Create a real Payload session so the JWT is valid with useSessions: true/false
-  const sid = uuid()
-  const now = new Date()
-  const expiresAt = new Date(now.getTime() + TOKEN_EXPIRATION * 1000)
-  const newSession = { id: sid, createdAt: now.toISOString(), expiresAt: expiresAt.toISOString() }
-  const existingSessions = Array.isArray((user as any).sessions) ? (user as any).sessions : []
-
-  await (payload.db as any).updateOne({
-    id: user.id,
-    collection: 'users',
-    data: { ...(user as any), sessions: [...existingSessions, newSession] },
-    returning: false,
-  })
+  // A munkamenet az eszköz-nyilvántartásba (auth_sessions) kerül, mint egy rendes belépés — a getCurrentUser a token
+  // `sid`-jét ott ellenőrzi; enélkül a backstage-belépés a login oldalra dobott (2026-11-12). Eszköz-azonosító nélkül,
+  // így az owner saját bejelentkezéseit nem zárja le; az owner eszközlistájában felismerhetően látszik, 2 órás lejárattal.
+  const sid = await createSession(user.id, req.headers.get('user-agent'), req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null, null)
+  await authQuery(sql`UPDATE auth_sessions SET expires_at = now() + make_interval(secs => ${TOKEN_EXPIRATION}), device = ${'Backstage — admin belépés'} WHERE id = ${sid}`)
 
   // Payload 3 a nyers PAYLOAD_SECRET SHA-256 hash-éből vett első 32 hex-karakterrel ír alá
   // (ugyanaz a deriváció mint a getCurrentUser jwtVerify-ban — egységes kulcs).
