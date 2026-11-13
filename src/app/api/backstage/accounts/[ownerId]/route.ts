@@ -40,7 +40,10 @@ export async function PATCH(
   // Admin manuálisan próbaidőszakra állít: ez a legmagasabb prioritású döntés, a próbaidő
   // MOSTANTÓL számoljon, ne egy régi (esetleg már lejárt) trial_ends_at-ból — különben a háttérben
   // futó expireStaleTrials/expireOneTrial a következő betöltéskor azonnal visszaírná past_due-ra.
-  if (body.status === 'trialing') {
+  // a próba vége kézzel is állítható (Előfizetés állapota ablak) — ilyenkor nem a próbaidő hosszából számoljuk
+  const manualTrialEnd = typeof body.trial_ends_at === 'string' && !Number.isNaN(new Date(body.trial_ends_at).getTime()) ? new Date(body.trial_ends_at).toISOString() : null
+  if (manualTrialEnd) subData.trial_ends_at = manualTrialEnd
+  else if (body.status === 'trialing') {
     const pricing = await payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true })
     const trialDays = (pricing as { trial_days?: number }).trial_days ?? 14
     subData.trial_ends_at = new Date(Date.now() + trialDays * 86_400_000).toISOString()

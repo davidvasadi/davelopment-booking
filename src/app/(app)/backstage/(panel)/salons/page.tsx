@@ -1,78 +1,29 @@
-import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
-import type { Salon, Restaurant, User } from '@/payload/payload-types'
-import { resolveTier } from '@/lib/tier'
-import { BackstageHeader } from '@/components/backstage/BackstageUi'
-import PlacesClient, { type PlaceRow } from './PlacesClient'
+import { Activity, Building2, CalendarDays } from 'lucide-react'
+import { Kpi, PageHead, SegmentBar } from '@/components/ui-kit'
+import { PlacesView } from '@/components/backstage/BackstageViews'
+import { loadBackstageData } from '@/lib/backstageMetrics'
+import { placeVMs } from '@/lib/backstageView'
 
 export const dynamic = 'force-dynamic'
 
-export default async function BackstagePlacesPage() {
+/** Backstage › Üzletek (design B.10): minden szalon és étterem, mellette a megnyitott üzlet adatlapja.
+ *  `?place=salon:12` / `?place=restaurant:3` — megnyitva érkezik (pl. a Kockázatból vagy a régi szalon-linkről). */
+export default async function BackstagePlacesPage({ searchParams }: { searchParams: Promise<{ place?: string }> }) {
   await requireAuth('admin')
-  const payload = await getPayloadClient()
-
-  // Mindkét üzlet-típus: szalon (bookings) ÉS étterem (reservations).
-  const [salonsResult, restaurantsResult] = await Promise.all([
-    payload.find({ collection: 'salons', sort: '-createdAt', limit: 200, depth: 1, overrideAccess: true }),
-    payload.find({ collection: 'restaurants', sort: '-createdAt', limit: 200, depth: 1, overrideAccess: true }),
-  ])
-
-  const salonDocs = salonsResult.docs as Salon[]
-  const restaurantDocs = restaurantsResult.docs as Restaurant[]
-
-  // Foglalás-számok a megfelelő collectionből (szalon → bookings, étterem → reservations).
-  const [salonCounts, restaurantCounts] = await Promise.all([
-    Promise.all(salonDocs.map(async (s) => {
-      const r = await payload.find({ collection: 'bookings', where: { salon: { equals: s.id } }, limit: 0, overrideAccess: true })
-      return [s.id, r.totalDocs] as const
-    })),
-    Promise.all(restaurantDocs.map(async (r) => {
-      const res = await payload.find({ collection: 'reservations', where: { restaurant: { equals: r.id } }, limit: 0, overrideAccess: true })
-      return [r.id, res.totalDocs] as const
-    })),
-  ])
-  const salonCountMap = new Map(salonCounts)
-  const restaurantCountMap = new Map(restaurantCounts)
-
-  // Több-üzlet: ownerId → üzletszám (szalon + étterem owner-éből), hogy a sornál jelezhessük,
-  // ha egy fiókhoz több üzlet tartozik.
-  const ownerBizCount = new Map<string, number>()
-  for (const doc of [...salonDocs, ...restaurantDocs]) {
-    const oid = typeof doc.owner === 'object' && doc.owner ? String((doc.owner as User).id) : null
-    if (oid) ownerBizCount.set(oid, (ownerBizCount.get(oid) ?? 0) + 1)
-  }
-
-  const toRow = (kind: 'salon' | 'restaurant', doc: Salon | Restaurant, count: number): PlaceRow => {
-    const owner = typeof doc.owner === 'object' ? (doc.owner as User) : null
-    const oid = owner?.id != null ? String(owner.id) : null
-    return {
-      kind,
-      id: String(doc.id),
-      name: doc.name,
-      slug: doc.slug,
-      city: doc.city ?? null,
-      is_active: doc.is_active ?? null,
-      createdAt: doc.createdAt,
-      ownerEmail: owner?.email,
-      ownerName: owner?.name,
-      ownerBusinessCount: oid ? (ownerBizCount.get(oid) ?? 1) : 1,
-      bookingCount: count,
-      tier: resolveTier(doc.tier),
-    }
-  }
-
-  const places: PlaceRow[] = [
-    ...salonDocs.map((s) => toRow('salon', s, salonCountMap.get(s.id) ?? 0)),
-    ...restaurantDocs.map((r) => toRow('restaurant', r, restaurantCountMap.get(r.id) ?? 0)),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
+  const { place } = await searchParams
+  const d = await loadBackstageData()
+  const places = placeVMs(d.accounts)
+  const month = places.reduce((n, p) => n + p.month, 0)
   return (
-    <div className="space-y-6 p-5 lg:p-0">
-      <BackstageHeader
-        title="Helyek"
-        subtitle={`${salonDocs.length} szalon · ${restaurantDocs.length} étterem`}
-      />
-      <PlacesClient places={places} />
+    <div className="p-4 lg:p-0">
+      <PageHead title="Üzletek" sub={`${d.totalSalons} szalon · ${d.totalRestaurants} étterem`}
+        bar={<SegmentBar segments={[
+          { label: 'Szalon', value: String(d.totalSalons), weight: d.totalPlaces ? d.totalSalons : 50, tone: 'dark' },
+          { label: 'Étterem', value: String(d.totalRestaurants), weight: d.totalPlaces ? Math.max(d.totalRestaurants, d.totalPlaces * 0.06) : 50, tone: 'yellow' },
+        ]} />}
+        kpis={<><Kpi icon={Building2} value={String(d.totalPlaces)} label="Üzlet" /><Kpi icon={CalendarDays} value={month.toLocaleString('hu-HU')} label="Foglalás · 30 nap" /><Kpi icon={Activity} value={`${d.activePlaceRate}%`} label="Aktív" /></>} />
+      <PlacesView places={places} initial={place} />
     </div>
   )
 }

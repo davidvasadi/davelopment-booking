@@ -8,6 +8,7 @@ import 'server-only'
  */
 import type { Salon, Restaurant, User, Subscription, EmailLogEntry } from '@/payload/payload-types'
 import { getPayloadClient } from '@/lib/payload'
+import { authQuery, sql } from '@/lib/authDb'
 import { subAmountHuf, ownerIdOfSubscription } from '@/lib/backstagePlaces'
 import { resolveTier, type Tier } from '@/lib/tier'
 
@@ -39,11 +40,8 @@ export type AccountSummary = {
   /** A fiók csomagja — a legkorábban létrehozott üzlete alapján (a legtöbb fióknak csak 1
    *  üzlete van; több üzletnél az elsőé az irányadó, a `places[].tier` mindegyiket megadja). */
   tier: Tier | null
-  places: { kind: 'salon' | 'restaurant'; id: string; name: string; slug: string; is_active: boolean; city: string | null; tier: Tier }[]
+  places: { kind: 'salon' | 'restaurant'; id: string; name: string; slug: string; is_active: boolean; city: string | null; tier: Tier; customFee: number | null; total: number; recent: number; createdAt: string }[]
 }
-
-/** Egy nap egy idősorban. */
-export type TrendPoint = { label: string; value: number }
 
 export type BackstageData = {
   accounts: AccountSummary[]
@@ -68,17 +66,6 @@ export type BackstageData = {
   totalBookings: number
   monthBookings: number
   activePlaceRate: number // aktív helyek aránya, %
-  // Kimenő emailek (email-log)
-  totalEmails: number
-  monthEmails: number
-  emailsTrend: TrendPoint[] // 30 napos NAPI kimenő email-darab (nem kumulált)
-  /** Az ELŐZŐ 30 napos ablak napi email-darabszáma, nap-pozíció szerint illesztve az `emailsTrend`-hez — az összehasonlító vonalhoz a grafikonon. */
-  emailsPrevTrend: number[]
-  // Idősorok (30 nap, kumulált)
-  mrrTrend: TrendPoint[]
-  accountsTrend: TrendPoint[]
-  bookingsTrend: TrendPoint[]
-  placesTrend: TrendPoint[]
   // Bevétel-bontás
   salonMrr: number
   restaurantMrr: number
@@ -108,123 +95,11 @@ export type BackstagePlaceRisk = {
 
 const TREND_DAYS = 30
 
-/**
- * ISO-createdAt lista → 30 napos NAPI DARAB idősor (az adott napon keletkezett elemek száma,
- * nem kumulált). Pl. napi kimenő emailek számához.
- */
-export function dailyCountTrend(isoDates: string[]): TrendPoint[] {
-  const start = new Date(); start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - (TREND_DAYS - 1))
-  const perDay = new Map<string, number>()
-  for (const iso of isoDates) {
-    const d = new Date(iso); d.setHours(0, 0, 0, 0)
-    if (d < start) continue
-    const key = d.toISOString().slice(0, 10)
-    perDay.set(key, (perDay.get(key) ?? 0) + 1)
-  }
-  const days: TrendPoint[] = []
-  for (let i = 0; i < TREND_DAYS; i++) {
-    const d = new Date(start); d.setDate(start.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    days.push({ label: d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }), value: perDay.get(key) ?? 0 })
-  }
-  return days
-}
 
-/**
- * Ugyanaz mint a `dailyCountTrend`, de az ELŐZŐ 30 napos ablakra (nap-pozíció szerint illesztve
- * a jelenlegi ablakhoz — az összehasonlító szürke/pontozott vonalhoz a grafikonon, pl. „Kimenő
- * emailek" előző havi görbéje). Csak az értékeket adja vissza, a jelenlegi ablak feliratozza az X-tengelyt.
- */
-export function dailyCountTrendPrevPeriod(isoDates: string[]): number[] {
-  const start = new Date(); start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - (TREND_DAYS - 1) - TREND_DAYS)
-  const perDay = new Map<string, number>()
-  const end = new Date(start); end.setDate(start.getDate() + TREND_DAYS)
-  for (const iso of isoDates) {
-    const d = new Date(iso); d.setHours(0, 0, 0, 0)
-    if (d < start || d >= end) continue
-    const key = d.toISOString().slice(0, 10)
-    perDay.set(key, (perDay.get(key) ?? 0) + 1)
-  }
-  const values: number[] = []
-  for (let i = 0; i < TREND_DAYS; i++) {
-    const d = new Date(start); d.setDate(start.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    values.push(perDay.get(key) ?? 0)
-  }
-  return values
-}
 
-/**
- * ISO-createdAt lista → 30 napos KUMULÁLT napi idősor (az adott napig létező összes elem).
- * Az ablak előtti elemek adják a kezdő alapszintet, így az összlétszám alakulását mutatja.
- */
-export function cumulativeTrend(isoDates: string[]): TrendPoint[] {
-  const days: TrendPoint[] = []
-  const start = new Date(); start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - (TREND_DAYS - 1))
 
-  let baseBefore = 0
-  const perDay = new Map<string, number>()
-  for (const iso of isoDates) {
-    const d = new Date(iso); d.setHours(0, 0, 0, 0)
-    if (d < start) { baseBefore += 1; continue }
-    const key = d.toISOString().slice(0, 10)
-    perDay.set(key, (perDay.get(key) ?? 0) + 1)
-  }
 
-  let running = baseBefore
-  for (let i = 0; i < TREND_DAYS; i++) {
-    const d = new Date(start); d.setDate(start.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    running += perDay.get(key) ?? 0
-    days.push({ label: d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }), value: running })
-  }
-  return days
-}
 
-/**
- * MRR-idősor: minden aktív előfizetés a saját havidíjával, a `createdAt` napjától kezdve
- * hozzáadva (közelítés — a valós számlázási eseményeket nem tároljuk). Az összeg egy adott
- * napig aktivált előfizetések díjának summája.
- */
-function mrrCumulativeTrend(activeSubs: Subscription[]): TrendPoint[] {
-  const start = new Date(); start.setHours(0, 0, 0, 0)
-  start.setDate(start.getDate() - (TREND_DAYS - 1))
-
-  let baseBefore = 0
-  const perDay = new Map<string, number>()
-  for (const s of activeSubs) {
-    const amt = subAmountHuf(s)
-    if (amt <= 0) continue
-    const d = new Date(s.createdAt); d.setHours(0, 0, 0, 0)
-    if (d < start) { baseBefore += amt; continue }
-    const key = d.toISOString().slice(0, 10)
-    perDay.set(key, (perDay.get(key) ?? 0) + amt)
-  }
-
-  const days: TrendPoint[] = []
-  let running = baseBefore
-  for (let i = 0; i < TREND_DAYS; i++) {
-    const d = new Date(start); d.setDate(start.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
-    running += perDay.get(key) ?? 0
-    days.push({ label: d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }), value: running })
-  }
-  return days
-}
-
-type PayloadClient = Awaited<ReturnType<typeof getPayloadClient>>
-
-async function createdAtList(
-  payload: PayloadClient,
-  collection: 'salons' | 'restaurants' | 'users' | 'bookings' | 'reservations',
-  where?: Record<string, unknown>,
-): Promise<string[]> {
-  const res = await payload.find({ collection, where, limit: 5000, depth: 0, overrideAccess: true, select: { createdAt: true } } as Parameters<typeof payload.find>[0])
-  return (res.docs as unknown as { createdAt: string }[]).map(d => d.createdAt)
-}
 
 /**
  * A TELJES backstage adatréteg egyetlen loaderben. Beolvassa a fiókokat, üzleteket,
@@ -240,24 +115,21 @@ export async function loadBackstageData(): Promise<BackstageData> {
   const ago14 = new Date(now.getTime() - 14 * MS_DAY)
   const in14 = new Date(now.getTime() + 14 * MS_DAY)
 
+  // Foglalás-számok üzletenként (összes + 30 napos) KÉT összesítő lekérdezéssel — korábban üzletenként 2 külön
+  // lekérdezés futott, ami sok üzletnél (és dev módban) nagyon lassú volt.
+  const countRows = (q: ReturnType<typeof sql>) => authQuery<{ id: number; total: number; recent: number }>(q).catch(() => [])
   const [
     salonsRes, restaurantsRes, subsRes, usersRes,
-    salonDates, restaurantDates, userDates, bookingDates, reservationDates,
-    monthBookingsRes, monthReservationsRes, emailDatesRes,
+    monthBookingsRes, monthReservationsRes, salonCounts, restaurantCounts,
   ] = await Promise.all([
     payload.find({ collection: 'salons', limit: 1000, depth: 1, overrideAccess: true }),
     payload.find({ collection: 'restaurants', limit: 1000, depth: 1, overrideAccess: true }),
     payload.find({ collection: 'subscriptions', limit: 1000, depth: 1, overrideAccess: true }),
     payload.find({ collection: 'users', where: { role: { in: ['salon_owner', 'restaurant_owner'] } }, limit: 2000, depth: 0, overrideAccess: true }),
-    createdAtList(payload, 'salons'),
-    createdAtList(payload, 'restaurants'),
-    createdAtList(payload, 'users', { role: { in: ['salon_owner', 'restaurant_owner'] } }),
-    createdAtList(payload, 'bookings'),
-    createdAtList(payload, 'reservations'),
     payload.find({ collection: 'bookings', where: { createdAt: { greater_than: monthStart.toISOString() } }, limit: 0, overrideAccess: true }),
     payload.find({ collection: 'reservations', where: { createdAt: { greater_than: monthStart.toISOString() } }, limit: 0, overrideAccess: true }),
-    // Kimenő emailek — csak a sikeresek (ok=true), createdAt-tel a napi trendhez.
-    payload.find({ collection: 'email-log', where: { ok: { equals: true } }, limit: 20000, depth: 0, overrideAccess: true, select: { createdAt: true } as never }).catch(() => ({ docs: [] as { createdAt: string }[] })),
+    countRows(sql`SELECT salon_id AS id, COUNT(*)::int AS total, (COUNT(*) FILTER (WHERE created_at > ${ago30.toISOString()}))::int AS recent FROM bookings WHERE salon_id IS NOT NULL GROUP BY salon_id`),
+    countRows(sql`SELECT restaurant_id AS id, COUNT(*)::int AS total, (COUNT(*) FILTER (WHERE created_at > ${ago30.toISOString()}))::int AS recent FROM reservations WHERE restaurant_id IS NOT NULL GROUP BY restaurant_id`),
   ])
 
   const salons = salonsRes.docs as Salon[]
@@ -265,23 +137,8 @@ export async function loadBackstageData(): Promise<BackstageData> {
   const subs = subsRes.docs as Subscription[]
   const users = usersRes.docs as User[]
 
-  // Foglalás-számok helyenként (szalon → bookings, étterem → reservations). Total + 30 napos.
-  const [salonBookings, restaurantBookings] = await Promise.all([
-    Promise.all(salons.map(async (s) => {
-      const [total, recent] = await Promise.all([
-        payload.find({ collection: 'bookings', where: { salon: { equals: s.id } }, limit: 0, overrideAccess: true }),
-        payload.find({ collection: 'bookings', where: { salon: { equals: s.id }, createdAt: { greater_than: ago30.toISOString() } }, limit: 0, overrideAccess: true }),
-      ])
-      return [String(s.id), { total: total.totalDocs, recent: recent.totalDocs }] as const
-    })),
-    Promise.all(restaurants.map(async (r) => {
-      const [total, recent] = await Promise.all([
-        payload.find({ collection: 'reservations', where: { restaurant: { equals: r.id } }, limit: 0, overrideAccess: true }),
-        payload.find({ collection: 'reservations', where: { restaurant: { equals: r.id }, createdAt: { greater_than: ago30.toISOString() } }, limit: 0, overrideAccess: true }),
-      ])
-      return [String(r.id), { total: total.totalDocs, recent: recent.totalDocs }] as const
-    })),
-  ])
+  const salonBookings = salonCounts.map((r) => [String(r.id), { total: Number(r.total), recent: Number(r.recent) }] as const)
+  const restaurantBookings = restaurantCounts.map((r) => [String(r.id), { total: Number(r.total), recent: Number(r.recent) }] as const)
   const salonBookingMap = new Map(salonBookings)
   const restaurantBookingMap = new Map(restaurantBookings)
 
@@ -342,6 +199,7 @@ export async function loadBackstageData(): Promise<BackstageData> {
     acc.places.push({
       kind, id: String(doc.id), name: doc.name, slug: doc.slug,
       is_active: doc.is_active ?? false, city: doc.city ?? null, tier,
+      customFee: doc.custom_monthly_fee_huf ?? null, total: bk?.total ?? 0, recent: bk?.recent ?? 0, createdAt: doc.createdAt,
     })
   }
   for (const s of salons) addPlace('salon', s, salonBookingMap.get(String(s.id)))
@@ -384,7 +242,7 @@ export async function loadBackstageData(): Promise<BackstageData> {
   const totalPlaces = totalSalons + totalRestaurants
   const activePlaces = salons.filter(s => s.is_active).length + restaurants.filter(r => r.is_active).length
   const activePlaceRate = totalPlaces > 0 ? Math.round((activePlaces / totalPlaces) * 100) : 0
-  const totalBookings = bookingDates.length + reservationDates.length
+  const totalBookings = [...salonBookings, ...restaurantBookings].reduce((n, [, v]) => n + v.total, 0)
   const monthBookings = monthBookingsRes.totalDocs + monthReservationsRes.totalDocs
 
   // Kockázati listák.
@@ -420,13 +278,6 @@ export async function loadBackstageData(): Promise<BackstageData> {
   const neverBookedPlaces = allPlaceRisks.filter(p => new Date(p.createdAt) <= ago14 && p.totalBookings === 0)
   const inactivePlaces = allPlaceRisks.filter(p => !p.is_active)
 
-  // Kimenő emailek (email-log): összes + e havi + napi trend.
-  const emailDates = (emailDatesRes.docs as { createdAt: string }[]).map(d => d.createdAt)
-  const totalEmails = emailDates.length
-  const monthEmails = emailDates.filter(iso => new Date(iso) >= monthStart).length
-  const emailsTrend = dailyCountTrend(emailDates)
-  const emailsPrevTrend = dailyCountTrendPrevPeriod(emailDates)
-
   return {
     accounts,
     mrr, arr: mrr * 12, arpa,
@@ -440,13 +291,6 @@ export async function loadBackstageData(): Promise<BackstageData> {
     conversionRate, churnRate,
     totalPlaces, activePlaces, totalSalons, totalRestaurants,
     totalBookings, monthBookings, activePlaceRate,
-    totalEmails, monthEmails, emailsTrend, emailsPrevTrend,
-    mrrTrend: mrrCumulativeTrend(activeSubs),
-    // Napi ÚJ regisztráció, nem halmozott összlétszám — kevés fióknál a kumulatív görbe
-    // csak egy értelmetlen lépcső (0→1→2), a napi bontás legalább mutat valós mozgást.
-    accountsTrend: dailyCountTrend(userDates),
-    bookingsTrend: cumulativeTrend([...bookingDates, ...reservationDates]),
-    placesTrend: cumulativeTrend([...salonDates, ...restaurantDates]),
     salonMrr, restaurantMrr, salonUnits, restaurantUnits,
     expiringTrials, pastDueAccounts, dormantPlaces, neverBookedPlaces, inactivePlaces,
   }
@@ -460,7 +304,8 @@ export function daysUntil(iso: string | null | undefined): number | null {
 
 /* ── Bevétel-mélyítés: kohorsz-retenció, MRR-mozgás, LTV (a /backstage/revenue oldalhoz) ── */
 
-export type MonthlyRevenue = { month: string; mrr: number; newCount: number }
+/** `month`: „YYYY-MM”; `mrr`: az abban a hónapban indult (ma aktív) előfizetések díja; `total`: a halmozott havi bevétel a hónap végén. */
+export type MonthlyRevenue = { month: string; mrr: number; newCount: number; total: number }
 
 export type CohortRow = {
   /** A kohorsz hónapja (pl. „2026. jan"). */
@@ -492,7 +337,6 @@ export type RevenueBreakdown = {
   restaurantUnits: number
   monthlyRevenue: MonthlyRevenue[]
   cohorts: CohortRow[]
-  mrrTrend: TrendPoint[]
 }
 
 /** Bevétel-oldal adatréteg — a fiók-subokból kohorsz-retenció + MRR-idősor + LTV. */
@@ -529,7 +373,7 @@ export async function loadRevenueBreakdown(): Promise<RevenueBreakdown> {
   }
 
   // Havi bevétel: aktív subok belépési hónapja szerint (közelítés — nincs számla-esemény tábla).
-  const monthKey = (iso: string) => new Date(iso).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short' })
+  const monthKey = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
   const monthMap = new Map<string, { mrr: number; newCount: number; order: number }>()
   for (const s of activeSubs) {
     const key = monthKey(s.createdAt)
@@ -538,10 +382,11 @@ export async function loadRevenueBreakdown(): Promise<RevenueBreakdown> {
     cur.mrr += subAmountHuf(s); cur.newCount += 1
     monthMap.set(key, cur)
   }
+  let running = 0
   const monthlyRevenue: MonthlyRevenue[] = [...monthMap.entries()]
     .sort((a, b) => a[1].order - b[1].order)
+    .map(([month, v]) => { running += v.mrr; return { month, mrr: v.mrr, newCount: v.newCount, total: running } })
     .slice(-8)
-    .map(([month, v]) => ({ month, mrr: v.mrr, newCount: v.newCount }))
 
   // Kohorsz-retenció: a regisztráció hónapja szerinti csoportok, ki maradt aktív ma.
   const cohortMap = new Map<string, { size: number; retained: number; order: number }>()
@@ -566,7 +411,6 @@ export async function loadRevenueBreakdown(): Promise<RevenueBreakdown> {
     totalSubs: subs.length,
     salonMrr, restaurantMrr, salonUnits, restaurantUnits,
     monthlyRevenue, cohorts,
-    mrrTrend: mrrCumulativeTrend(activeSubs),
   }
 }
 
@@ -581,8 +425,10 @@ export type AccountPlaceDetail = {
   is_active: boolean
   createdAt: string
   totalBookings: number
+  /** az elmúlt 30 nap foglalásai */
   monthBookings: number
   tier: Tier
+  customFee: number | null
 }
 
 export type AccountBookingRow = {
@@ -615,7 +461,8 @@ export async function loadAccountProfile(ownerId: string): Promise<AccountProfil
   const owner = (await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true }).catch(() => null)) as User | null
   if (!owner) return null
 
-  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
+  // „hónap” = az elmúlt 30 nap (a fiók-lista „Foglalás · 30 nap” oszlopával egyezően)
+  const monthStart = new Date(Date.now() - 30 * MS_DAY)
 
   const [salonsRes, restaurantsRes, subRes] = await Promise.all([
     payload.find({ collection: 'salons', where: { owner: { equals: ownerId } }, limit: 200, depth: 0, overrideAccess: true }),
@@ -637,7 +484,7 @@ export async function loadAccountProfile(ownerId: string): Promise<AccountProfil
       payload.find({ collection: 'bookings', where: { salon: { equals: s.id } }, sort: '-createdAt', limit: 5, depth: 1, overrideAccess: true }),
     ])
     totalBookings += total.totalDocs; monthBookings += month.totalDocs
-    places.push({ kind: 'salon', id: String(s.id), name: s.name, slug: s.slug, city: s.city ?? null, is_active: s.is_active ?? false, createdAt: s.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs, tier: resolveTier(s.tier) })
+    places.push({ kind: 'salon', id: String(s.id), name: s.name, slug: s.slug, city: s.city ?? null, is_active: s.is_active ?? false, createdAt: s.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs, tier: resolveTier(s.tier), customFee: s.custom_monthly_fee_huf ?? null })
     for (const b of recent.docs) {
       const svc = b.service && typeof b.service === 'object' ? (b.service as { name?: string }) : null
       recentBookings.push({ id: String(b.id), placeName: s.name, kind: 'salon', customerName: b.customer_name ?? '—', detail: svc?.name ?? '—', date: b.date ?? '', time: b.start_time ?? '', status: b.status ?? '', createdAt: b.createdAt })
@@ -650,7 +497,7 @@ export async function loadAccountProfile(ownerId: string): Promise<AccountProfil
       payload.find({ collection: 'reservations', where: { restaurant: { equals: r.id } }, sort: '-createdAt', limit: 5, depth: 1, overrideAccess: true }),
     ])
     totalBookings += total.totalDocs; monthBookings += month.totalDocs
-    places.push({ kind: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, city: r.city ?? null, is_active: r.is_active ?? false, createdAt: r.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs, tier: resolveTier(r.tier) })
+    places.push({ kind: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, city: r.city ?? null, is_active: r.is_active ?? false, createdAt: r.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs, tier: resolveTier(r.tier), customFee: r.custom_monthly_fee_huf ?? null })
     for (const b of recent.docs) {
       const rec = b as { customer_name?: string; pax?: number; date?: string; start_time?: string; status?: string; id: string | number; createdAt: string }
       recentBookings.push({ id: String(rec.id), placeName: r.name, kind: 'restaurant', customerName: rec.customer_name ?? '—', detail: rec.pax != null ? `${rec.pax} fő` : '—', date: rec.date ?? '', time: rec.start_time ?? '', status: rec.status ?? '', createdAt: rec.createdAt })
@@ -747,4 +594,53 @@ export async function loadRegistrationFunnel(accounts: AccountSummary[]): Promis
     { key: 'booking', label: 'Első foglalás beérkezett', count: hasBooking },
     { key: 'paying', label: 'Fizetőssé vált', count: paying },
   ]
+}
+
+/* ── Kimenő e-mailek összesítése (Backstage › Bevétel, „Kimenő e-mailek”) ─────────── */
+
+export type EmailStats = {
+  month: number; last30: number; all: number; failed30: number
+  /** napi darab az elmúlt 30 napban (a legrégebbi elöl) és az azt megelőző 30 napban */
+  daily: { day: string; n: number }[]; prevDaily: number[]
+  /** típusonként az elmúlt 30 napban, csökkenő sorrendben */
+  byType: { type: string; n: number }[]
+  /** kézbesítési állapot az elmúlt 30 napban (Resend webhook alapján) */
+  delivered: number; opened: number; bounced: number
+}
+
+/** Összes kimenő e-mail az email-logból — néhány összesítő lekérdezés (nem tölti be a sorokat). */
+export async function loadEmailStats(): Promise<EmailStats> {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const ago30 = new Date(now.getTime() - 30 * MS_DAY)
+  const ago60 = new Date(now.getTime() - 60 * MS_DAY).toISOString()
+  const [tot] = await authQuery<{ month: number; last30: number; total: number; failed30: number; delivered: number; opened: number; bounced: number }>(sql`
+    SELECT (COUNT(*) FILTER (WHERE created_at >= ${monthStart}))::int AS month,
+           (COUNT(*) FILTER (WHERE created_at >= ${ago30.toISOString()}))::int AS last30,
+           COUNT(*)::int AS total,
+           (COUNT(*) FILTER (WHERE created_at >= ${ago30.toISOString()} AND ok = false))::int AS failed30,
+           (COUNT(*) FILTER (WHERE created_at >= ${ago30.toISOString()} AND status IN ('delivered', 'opened', 'clicked')))::int AS delivered,
+           (COUNT(*) FILTER (WHERE created_at >= ${ago30.toISOString()} AND status IN ('opened', 'clicked')))::int AS opened,
+           (COUNT(*) FILTER (WHERE created_at >= ${ago30.toISOString()} AND status IN ('bounced', 'complained')))::int AS bounced
+    FROM email_log`)
+  const days = await authQuery<{ d: string; n: number }>(sql`
+    SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS d, COUNT(*)::int AS n
+    FROM email_log WHERE created_at >= ${ago60} GROUP BY 1`)
+  const types = await authQuery<{ type: string; n: number }>(sql`
+    SELECT type, COUNT(*)::int AS n FROM email_log WHERE created_at >= ${ago30.toISOString()} GROUP BY type ORDER BY n DESC`)
+  const byDay = new Map(days.map((r) => [r.d, Number(r.n)]))
+  const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const daily: { day: string; n: number }[] = []
+  const prevDaily: number[] = []
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+    daily.push({ day: key(d), n: byDay.get(key(d)) ?? 0 })
+    const p = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i - 30)
+    prevDaily.push(byDay.get(key(p)) ?? 0)
+  }
+  return {
+    month: Number(tot?.month ?? 0), last30: Number(tot?.last30 ?? 0), all: Number(tot?.total ?? 0), failed30: Number(tot?.failed30 ?? 0),
+    daily, prevDaily, byType: types.map((t) => ({ type: t.type, n: Number(t.n) })),
+    delivered: Number(tot?.delivered ?? 0), opened: Number(tot?.opened ?? 0), bounced: Number(tot?.bounced ?? 0),
+  }
 }

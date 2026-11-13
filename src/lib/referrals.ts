@@ -104,26 +104,27 @@ async function creditOneMonth(payload: Payload, userId: number, reason: string):
  * és az AJÁNLÓ kap 1 hónapot (a meghívott nem); közben a fiók (ajánlóként) függőben lévő jóváírásai is most kerülnek rá. Idempotens
  * (a jóváírás időpontja jelzi, mi ment már ki); a hibája nem buktatja a webhookot.
  */
+/** Egy jóváírás „lefoglalása” atomikusan (ugyanaz az esemény kétszer se írjon jóvá kétszer), hiba / nincs még
+ *  Stripe-ügyfél esetén visszaengedve. */
+async function claimCredit(payload: Payload, id: number, col: 'referred_credited_at' | 'referrer_credited_at', who: number, reason: string): Promise<boolean> {
+  const got = col === 'referred_credited_at'
+    ? await authQuery(sql`UPDATE referrals SET referred_credited_at = now() WHERE id = ${id} AND referred_credited_at IS NULL RETURNING id`)
+    : await authQuery(sql`UPDATE referrals SET referrer_credited_at = now() WHERE id = ${id} AND referrer_credited_at IS NULL RETURNING id`)
+  if (!got.length) return true
+  const ok = await creditOneMonth(payload, who, reason).catch((e) => { console.error('[referrals] credit failed:', e); return false })
+  if (!ok) {
+    if (col === 'referred_credited_at') await authQuery(sql`UPDATE referrals SET referred_credited_at = NULL WHERE id = ${id}`)
+    else await authQuery(sql`UPDATE referrals SET referrer_credited_at = NULL WHERE id = ${id}`)
+  }
+  return ok
+}
+
 export async function rewardReferralsOnCheckout(payload: Payload, ourSubId: string | number): Promise<void> {
   try {
     const sub = await payload.findByID({ collection: 'subscriptions', id: ourSubId, depth: 0, overrideAccess: true }) as Subscription
     const userId = Number(typeof sub.owner === 'object' ? sub.owner?.id : sub.owner)
     if (!userId) return
-
-    // egy jóváírás „lefoglalása” atomikusan (ugyanaz az esemény kétszer se írjon jóvá kétszer), hiba / nincs még
-    // Stripe-ügyfél esetén visszaengedve
-    const claim = async (id: number, col: 'referred_credited_at' | 'referrer_credited_at', who: number, reason: string) => {
-      const got = col === 'referred_credited_at'
-        ? await authQuery(sql`UPDATE referrals SET referred_credited_at = now() WHERE id = ${id} AND referred_credited_at IS NULL RETURNING id`)
-        : await authQuery(sql`UPDATE referrals SET referrer_credited_at = now() WHERE id = ${id} AND referrer_credited_at IS NULL RETURNING id`)
-      if (!got.length) return true
-      const ok = await creditOneMonth(payload, who, reason).catch((e) => { console.error('[referrals] credit failed:', e); return false })
-      if (!ok) {
-        if (col === 'referred_credited_at') await authQuery(sql`UPDATE referrals SET referred_credited_at = NULL WHERE id = ${id}`)
-        else await authQuery(sql`UPDATE referrals SET referrer_credited_at = NULL WHERE id = ${id}`)
-      }
-      return ok
-    }
+    const claim = (id: number, col: 'referred_credited_at' | 'referrer_credited_at', who: number, reason: string) => claimCredit(payload, id, col, who, reason)
 
     // a fiók mint meghívott
     const mine = await authQuery<{ id: number; referrer_user_id: number }>(sql`SELECT id, referrer_user_id FROM referrals WHERE referred_user_id = ${userId}`)
@@ -168,5 +169,69 @@ export async function referralSummary(payload: Payload, userId: number | string,
       id: r.id, name: r.referred_name || 'Új vállalkozás', date: String(r.created_at),
       status: r.status === 'subscribed' ? (r.referrer_credited_at ? 'credited' : 'subscribed') : r.referred_user_id && trial.has(r.referred_user_id) ? 'trial' : 'registered',
     })),
+  }
+}
+
+/* ── Backstage (admin) ── */
+
+export type ReferralAdminRow = {
+  id: number; referrerId: number; referrer: string; invitedId: number | null; invited: string; code: string
+  createdAt: string; status: 'registered' | 'trial' | 'subscribed'; creditedAt: string | null
+}
+
+/** Az összes ajánlás az admin listához (legfrissebb elöl) + a link-megnyitások összesen. */
+export async function referralAdminList(payload: Payload): Promise<{ rows: ReferralAdminRow[]; clicks: number }> {
+  const rows = await authQuery<{ id: number; referrer_user_id: number; referred_user_id: number | null; referred_name: string | null; code: string; status: string; created_at: string; referrer_credited_at: string | null }>(
+    sql`SELECT id, referrer_user_id, referred_user_id, referred_name, code, status, created_at, referrer_credited_at FROM referrals ORDER BY created_at DESC LIMIT 200`)
+  const [c] = await authQuery<{ n: number }>(sql`SELECT COALESCE(SUM(clicks), 0)::int AS n FROM referral_codes`)
+  const userIds = [...new Set(rows.flatMap((r) => [r.referrer_user_id, r.referred_user_id ?? 0]).filter(Boolean))]
+  const names = new Map<number, string>()
+  const trial = new Set<number>()
+  if (userIds.length) {
+    const [users, subs] = await Promise.all([
+      payload.find({ collection: 'users', where: { id: { in: userIds } }, limit: userIds.length, depth: 1, overrideAccess: true }).catch(() => null),
+      payload.find({ collection: 'subscriptions', where: { and: [{ owner: { in: userIds } }, { status: { equals: 'trialing' } }] }, limit: userIds.length, depth: 0, overrideAccess: true }).catch(() => null),
+    ])
+    for (const u of (users?.docs ?? []) as { id: number; name?: string | null; email?: string | null; salon?: unknown; restaurant?: unknown }[]) {
+      const place = [u.salon, u.restaurant].find((p) => p && typeof p === 'object') as { name?: string } | undefined
+      names.set(Number(u.id), place?.name || u.name || u.email || '—')
+    }
+    for (const s of (subs?.docs ?? []) as Subscription[]) trial.add(Number(typeof s.owner === 'object' ? s.owner?.id : s.owner))
+  }
+  return {
+    clicks: Number(c?.n ?? 0),
+    rows: rows.map((r) => ({
+      id: r.id, referrerId: r.referrer_user_id, referrer: names.get(r.referrer_user_id) ?? '—',
+      invitedId: r.referred_user_id, invited: (r.referred_user_id && names.get(r.referred_user_id)) || r.referred_name || '—',
+      code: r.code, createdAt: r.created_at, creditedAt: r.referrer_credited_at,
+      status: r.status === 'subscribed' ? 'subscribed' : r.referred_user_id && trial.has(r.referred_user_id) ? 'trial' : 'registered',
+    })),
+  }
+}
+
+/** Elakadt ajánlói jóváírás kézi pótlása (az ajánló +1 hónapja). false: még most sem sikerült (nincs Stripe-ügyfele / díja). */
+export async function retryReferrerCredit(payload: Payload, referralId: number): Promise<boolean> {
+  const [r] = await authQuery<{ id: number; referrer_user_id: number; status: string }>(sql`SELECT id, referrer_user_id, status FROM referrals WHERE id = ${referralId}`)
+  if (!r || r.status !== 'subscribed') return false
+  return claimCredit(payload, r.id, 'referrer_credited_at', r.referrer_user_id, 'Ajánló program — 1 hónap ajándék (ajánló)')
+}
+
+/** Egy fiók ajánlásai a Backstage-profilhoz: ki hozta (ha ajánlással jött), kiket hozott, hány +1 hónapot kapott. */
+export async function referralFactsFor(payload: Payload, userId: number | string): Promise<{ by: { id: number; name: string } | null; invited: { id: number | null; name: string; subscribed: boolean }[]; credited: number }> {
+  const uid = Number(userId)
+  const rows = await authQuery<{ referrer_user_id: number; referred_user_id: number | null; referred_name: string | null; status: string; referrer_credited_at: string | null }>(
+    sql`SELECT referrer_user_id, referred_user_id, referred_name, status, referrer_credited_at FROM referrals WHERE referrer_user_id = ${uid} OR referred_user_id = ${uid} ORDER BY created_at DESC LIMIT 50`)
+  const byRow = rows.find((r) => r.referred_user_id === uid)
+  let by: { id: number; name: string } | null = null
+  if (byRow) {
+    const u = await payload.findByID({ collection: 'users', id: byRow.referrer_user_id, depth: 1, overrideAccess: true }).catch(() => null) as { name?: string | null; email?: string | null; salon?: unknown; restaurant?: unknown } | null
+    const place = u && ([u.salon, u.restaurant].find((p) => p && typeof p === 'object') as { name?: string } | undefined)
+    by = { id: byRow.referrer_user_id, name: place?.name || u?.name || u?.email || '—' }
+  }
+  const mine = rows.filter((r) => r.referrer_user_id === uid)
+  return {
+    by,
+    invited: mine.map((r) => ({ id: r.referred_user_id, name: r.referred_name || '—', subscribed: r.status === 'subscribed' })),
+    credited: mine.filter((r) => r.referrer_credited_at).length,
   }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
 
-// Az étterem-megfelelője a salons/[salonId]/detail végpontnak — a backstage PlaceDetailSheet
+// Az étterem-megfelelője a salons/[salonId]/detail végpontnak — a Backstage › Üzletek adatlapja (BackstageViews › PlacesView)
 // hívja, ha a kiválasztott hely étterem (foglalás = reservations, nem bookings).
 export async function GET(
   _req: NextRequest,

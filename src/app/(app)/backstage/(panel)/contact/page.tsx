@@ -1,78 +1,38 @@
-import Link from 'next/link'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
-import type { ContactMessage } from '@/payload/payload-types'
-import { BackstageHeader } from '@/components/backstage/BackstageUi'
-import ContactMessageCard from './ContactMessageCard'
+import { Check, Mail, MessageSquare } from 'lucide-react'
+import { Kpi, PageHead } from '@/components/ui-kit'
+import { MessagesView } from '@/components/backstage/BackstageViews'
+import { getPayloadClient } from '@/lib/payload'
+import { ago } from '@/lib/backstageView'
+import type { ContactMessage, User } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
-const PAGE_SIZE = 10
-
-export default async function BackstageContactPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+/** Backstage › Kapcsolat (design B.13): a kapcsolat-űrlap üzenetei, mellette a megnyitott üzenet. Ha a feladó már
+ *  ügyfél (azonos e-mail), az üzlete és a fiókja is látszik. */
+export default async function BackstageContactPage() {
   await requireAuth('admin')
-  const { page: pageParam } = await searchParams
-  const page = Math.max(1, Number(pageParam) || 1)
   const payload = await getPayloadClient()
-
-  const [result, newCountResult] = await Promise.all([
-    payload.find({
-      collection: 'contact-messages',
-      sort: '-createdAt',
-      limit: PAGE_SIZE,
-      page,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.count({
-      collection: 'contact-messages',
-      where: { status: { equals: 'new' } },
-      overrideAccess: true,
-    }),
-  ])
-  const messages = result.docs as ContactMessage[]
-
+  const res = await payload.find({ collection: 'contact-messages', sort: '-createdAt', limit: 300, depth: 0, overrideAccess: true })
+  const msgs = res.docs as ContactMessage[]
+  const emails = [...new Set(msgs.map((m) => m.email?.toLowerCase()).filter(Boolean))] as string[]
+  const users = emails.length
+    ? ((await payload.find({ collection: 'users', where: { email: { in: emails } }, limit: emails.length, depth: 1, overrideAccess: true }).catch(() => null))?.docs ?? []) as User[]
+    : []
+  const byEmail = new Map(users.map((u) => {
+    const place = [u.salon, u.restaurant].find((p) => p && typeof p === 'object') as { name?: string } | undefined
+    return [u.email.toLowerCase(), { id: String(u.id), name: place?.name || u.name || u.email, owner: u.role !== 'admin' }]
+  }))
+  const rows = msgs.map((m) => {
+    const u = byEmail.get(m.email?.toLowerCase() ?? '')
+    return { key: String(m.id), id: String(m.id), name: m.name, email: m.email, phone: m.phone ?? null, message: m.message, when: ago(m.createdAt), answered: m.status === 'answered', account: u?.owner ? u.name : null, accountHref: u?.owner ? `/backstage/accounts/${u.id}` : undefined }
+  })
+  const fresh = rows.filter((r) => !r.answered).length
   return (
-    <div className="space-y-6 p-5 lg:p-0">
-      <BackstageHeader
-        title="Kapcsolat"
-        subtitle={`${result.totalDocs} beérkezett üzenet · ${newCountResult.totalDocs} új`}
-      />
-
-      {messages.length === 0 ? (
-        <div className="rounded-[26px] p-10 text-center dav-card-glass">
-          <p className="text-[13.5px] text-ink-soft">Még nem érkezett kapcsolatfelvételi üzenet.</p>
-        </div>
-      ) : (
-        <div className="rounded-[26px] p-2.5 dav-card-glass">
-          <div className="space-y-3">
-            {messages.map(m => (
-              <ContactMessageCard key={m.id} message={m} />
-            ))}
-          </div>
-
-          {result.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-line px-2.5 pt-3">
-              <Link
-                href={`/backstage/contact?page=${page - 1}`}
-                aria-disabled={!result.hasPrevPage}
-                className={`flex items-center gap-1 text-[12px] font-medium ${result.hasPrevPage ? 'text-ink hover:underline' : 'pointer-events-none text-ink-soft2'}`}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" /> Előző
-              </Link>
-              <span className="text-[11.5px] text-ink-soft2">{page} / {result.totalPages}</span>
-              <Link
-                href={`/backstage/contact?page=${page + 1}`}
-                aria-disabled={!result.hasNextPage}
-                className={`flex items-center gap-1 text-[12px] font-medium ${result.hasNextPage ? 'text-ink hover:underline' : 'pointer-events-none text-ink-soft2'}`}
-              >
-                Következő <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
+    <div className="p-4 lg:p-0">
+      <PageHead title="Kapcsolat" sub="A kapcsolat-űrlap üzenetei"
+        kpis={<><Kpi icon={MessageSquare} value={String(fresh)} label="Új üzenet" /><Kpi icon={Mail} value={String(res.totalDocs)} label="Összesen" /><Kpi icon={Check} value={String(rows.length - fresh)} label="Megválaszolva" /></>} />
+      <MessagesView messages={rows} />
     </div>
   )
 }

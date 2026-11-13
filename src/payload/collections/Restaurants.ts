@@ -451,7 +451,7 @@ export const Restaurants: CollectionConfig = {
       admin: { position: 'sidebar' },
     },
     {
-      // A backstage PlaceDetailSheet-hez (a Salon admin_notes mintájára) — csak az operátor látja.
+      // A Backstage › Üzletek adatlapjához (a Salon admin_notes mintájára) — csak az operátor látja.
       name: 'admin_notes',
       type: 'textarea',
       label: 'Admin megjegyzés (belső)',

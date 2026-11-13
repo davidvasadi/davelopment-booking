@@ -1,226 +1,66 @@
-import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
-import { StatusPills } from '@/components/dashboard/StatusPills'
-import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
-import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
-import { SectionPanel, BackstageHeader } from '@/components/backstage/BackstageUi'
-import { loadBackstageData, loadRevenueBreakdown, loadEmailHealth, daysUntil } from '@/lib/backstageMetrics'
-import { StatusDonut, MrrLineChart } from '@/components/backstage/BackstageCharts'
+import { CreditCard, TrendingUp, Wallet } from 'lucide-react'
+import { Kpi, PageHead, SegmentBar } from '@/components/ui-kit'
+import { StatRevenueCard } from '@/components/blocks/stats'
+import { CohortTable, EmailHealthCard, EmailVolumeCard, MonthlyTable, RevenueMixCard } from '@/components/blocks/backstage'
+import { loadBackstageData, loadEmailHealth, loadEmailStats, loadRevenueBreakdown } from '@/lib/backstageMetrics'
+import { dayTime, emailErrorHu, emailTypeLabel, monthName, monthShort, shortDate, thousands } from '@/lib/backstageView'
+import { BS_TIER, type BsTier } from '@/components/blocks/backstage'
 
 export const dynamic = 'force-dynamic'
 
-/** Retenció-arány → tint (heat). */
-function retentionTint(pct: number): string {
-  if (pct >= 80) return 'bg-ok-bg text-ok'
-  if (pct >= 50) return 'bg-warn-bg text-warn'
-  return 'bg-bad-bg text-bad'
-}
+const pct = (v: number, total: number) => (total > 0 ? Math.round((v / total) * 100) : 0)
 
-/** Email-sikeresség → tint — 95% alatt már figyelmeztető szintű (kézbesítési probléma gyanúja). */
-function emailHealthTint(pct: number): string {
-  if (pct >= 98) return 'bg-ok-bg text-ok'
-  if (pct >= 95) return 'bg-warn-bg text-warn'
-  return 'bg-bad-bg text-bad'
-}
-
+/** Backstage › Bevétel (design B.7): havi bevétel görbéje, miből jön, havonta, kohorsz, e-mail kézbesítés. */
 export default async function RevenuePage() {
   await requireAuth('admin')
-  // `loadEmailHealth()` best-effort — egy hiba itt (pl. az email-log lekérdezés) NE vigye
-  // magával az egész, egyébként jól működő Bevétel oldalt, csak az Üzemeltetés panelt.
-  const [d, rev, email] = await Promise.all([
+  const [d, rev, mails, email] = await Promise.all([
     loadBackstageData(),
     loadRevenueBreakdown(),
+    loadEmailStats().catch(() => null),
+    // best-effort: egy hiba itt ne vigye el az oldalt, és ne mutasson hamis „100%”-ot
     loadEmailHealth().catch(() => ({ total30d: 0, failed30d: 0, successRatePct: 100, recentFailures: [], loadFailed: true })),
   ])
+  const risk = d.pastDueCount + d.pausedCount + d.canceledCount
+  const total = d.payingAccounts + d.trialingCount + risk
+  const months = rev.monthlyRevenue
+  const delta = months.length > 1 && months[months.length - 2].total > 0 ? Math.round(((d.mrr - months[months.length - 2].total) / months[months.length - 2].total) * 100) : null
+  const revenue = { total: d.mrr, delta, now: months.length ? months.map((m) => m.total) : [d.mrr], prev: [] as number[], ticks: months.map((m) => monthShort(m.month)), points: months.map((m) => monthShort(m.month)), parts: [] }
 
-  // Státusz-csík: fizető / próba / kockázat megoszlás (mint a Statisztikán a teljesített/lemondva/nyitott).
-  const total = d.activeCount + d.trialingCount + d.pastDueCount + d.canceledCount + d.pausedCount || 1
-  const payingPct = Math.round((d.activeCount / total) * 100)
-  const trialPct = Math.round((d.trialingCount / total) * 100)
-  const riskPct = Math.max(0, 100 - payingPct - trialPct)
-
-  // Az AnalyticsOverview metrikái — a bento-motor ezekből építi a teljes statisztika-elrendezést.
-  const metrics: OverviewMetric[] = [
-    {
-      id: 'revenue', label: 'Havi bevétel (MRR)', value: `${Math.round(d.mrr).toLocaleString('hu-HU')} Ft`, unit: 'Ft',
-      deltaPct: undefined, color: '#1D1C19', icon: 'revenue', series: d.mrrTrend,
-      views: [{ id: 'trend', label: 'MRR alakulása', icon: 'trend', series: d.mrrTrend }],
-    },
-    {
-      id: 'accounts', label: 'Előfizetők', value: String(d.totalAccounts), unit: 'fiók',
-      color: '#1D1C19', icon: 'reservations', series: d.accountsTrend,
-      views: [{ id: 'trend', label: 'Fiókok alakulása', icon: 'dow', series: d.accountsTrend }],
-    },
-    {
-      id: 'completion', label: 'Trial → fizető', value: `${rev.conversionRate}%`, unit: '%',
-      color: '#1D9D63', icon: 'completion', series: d.accountsTrend,
-      views: [],
-    },
-    {
-      id: 'bookings', label: 'Foglalások', value: d.totalBookings.toLocaleString('hu-HU'), unit: 'foglalás',
-      color: '#8A6D12', icon: 'bookings', series: d.bookingsTrend,
-      views: [{ id: 'trend', label: 'Foglalások alakulása', icon: 'trend', series: d.bookingsTrend }],
-    },
-  ]
+  // csomag szerinti bontás a fizető fiókokból
+  const tiers = (['starter', 'pro', 'egyedi'] as BsTier[]).map((t) => {
+    const accs = d.accounts.filter((a) => a.status === 'active' && a.tier === t)
+    const sum = accs.reduce((n, a) => n + a.mrr, 0)
+    return [`${BS_TIER[t]} · ${accs.length} fiók`, thousands(sum), pct(sum, d.mrr)] as [string, string, number]
+  })
+  const activeSalons = d.accounts.filter((a) => a.status === 'active').reduce((n, a) => n + a.salonCount, 0)
+  const activeRests = d.accounts.filter((a) => a.status === 'active').reduce((n, a) => n + a.restaurantCount, 0)
 
   return (
-    <div className="space-y-6 p-5 lg:p-0">
-      <BackstageHeader title="Bevétel & kohorsz" subtitle="Platform-bevétel · szalon + étterem" />
-
-      {/* Státusz-csík + 3 nagy KPI (mint a Statisztika hero) */}
-      <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
-        <StatusPills
-          eager
-          className="flex-1 lg:max-w-[760px]"
-          segments={[
-            { label: 'Fizető', pct: payingPct, background: '#1D1C19', color: '#fff' },
-            { label: 'Próba', pct: trialPct, background: '#F1CE45', color: '#1D1C19' },
-            { label: 'Kockázat', pct: riskPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
-          ]}
-        />
-        <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <CountUpKpi icon="wallet" value={Math.round(d.mrr)} label="Havi bevétel" suffix=" Ft" group />
-          <CountUpKpi icon="wallet" value={Math.round(rev.ltv)} label="Élettartam-érték" suffix=" Ft" group />
-          <CountUpKpi icon="done" value={rev.conversionRate} label="Konverzió" suffix="%" />
+    <div className="p-4 lg:p-0">
+      <PageHead title="Bevétel" sub="Szalon + étterem · a fizető fiókok díjából"
+        bar={<SegmentBar segments={[
+          { label: 'Fizető', value: String(d.payingAccounts), weight: total ? d.payingAccounts : 34, tone: 'dark' },
+          { label: 'Próba', value: String(d.trialingCount), weight: total ? d.trialingCount : 33, tone: 'yellow' },
+          { label: 'Kockázat', value: String(risk), weight: total ? Math.max(risk, total * 0.06) : 33, tone: 'hatch' },
+        ]} />}
+        kpis={<><Kpi icon={Wallet} value={thousands(d.mrr)} label="Havi bevétel" /><Kpi icon={TrendingUp} value={thousands(rev.ltv)} label="Élettartam-érték" /><Kpi icon={CreditCard} value={`${d.conversionRate}%`} label="Próbából fizető" /></>} />
+      <div className="grid grid-cols-1 items-start gap-[5px] [&>*]:min-w-0 lg:grid-cols-3">
+        <StatRevenueCard className="lg:col-span-2" title="Havi bevétel alakulása" revenue={revenue} />
+        <RevenueMixCard
+          kinds={[[`Szalon · ${activeSalons} üzlet`, thousands(d.salonMrr), pct(d.salonMrr, d.mrr)], [`Étterem · ${activeRests} üzlet`, thousands(d.restaurantMrr), pct(d.restaurantMrr, d.mrr)]]}
+          tiers={tiers} className="h-full" />
+        {mails
+          ? <EmailVolumeCard className="lg:col-span-2" month={mails.month} last30={mails.last30} all={mails.all} delivered={mails.delivered} opened={mails.opened} bounced={mails.bounced}
+              daily={mails.daily.map((x) => x.n)} prevDaily={mails.prevDaily} points={mails.daily.map((x) => shortDate(x.day))} byType={mails.byType.map((t) => [emailTypeLabel(t.type), t.n] as [string, number])} />
+          : <div className="lg:col-span-2" />}
+        <div className="flex min-w-0 flex-col gap-[5px]">
+          <MonthlyTable rows={[...months].reverse().map((m) => [monthName(m.month), m.total, m.newCount] as [string, number, number])} />
+          <CohortTable rows={rev.cohorts.map((c) => [monthName(c.month), c.size, c.retained] as [string, number, number])} />
+          <EmailHealthCard total={email.total30d} failed={email.failed30d} rate={email.successRatePct} loadFailed={!!email.loadFailed}
+            failures={email.recentFailures.map((f, i) => ({ key: String(i), type: emailTypeLabel(f.type), to: f.to, error: emailErrorHu(f.error), when: dayTime(f.createdAt) }))} />
         </div>
       </div>
-
-      {/* A statisztika-bento motor a saját bevétel-metrikáinkkal + valós diagramok a col2 tetejére */}
-      <AnalyticsOverview
-        metrics={metrics}
-        filter={<span key="none" className="text-[12px] text-ink-soft">Platform összesített</span>}
-        sources={[
-          { label: 'Aktív', value: String(rev.activeCount), pct: rev.activeCount, variant: 'ink' },
-          { label: 'Próba', value: String(rev.trialingCount), pct: rev.trialingCount, variant: 'gold' },
-          { label: 'Lejárt', value: String(rev.pastDueCount), pct: rev.pastDueCount, variant: 'striped' },
-          { label: 'Lemondott', value: String(rev.canceledCount), pct: rev.canceledCount, variant: 'outline' },
-        ]}
-        chartCards={[
-          {
-            // NEM a státusz-megoszlás (azt a bal oldali sötét „Foglalási arány" donut már mutatja) —
-            // itt a bevétel ÜZLET-TÍPUS szerinti bontása (szalon vs étterem), ami eltérő, hasznos adat.
-            title: 'Bevétel típusonként',
-            node: (
-              <StatusDonut
-                vertical
-                unit=" Ft"
-                data={[
-                  { label: 'Szalon', value: rev.salonMrr, color: '#F1CE45' },
-                  { label: 'Étterem', value: rev.restaurantMrr, color: '#1D1C19' },
-                ]}
-              />
-            ),
-          },
-          { title: 'Foglalások alakulása', node: <MrrLineChart trend={d.bookingsTrend} unit=" foglalás" /> },
-        ]}
-      />
-
-      {/* Kohorsz-retenció — mélyebb tartalom a bento alatt */}
-      <SectionPanel title="Kohorsz-retenció (regisztráció hónapja szerint)">
-        {rev.cohorts.length === 0 ? (
-          <p className="px-5 py-8 text-[13.5px] text-ink-soft">Még nincs elég fiók a kohorsz-elemzéshez.</p>
-        ) : (
-          <div className="overflow-x-auto p-5">
-            <table className="w-full min-w-[520px] border-collapse text-[13px]">
-              <thead>
-                <tr className="text-left">
-                  {['Kohorsz', 'Fiókok', 'Még aktív', 'Retenció'].map(h => (
-                    <th key={h} className="pb-3 pr-4 text-[11px] font-semibold uppercase tracking-wide text-ink-soft">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rev.cohorts.map(c => (
-                  <tr key={c.month} className="border-t border-line">
-                    <td className="py-2.5 pr-4 font-medium text-ink">{c.month}</td>
-                    <td className="py-2.5 pr-4 text-ink-soft">{c.size}</td>
-                    <td className="py-2.5 pr-4 text-ink">{c.retained}</td>
-                    <td className="py-2.5">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${retentionTint(c.retentionPct)}`}>
-                        {c.retentionPct}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionPanel>
-
-      {/* Üzemeltetés: email-kézbesítés egészsége + fizetési hibában lévő fiókok — a "csendben
-          eltörik valami" típusú kockázatokat teszi láthatóvá, riasztási küszöbbel. */}
-      <SectionPanel title="Üzemeltetés">
-        <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-2">
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-[13px] font-semibold text-ink">Email-kézbesítés (30 nap)</h3>
-              {email.loadFailed ? (
-                <span className="inline-flex items-center rounded-full bg-warn-bg px-2.5 py-1 text-[11px] font-semibold text-warn">
-                  nem sikerült betölteni
-                </span>
-              ) : (
-                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${emailHealthTint(email.successRatePct)}`}>
-                  {email.successRatePct}% sikeres
-                </span>
-              )}
-            </div>
-            {email.loadFailed ? (
-              <p className="text-[13px] text-ink-soft">Az adat most nem elérhető — próbáld frissíteni az oldalt.</p>
-            ) : (
-              <>
-                <p className="mb-3 text-[12.5px] text-ink-soft">
-                  {email.total30d.toLocaleString('hu-HU')} kiküldött email, {email.failed30d.toLocaleString('hu-HU')} sikertelen.
-                </p>
-                {email.recentFailures.length === 0 ? (
-                  <p className="text-[13px] text-ink-soft">Nincs sikertelen küldés az elmúlt 30 napban.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {email.recentFailures.map((f, i) => (
-                      <li key={i} className="rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[12.5px]">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-ink">{f.to}</span>
-                          <span className="text-[11px] text-ink-soft2">{new Date(f.createdAt).toLocaleDateString('hu-HU')}</span>
-                        </div>
-                        {f.error && <p className="mt-0.5 truncate text-ink-soft" title={f.error}>{f.error}</p>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-[13px] font-semibold text-ink">Fizetési hibában (lejárt előfizetés)</h3>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${d.pastDueAccounts.length > 0 ? 'bg-bad-bg text-bad' : 'bg-ok-bg text-ok'}`}>
-                {d.pastDueAccounts.length} fiók
-              </span>
-            </div>
-            {d.pastDueAccounts.length === 0 ? (
-              <p className="text-[13px] text-ink-soft">Jelenleg nincs fizetési hibában lévő fiók.</p>
-            ) : (
-              <ul className="space-y-2">
-                {d.pastDueAccounts.slice(0, 8).map((acc) => {
-                  const overdueDays = Math.abs(daysUntil(acc.sub?.current_period_end) ?? 0)
-                  return (
-                    <li key={acc.ownerId}>
-                      <Link
-                        href={`/backstage/accounts/${acc.ownerId}`}
-                        className="flex items-center justify-between gap-2 rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[12.5px] transition-colors hover:border-ink/20"
-                      >
-                        <span className="font-medium text-ink">{acc.owner.name || acc.owner.email}</span>
-                        <span className="shrink-0 text-bad">{overdueDays} napja lejárt · {acc.potentialFee.toLocaleString('hu-HU')} Ft</span>
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-      </SectionPanel>
     </div>
   )
 }
