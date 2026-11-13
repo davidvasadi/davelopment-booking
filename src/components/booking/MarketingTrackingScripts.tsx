@@ -113,7 +113,14 @@ export function MarketingTrackingScripts({ business, bizKey, ga4Id, facebookPixe
       </AnimatePresence>
 
       <PopupModal open={open} onClose={() => setOpen(false)} title="Süti-beállítások" subtitle={`${business} foglalóoldala`} maxWidth="sm:max-w-[440px]"
-        footer={<div className="flex w-full gap-1.5"><Button variant="cell" className="flex-1" onClick={() => save(dStats, dBiz)}>Kiválasztottak mentése</Button><Button variant="yellow" className="flex-1" onClick={() => save(true, true)}>Mindet elfogadom</Button></div>}>
+        // az elutasítás ugyanolyan könnyű és hangsúlyos, mint az elfogadás (GDPR / NMHH-ajánlás): két egyforma gomb + a mentés
+        footer={<div className="w-full space-y-1.5">
+          <div className="flex gap-1.5">
+            <Button variant="dark" className="flex-1" onClick={() => save(false, false)}>Mindet elutasítom</Button>
+            <Button variant="dark" className="flex-1" onClick={() => save(true, true)}>Mindet elfogadom</Button>
+          </div>
+          <Button variant="cell" className="w-full" onClick={() => save(dStats, dBiz)}>Kiválasztottak mentése</Button>
+        </div>}>
         <CookieChoices business={business} tools={tools} stats={dStats} onStats={setDStats} biz={dBiz} onBiz={setDBiz} bizPrivacyHref={privacyHref ?? undefined} />
       </PopupModal>
     </>

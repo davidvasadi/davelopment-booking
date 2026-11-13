@@ -123,11 +123,11 @@ export function CookieChoices({ business, tools, stats, onStats, biz, onBiz, pol
   return (
     <>
       <div className="space-y-1.5">
-        {row(Lock, 'Szükséges', 'Az oldal és a foglalás működéséhez kellenek (pl. a nyelv, a kiválasztott időpont, a fizetés). Nem kapcsolhatók ki.', <Meta>mindig</Meta>)}
-        {row(BarChart3, 'Látogatottság mérése', <>Statisztika arról, hogyan használják a foglalóoldalt. Szolgáltató: Google Analytics. Adatkezelő: davelopment booking.</>,
-          <Switch checked={stats} onChange={onStats} ariaLabel="Látogatottság mérése" />)}
-        {tools.length > 0 && row(Megaphone, `${business} mérése`, <>{hasPixel ? 'Látogatottság és hirdetések mérése' : 'Látogatottság mérése'} — honnan érkeznek a vendégek{hasPixel ? ', és mely hirdetések működnek' : ''}. Szolgáltató: {toolList(tools)}. Adatkezelő: {business}.{bizPrivacyHref && <> <a href={bizPrivacyHref} target="_blank" rel="noopener noreferrer" className="text-ui-text underline underline-offset-2">Adatkezelési tájékoztató</a></>}</>,
-          <Switch checked={biz} onChange={onBiz} ariaLabel={`${business} mérése`} />)}
+        {row(Lock, 'Feltétlenül szükséges sütik', <>Ezek nélkül az oldal nem működne: megjegyzik a választott nyelvet és időpontot, és biztonságossá teszik a fizetést.</>, <Meta>mindig aktív</Meta>)}
+        {row(BarChart3, 'Statisztikai sütik', <>Segítenek megérteni, hogyan használják az oldalt (pl. hányan nézik meg), név nélkül. Ebből fejlesztjük a foglalórendszert. Szolgáltató: Google Analytics.</>,
+          <Switch checked={stats} onChange={onStats} ariaLabel="Statisztikai sütik" />)}
+        {tools.length > 0 && row(Megaphone, hasPixel ? `Marketing sütik — ${business}` : `Statisztikai sütik — ${business}`, <>{hasPixel ? 'Látogatottság és hirdetések mérése' : 'Látogatottság mérése'} — honnan érkeznek a vendégek{hasPixel ? ', és mely hirdetések működnek' : ''}. Szolgáltató: {toolList(tools)}. Adatkezelő: {business}.{bizPrivacyHref && <> <a href={bizPrivacyHref} target="_blank" rel="noopener noreferrer" className="text-ui-text underline underline-offset-2">Adatkezelési tájékoztató</a></>}</>,
+          <Switch checked={biz} onChange={onBiz} ariaLabel={hasPixel ? 'Marketing sütik' : `${business} mérése`} />)}
       </div>
       <Meta className="mt-4 flex items-start gap-1.5 leading-relaxed"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>A döntésed bármikor módosíthatod az oldal alján, a „Süti-beállítások” linkkel. Részletek: <a href={policyHref} className="text-ui-text underline underline-offset-2">Süti-tájékoztató</a></span>
