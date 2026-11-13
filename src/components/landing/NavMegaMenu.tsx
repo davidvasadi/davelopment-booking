@@ -1,18 +1,14 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion'
 import { ArrowRight, ArrowUpRight, ChevronDown, ChevronRight, Scissors, UtensilsCrossed } from 'lucide-react'
 import { SERVICES } from '@/lib/davelopmentServices'
 import { EASE } from '@/lib/motion'
-import { FEATURE_GROUPS, groupCoverImage, groupHref, type FeatureGroupId } from '@/lib/landingFeatures'
+import { FEATURE_GROUPS, groupHref, type FeatureGroupId } from '@/lib/landingFeatures'
 import { INDUSTRY_LANDINGS, INDUSTRY_SHORT_LABEL } from '@/lib/industryLandings'
-import { CoverStage } from '@/components/landing/CoverStage'
-import { GROUP_COVERS } from '@/components/blocks/covers'
-// a telefonos kép statikusan importálva: a főoldal úgyis betölti (landing-concepts), így lenyitáskor azonnal ott van
-import { GroupPhone } from '@/components/blocks/landing-phone'
 
 /**
  * Landing nav — „Funkciók” és „Kinek” lenyíló (desktop). Funkciók: balra a 6 csoport (fehér csúszó
@@ -94,7 +90,7 @@ export function MegaPanel({ mega, top, anchorRef }: { mega: ReturnType<typeof us
     if (el) setAnchorLeft(el.getBoundingClientRect().left)
   }, [mega.open, anchorRef])
   if (!mounted) return null
-  const width = mega.open === 'features' ? 600 : mega.open === 'studio' ? 520 : 440
+  const width = mega.open === 'features' || mega.open === 'studio' ? 780 : 440
   const left = anchorLeft == null ? undefined : Math.min(Math.max(16, anchorLeft - 12), window.innerWidth - width - 16)
   return createPortal(
     <AnimatePresence>
@@ -137,77 +133,101 @@ export function MegaPanel({ mega, top, anchorRef }: { mega: ReturnType<typeof us
   )
 }
 
-/** Funkciók — két tábla (duopane, Framer-minta): balra a hat csoport (kis ikon-csempe, név, egy sor), jobbra a
- *  rámutatott csoport telefonos képe a rendszerből, sarokban nyíllal. */
+/** A lenyílók közös sora (Funkciók, davelopment — 2026-11-14, Dave referenciája alapján, a mi színeinkkel): sorszám,
+ *  név, egy mondat; rámutatva / aktívan szürke háttér és jobbra sötét kerek nyíl. */
+function MegaRow({ n, label, desc, href, external = false, active = false, onPick, onHover }: {
+  n: number; label: string; desc: string; href: string; external?: boolean; active?: boolean; onPick: () => void; onHover?: () => void
+}) {
+  const cls = `group/row my-0.5 flex items-center gap-4 rounded-[12px] px-3.5 py-3 transition-colors duration-150 hover:bg-ui-cell ${active ? 'bg-ui-cell' : ''}`
+  const body = (
+    <>
+      <span className="w-6 shrink-0 font-mono text-ui-meta text-ui-muted">{String(n).padStart(2, '0')}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-ui-row font-medium text-ui-text">{label}</span>
+        <span className="mt-0.5 block text-ui-meta leading-snug text-ui-muted">{desc}</span>
+      </span>
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ui-dark text-white transition-opacity duration-150 group-hover/row:opacity-100 ${active ? 'opacity-100' : 'opacity-0'}`}> {/* ui-allow: a sor nyila */}
+        <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+      </span>
+    </>
+  )
+  return external
+    ? <a href={href} target="_blank" rel="noopener" onClick={onPick} onMouseEnter={onHover} onFocus={onHover} className={cls}>{body}</a>
+    : <Link href={href} onClick={onPick} onMouseEnter={onHover} onFocus={onHover} className={cls}>{body}</Link>
+}
+
+/** A lenyílók alsó sora a kép alatt: szöveges link + sötét kapszula-gomb sárga nyíllal — egy sorban, nem törhet. */
+function MegaFoot({ link, button, external = false, onPick }: { link: [string, string]; button: [string, string]; external?: boolean; onPick: () => void }) {
+  const ext = external ? { target: '_blank', rel: 'noopener' } : {}
+  return (
+    <div className="flex items-center justify-between gap-3 whitespace-nowrap px-1.5 pb-0.5 pt-1">
+      <a href={link[0]} {...ext} onClick={onPick} className="text-ui-body font-medium text-ui-text underline-offset-4 hover:underline">{link[1]}</a>
+      <a href={button[0]} {...ext} onClick={onPick} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ui-dark py-1.5 pl-4 pr-1.5 text-ui-body font-medium text-white transition-opacity hover:opacity-90">
+        {button[1]}
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ui-yellow text-ui-dark"><ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.2} /></span>
+      </a>
+    </div>
+  )
+}
+
+/** Funkciók: balra a hat csoport számozott sorokban, jobbra a rámutatott csoport kezes-telefonos fotója (a
+ *  funkció-oldalak saját képei, átlátszó hátterűek — világos sárgás mezőn; mind a hat egyszer betöltve, csak áttűnnek),
+ *  alatta „Összes funkció” és „Kipróbálom ingyen”. */
+const HAND_IMG: Record<string, string> = { booking: 'foglalasok', calendar: 'naptar', guests: 'vendegek', money: 'penz', marketing: 'marketing', team: 'csapat' }
 function FeaturesPanel({ onPick }: { onPick: () => void }) {
   const [groupId, setGroupId] = useState<FeatureGroupId>('booking')
   const group = FEATURE_GROUPS.find((g) => g.id === groupId) ?? FEATURE_GROUPS[0]
-  // a hat telefon egyszer épül fel: rámutatáskor a panel újrarenderel, de ugyanaz az elem-referencia → nem rajzolja újra
-  const phones = useMemo(() => FEATURE_GROUPS.map((g) => (
-    <GroupPhone key={g.id} id={g.id} className="absolute left-1/2 top-6 w-[176px] -translate-x-1/2 transition-transform duration-300 ease-out group-hover/cover:-translate-y-1" />
-  )), [])
   return (
-    <div>
-      <div className="grid grid-cols-[minmax(0,1fr)_220px] gap-1.5 p-1.5">
-        <div className="py-0.5">
-          {FEATURE_GROUPS.map((g) => {
-            const Icon = g.icon
-            const on = g.id === groupId
-            return (
-              <Link key={g.id} href={groupHref(g)} onClick={onPick} onMouseEnter={() => setGroupId(g.id)} onFocus={() => setGroupId(g.id)}
-                className={`flex items-center gap-3 rounded-[10px] px-2.5 py-2 transition-colors duration-150 ${on ? 'bg-ui-cell/60' : ''}`}>
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] transition-colors duration-150 ${on ? 'bg-ui-dark text-white' : 'bg-ui-cell/60 text-ui-text'}`}> {/* ui-allow: Framer-féle ikon-csempe */}
-                  <Icon className="h-4 w-4" strokeWidth={1.8} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-ui-body font-medium text-ui-text">{g.label}</span>
-                  <span className="block truncate text-ui-meta text-ui-muted">{g.tagline}</span>
-                </span>
-              </Link>
-            )
-          })}
-        </div>
-        {/* a kép: a csoport telefonos nézete a rendszerből (a telefon alja levágva); rámutatásra vált — mind a hat egyszer
-            renderelve, csak az átlátszóság vált (nem szaggat). A sarokban nyíl: a csoport oldalára visz. */}
-        <Link href={groupHref(group)} onClick={onPick} aria-label={`${group.label} — funkciók`} className="group/cover relative min-h-[300px] overflow-hidden rounded-[12px] bg-ui-yellow/15">
+    <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-1.5 p-1.5">
+      <ul className="flex flex-col py-0.5">
+        {FEATURE_GROUPS.map((g, i) => (
+          <li key={g.id} className={i < FEATURE_GROUPS.length - 1 ? 'border-b border-ui-divider' : ''}>
+            <MegaRow n={i + 1} label={g.label} desc={g.tagline} href={groupHref(g)} active={g.id === groupId} onPick={onPick} onHover={() => setGroupId(g.id)} />
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-col gap-1.5">
+        <Link href={groupHref(group)} onClick={onPick} aria-label={`${group.label} — funkciók`} className="relative block min-h-[300px] flex-1 overflow-hidden rounded-[12px] bg-ui-yellow/15">
           {FEATURE_GROUPS.map((g) => (
-            // saját réteg (will-change): a váltás csak áttűnés a GPU-n, nem rajzol újra
-            <div key={g.id} className={`absolute inset-0 transition-opacity duration-200 ease-out [contain:paint] [will-change:opacity] ${g.id === group.id ? 'opacity-100' : 'opacity-0'}`}>
-              {phones[FEATURE_GROUPS.indexOf(g)]}
-            </div>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={g.id} src={`/landing/hero/${HAND_IMG[g.id] ?? 'foglalasok'}-feature-davelopment-booking.webp`} alt="" width={2840} height={1894} loading="lazy" decoding="async"
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out [will-change:opacity] ${g.id === group.id ? 'opacity-100' : 'opacity-0'}`} />
           ))}
-          <span className="absolute right-2.5 top-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-ui-text shadow-[0_4px_12px_-6px_rgba(0,0,0,.3)] transition-colors group-hover/cover:bg-ui-dark group-hover/cover:text-white">
-            <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
-          </span>
-          <span className="absolute inset-x-0 bottom-0 z-10 bg-[linear-gradient(to_top,#FFF9E7_0%,#FFF9E7_45%,rgba(255,249,231,.85)_65%,rgba(255,249,231,0)_100%)] px-3 pb-3 pt-16"><span className="inline-flex rounded-full bg-white px-3 py-1.5 text-ui-body font-medium text-ui-text">{group.label}</span></span>
         </Link>
+        <MegaFoot link={['/funkciok', 'Összes funkció']} button={['/register', 'Kipróbálom ingyen']} onPick={onPick} />
       </div>
     </div>
   )
 }
 
-/** davelopment — az anyacég szolgáltatásai: balra a davelopment.hu füstös háttere a logóval, jobbra a lista (külső linkek). */
+/** davelopment — az anyacég szolgáltatásai: balra számozott sorok (a közös MegaRow), jobbra a davelopment
+ *  „Weboldal készítés” borítója (középen a logóval), alatta „Összes szolgáltatás” és „Kérj ajánlatot”. Minden link a davelopment.hu-ra,
+ *  forrás-jelöléssel. */
+const NAV_UTM = 'utm_source=booking&utm_medium=nav'
+const navUtm = (href: string) => `${href}${href.includes('?') ? '&' : '?'}${NAV_UTM}`
 function StudioPanel({ onPick }: { onPick: () => void }) {
+  const services = SERVICES.filter((sv) => sv.label !== 'Időpontfoglaló rendszer')
   return (
-    <div className="grid grid-cols-[200px_minmax(0,1fr)] gap-1.5 p-1.5">
-      <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" onClick={onPick} aria-label="davelopment.hu" className="group/studio relative flex min-h-[220px] flex-col justify-between overflow-hidden rounded-[12px] bg-ui-cell p-3.5"> {/* ui-allow: mega-menü kártya */}
-        <img src="/landing/hero/davelopment-fust-hatter-davelopment-booking.webp" alt="" width={640} height={640} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/studio:scale-105" />
-        <span className="relative self-end flex h-8 w-8 items-center justify-center rounded-full bg-white text-ui-text shadow-[0_4px_12px_-6px_rgba(0,0,0,.3)] transition-colors group-hover/studio:bg-ui-dark group-hover/studio:text-white"> {/* ui-allow */}
-          <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
-        </span>
-        <span className="relative">
-          <img src="/logo_davelopment_dark.svg" alt="davelopment" width={2034} height={526} className="h-[26px] w-auto" /> {/* ui-allow */}
-          <span className="mt-1.5 block text-ui-meta text-ui-text/70">Webes ügynökség — a davelopment booking mögött.</span>
-        </span>
-      </a>
-      <div className="flex flex-col py-0.5">
-        <p className="px-2.5 pb-1.5 pt-1 text-ui-label uppercase tracking-[0.06em] text-ui-muted">davelopment szolgáltatások</p>
-        {SERVICES.filter((sv) => sv.label !== 'Időpontfoglaló rendszer').map((sv) => (
-          <a key={sv.label} href={sv.href} target="_blank" rel="noopener noreferrer" onClick={onPick} className="group/sv flex items-center justify-between rounded-[10px] px-2.5 py-2 text-ui-body text-ui-text transition-colors duration-150 hover:bg-ui-cell/60"> {/* ui-allow */}
-            {sv.label}
-            <ArrowUpRight className="h-3.5 w-3.5 text-ui-muted transition-colors group-hover/sv:text-ui-text" strokeWidth={2} />
-          </a>
+    <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-1.5 p-1.5">
+      <ul className="flex flex-col py-0.5">
+        {services.map((sv, i) => (
+          <li key={sv.label} className={i < services.length - 1 ? 'border-b border-ui-divider' : ''}>
+            <MegaRow n={i + 1} label={sv.label} desc={sv.desc} href={navUtm(sv.href)} external onPick={onPick} />
+          </li>
         ))}
+      </ul>
+      <div className="flex flex-col gap-1.5">
+        <a href={navUtm('https://davelopment.hu')} target="_blank" rel="noopener" onClick={onPick} aria-label="davelopment.hu — webes ügynökség"
+          className="group/studio relative block min-h-[300px] flex-1 overflow-hidden rounded-[12px] bg-ui-dark">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/landing/hero/davelopment-weboldal-keszites-davelopment-booking.webp" alt="Weboldal készítés — davelopment" width={640} height={800} loading="lazy" decoding="async"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/studio:scale-[1.04]" />
+          {/* középen a davelopment logó (enyhe sötétítés a kép fölött, hogy a világos logó jól olvasható legyen) */}
+          <span aria-hidden className="absolute inset-0 bg-black/25" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo_davelopment_light.svg" alt="" width={2034} height={526} className="absolute left-1/2 top-1/2 h-9 w-auto -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_2px_12px_rgba(0,0,0,.35)]" />
+        </a>
+        <MegaFoot link={[navUtm('https://davelopment.hu/hu/szolgaltatasok'), 'Összes szolgáltatás']} button={[navUtm('https://davelopment.hu/hu/kapcsolat'), 'Kérj ajánlatot']} external onPick={onPick} />
       </div>
     </div>
   )

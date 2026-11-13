@@ -1090,7 +1090,13 @@ export function ConceptLightFooter({ trialDays = 14 }: { trialDays?: number }) {
       </div>
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-ui-divider px-4 py-5 text-ui-meta text-ui-muted">
         <span>© {new Date().getFullYear()} [davelopment]© Booking</span>
-        <a href="https://davelopment.hu" className="transition-colors hover:text-ui-text">Készítette: [davelopment]</a>
+        {/* az anyacég logója, külön link a davelopment.hu-ra (forrás-jelöléssel, hogy ott mérhető legyen) */}
+        <a href="https://davelopment.hu/?utm_source=booking&amp;utm_medium=footer" target="_blank" rel="noopener" aria-label="Készítette: davelopment — webes ügynökség"
+          className="group inline-flex items-center gap-2.5 transition-colors hover:text-ui-text">
+          <span>Készítette</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo_davelopment_dark.svg" alt="davelopment" width={2034} height={526} className="h-[18px] w-auto opacity-80 transition-opacity group-hover:opacity-100" />
+        </a>
       </div>
       <GiantWord text="Csatlakozz" />
     </footer>
