@@ -161,7 +161,28 @@ function generateICS({ booking, salon, service, staff }: BookingEmailData): stri
 
 // ── Email senders ─────────────────────────────────────────────────────────────
 
-export async function sendBookingConfirmation(data: BookingEmailData) {
+
+/** Az elfogadott nyilatkozat a visszaigazoló levélben: rövid sor + a PDF-melléklet (2026-11, Dave kérése — ne külön levél
+ *  menjen). `null`, ha nincs elfogadott nyilatkozat. */
+async function consentForConfirmation(o: { locale: ReturnType<typeof normalizeLocale>; placeName: string; place?: { address?: string | null; phone?: string | null; email?: string | null }; reference?: string; title: string | null | undefined; doc: Record<string, unknown>; name: string; to: string | null | undefined; time: string; date: string }): Promise<{ note: string; attachment: { filename: string; content: Buffer } | null } | null> {
+  const d = o.doc as { consent_accepted?: boolean | null; consent_text_snapshot?: string | null; consent_accepted_at?: string | null; consent_accepted_via?: 'online' | 'onsite' | null; customer_phone?: string | null; consent_accepted_ip?: string | null }
+  const text = d.consent_text_snapshot?.trim()
+  if (!d.consent_accepted || !text) return null
+  const title = o.title?.trim() || t(o.locale, 'email.consent.title')
+  const note = `<tr><td style="background:${COLORS.surface};padding:18px 32px 0"><p style="margin:0;border-radius:14px;background:#F4F4F4;padding:14px 16px;color:${COLORS.textSoft};font-size:13px;line-height:1.6">${escapeHtml(t(o.locale, 'email.consent.attached', { title }))}</p></td></tr>`
+  try {
+    const pdf = await buildConsentPdf({ locale: o.locale, placeName: o.placeName, place: o.place, reference: o.reference, title: o.title, name: o.name, email: o.to, phone: d.customer_phone, date: o.date, time: o.time, acceptedAt: d.consent_accepted_at, via: d.consent_accepted_via, ip: d.consent_accepted_ip, text })
+    return { note, attachment: { filename: consentPdfFilename(o.locale, o.date), content: Buffer.from(pdf) } }
+  } catch (err) {
+    console.error('[Email] Consent PDF failed:', err)
+    return null
+  }
+}
+
+/** `withConsent`: az elfogadott nyilatkozat is ebben a levélben megy (PDF-melléklet) — a hívó ilyenkor nem küld külön
+ *  nyilatkozat-levelet. */
+export async function sendBookingConfirmation(input: BookingEmailData, opts: { withConsent?: boolean } = {}) {
+  const data = await withStaffAvatar(input)
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
@@ -178,18 +199,22 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
   const subject = subjectTpl
     ? renderSubject(subjectTpl, vars)
     : t(locale, 'email.confirm.subjectFallback', { place: salon.name })
+  const consent = opts.withConsent
+    ? await consentForConfirmation({ locale, placeName: salon.name, place: { address: salonAddress(salon), phone: salon.email_contact_phone?.trim() || salon.phone, email: salon.email }, reference: `F${booking.id}`, title: salon.consent_settings?.title, doc: booking as unknown as Record<string, unknown>, name: booking.customer_name, to, date: booking.date, time: `${booking.start_time} – ${booking.end_time}` })
+    : null
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(salon.name, salon.slug),
       reply_to: salon.email || undefined,
       to,
       subject,
-      html: confirmationHtml(data, cancelUrl),
+      html: confirmationHtml(data, cancelUrl, consent?.note ?? ''),
       attachments: [
         {
           filename: 'foglalas.ics',
           content: Buffer.from(generateICS(data)),
         },
+        ...(consent?.attachment ? [consent.attachment] : []),
       ],
     })
     await logEmail('booking_confirmation', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
@@ -294,7 +319,8 @@ export async function sendBookingDeclined(data: BookingEmailData) {
   }
 }
 
-export async function sendReminderEmail(data: BookingEmailData) {
+export async function sendReminderEmail(input: BookingEmailData) {
+  const data = await withStaffAvatar(input)
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
@@ -593,6 +619,28 @@ function guestAddress(b: { customer_postal_code?: string | null; customer_addres
   return [[b.customer_postal_code?.trim(), b.customer_city?.trim()].filter(Boolean).join(' '), b.customer_address?.trim()].filter(Boolean).join(', ') || null
 }
 
+/** A munkatárs képe a „Munkatárs” sorba (2026-11): ha a foglalásnál csak az id-ja van meg (depth 0), betöltjük.
+ *  Kép nélküli munkatársnál marad a puszta név. */
+async function withStaffAvatar(data: BookingEmailData): Promise<BookingEmailData> {
+  const av = (data.staff as { avatar?: unknown } | null)?.avatar
+  if (!av || typeof av === 'object') return data
+  try {
+    const payload = await getPayloadClient()
+    const media = await payload.findByID({ collection: 'media', id: av as number, depth: 0, overrideAccess: true })
+    return { ...data, staff: { ...data.staff, avatar: media } as StaffMember }
+  } catch {
+    return data
+  }
+}
+
+function staffCell(staff: StaffMember): string {
+  const url = mediaUrl((staff as { avatar?: Salon['logo'] }).avatar ?? null)
+  const name = escapeHtml(staff.name)
+  return url
+    ? `<img src="${url}" width="24" height="24" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px;border:0">${name}`
+    : name
+}
+
 function bookingRows(data: BookingEmailData): string {
   const { booking, salon, service, staff } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
@@ -602,14 +650,14 @@ function bookingRows(data: BookingEmailData): string {
     booking.customer_email ? infoRow('mail', t(locale, 'email.label.email'), booking.customer_email) : '',
     guestAddress(booking) ? infoRow('pin', t(locale, 'email.label.customerAddress'), escapeHtml(guestAddress(booking)!)) : '',
     infoRow('scissors', t(locale, 'email.label.service'), service.name),
-    infoRow('user', t(locale, 'email.label.staff'), staff.name),
+    infoRow('user', t(locale, 'email.label.staff'), staffCell(staff)),
     infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(booking.date, locale)),
     infoRow('clock', t(locale, 'email.label.time'), `${booking.start_time} – ${booking.end_time}`),
     location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
   ].filter(Boolean).join('')
 }
 
-function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): string {
+function confirmationHtml(data: BookingEmailData, cancelUrl: string | null, consentNote = ''): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   const logoUrl = brandImageAbs(salon as BrandPlace, 'email', APP_URL)
@@ -657,6 +705,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
         directionsAddress: null,
         locale,
       })}`}
+      ${consentNote}
       ${bottomSpacer()}
     `,
   })
@@ -841,7 +890,8 @@ function modificationHtml(data: BookingEmailData): string {
   })
 }
 
-export async function sendBookingModification(data: BookingEmailData) {
+export async function sendBookingModification(input: BookingEmailData) {
+  const data = await withStaffAvatar(input)
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
@@ -1082,7 +1132,7 @@ export async function sendConsentCopy(booking: Booking, salon: Salon) {
   let attachments: { filename: string; content: Buffer }[] | undefined
   try {
     const x = booking as { customer_phone?: string | null; consent_accepted_ip?: string | null }
-    const pdf = await buildConsentPdf({ locale, placeName: salon.name, title: salon.consent_settings?.title, name: booking.customer_name, email: to, phone: x.customer_phone, date: booking.date, time: `${booking.start_time} – ${booking.end_time}`, acceptedAt: b.consent_accepted_at, via: b.consent_accepted_via, ip: x.consent_accepted_ip, text })
+    const pdf = await buildConsentPdf({ locale, placeName: salon.name, place: { address: salonAddress(salon), phone: salon.email_contact_phone?.trim() || salon.phone, email: salon.email }, reference: `F${booking.id}`, title: salon.consent_settings?.title, name: booking.customer_name, email: to, phone: x.customer_phone, date: booking.date, time: `${booking.start_time} – ${booking.end_time}`, acceptedAt: b.consent_accepted_at, via: b.consent_accepted_via, ip: x.consent_accepted_ip, text })
     attachments = [{ filename: consentPdfFilename(locale, booking.date), content: Buffer.from(pdf) }]
   } catch (err) {
     console.error('[Email] Consent PDF failed, sending without attachment:', err)

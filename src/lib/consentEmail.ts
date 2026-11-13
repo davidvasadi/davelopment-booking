@@ -1,4 +1,4 @@
-import { detailsCard, escapeHtml, formatBookingDate, heroBlock, infoRow, COLORS } from './emailLayout'
+import { detailsCard, escapeHtml, formatBookingDate, heroBlock, infoRow } from './emailLayout'
 import { t, type Locale } from './i18n'
 
 /**
@@ -28,14 +28,8 @@ export function consentCopyContent(opts: {
     accepted ? infoRow('note', t(locale, 'email.consent.acceptedAt'), escapeHtml(accepted)) : '',
     opts.via ? infoRow('note', t(locale, 'email.consent.via'), t(locale, opts.via === 'onsite' ? 'email.consent.viaOnsite' : 'email.consent.viaOnline')) : '',
   ].join('')
-  const body = escapeHtml(opts.text).replace(/\n/g, '<br>')
+  // a nyilatkozat teljes szövege csak a PDF-mellékletben van (2026-11, Dave kérése) — a levél csak jelzi, hogy csatoltuk
   return `
     ${heroBlock({ icon: 'success', title: escapeHtml(opts.title?.trim() || t(locale, 'email.consent.title')), subtitle: t(locale, 'email.consent.body') })}
-    ${detailsCard(rows)}
-    <tr>
-      <td style="background:${COLORS.surface};padding:20px 24px 0">
-        <p style="margin:0 0 8px;color:${COLORS.textSoft};font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em">${t(locale, 'email.consent.text')}</p>
-        <div style="background:${COLORS.muted};border-radius:18px;padding:16px 18px;color:${COLORS.text};font-size:13px;line-height:1.65">${body}</div>
-      </td>
-    </tr>`
+    ${detailsCard(rows)}`
 }

@@ -302,10 +302,12 @@ export async function POST(request: NextRequest) {
     // Függő (nem automatikusan megerősített) foglalásnál a visszaigazoló a jóváhagyáskor megy ki
     // (`confirmOnApproval` hook) — korábban azonnal kiment, mintha meg lenne erősítve.
     if (restaurant.notification_prefs?.confirm_email !== false && reservationStatus === 'confirmed') {
-      for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant })
+      // az elfogadott nyilatkozat ugyanebben a levélben, PDF-mellékletként megy
+      for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant }, { withConsent: true })
+    } else {
+      // nincs most visszaigazoló (jóváhagyásra vár / ki van kapcsolva) → a nyilatkozat-másolat külön levélben
+      for (const r of created) if ((r as { consent_accepted?: boolean | null }).consent_accepted) void sendReservationConsentCopy(r, restaurant)
     }
-    // A beleegyező nyilatkozat másolata a vendégnek — minden elfogadásnál
-    for (const r of created) if ((r as { consent_accepted?: boolean | null }).consent_accepted) void sendReservationConsentCopy(r, restaurant)
     // Nincs owner email — a digest összefoglalja a napot.
     if (depositRequired && depositHuf) {
       void issueDepositInvoiceBestEffort({

@@ -386,12 +386,15 @@ export async function POST(request: NextRequest) {
       void upsertMarketingConsent({ kind: 'salon', businessId: salonId, name: customer_name, email: customer_email, phone: customer_phone, city: customer_city })
     }
     const emailData = { booking, salon, service, staff }
-    if (salon.notification_prefs?.confirm_email !== false && bookingStatus === 'confirmed') {
-      // A sorozat minden létrejött alkalmára megy visszaigazoló (a meglévő minta szerint).
-      for (const b of created) void sendBookingConfirmation({ booking: b, salon, service, staff })
+    const confirmNow = salon.notification_prefs?.confirm_email !== false && bookingStatus === 'confirmed'
+    if (confirmNow) {
+      // A sorozat minden létrejött alkalmára megy visszaigazoló (a meglévő minta szerint); az elfogadott nyilatkozat
+      // (a sorozatnak csak az első alkalma hordozza) ugyanebben a levélben, PDF-mellékletként megy.
+      for (const b of created) void sendBookingConfirmation({ booking: b, salon, service, staff }, { withConsent: true })
+    } else {
+      // nincs most visszaigazoló (jóváhagyásra vár / ki van kapcsolva) → a nyilatkozat-másolat külön levélben
+      for (const b of created) if ((b as { consent_accepted?: boolean | null }).consent_accepted) void sendConsentCopy(b, salon)
     }
-    // A beleegyező nyilatkozat másolata a vendégnek — minden elfogadásnál (a sorozatnak csak az első alkalma hordozza)
-    for (const b of created) if ((b as { consent_accepted?: boolean | null }).consent_accepted) void sendConsentCopy(b, salon)
     // Bizonylat-kiállítás sikeres előleg után — best-effort, nem blokkolja a választ.
     if (depositRequired && depositHuf) {
       void issueDepositInvoiceBestEffort({

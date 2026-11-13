@@ -154,7 +154,27 @@ function generateICS({ reservation, restaurant }: ReservationEmailData): string 
 }
 
 // ── Senders ──────────────────────────────────────────────────────────────────
-export async function sendReservationConfirmation(data: ReservationEmailData) {
+
+/** Az elfogadott nyilatkozat a visszaigazoló levélben: rövid sor + a PDF-melléklet (2026-11, Dave kérése — ne külön levél
+ *  menjen). `null`, ha nincs elfogadott nyilatkozat. */
+async function consentForConfirmation(o: { locale: ReturnType<typeof normalizeLocale>; placeName: string; place?: { address?: string | null; phone?: string | null; email?: string | null }; reference?: string; title: string | null | undefined; doc: Record<string, unknown>; name: string; to: string | null | undefined; time: string; date: string }): Promise<{ note: string; attachment: { filename: string; content: Buffer } | null } | null> {
+  const d = o.doc as { consent_accepted?: boolean | null; consent_text_snapshot?: string | null; consent_accepted_at?: string | null; consent_accepted_via?: 'online' | 'onsite' | null; customer_phone?: string | null; consent_accepted_ip?: string | null }
+  const text = d.consent_text_snapshot?.trim()
+  if (!d.consent_accepted || !text) return null
+  const title = o.title?.trim() || t(o.locale, 'email.consent.title')
+  const note = `<tr><td style="background:${COLORS.surface};padding:18px 32px 0"><p style="margin:0;border-radius:14px;background:#F4F4F4;padding:14px 16px;color:${COLORS.textSoft};font-size:13px;line-height:1.6">${escapeHtml(t(o.locale, 'email.consent.attached', { title }))}</p></td></tr>`
+  try {
+    const pdf = await buildConsentPdf({ locale: o.locale, placeName: o.placeName, place: o.place, reference: o.reference, title: o.title, name: o.name, email: o.to, phone: d.customer_phone, date: o.date, time: o.time, acceptedAt: d.consent_accepted_at, via: d.consent_accepted_via, ip: d.consent_accepted_ip, text })
+    return { note, attachment: { filename: consentPdfFilename(o.locale, o.date), content: Buffer.from(pdf) } }
+  } catch (err) {
+    console.error('[Email] Consent PDF failed:', err)
+    return null
+  }
+}
+
+/** `withConsent`: az elfogadott nyilatkozat is ebben a levélben megy (PDF-melléklet) — a hívó ilyenkor nem küld külön
+ *  nyilatkozat-levelet. */
+export async function sendReservationConfirmation(data: ReservationEmailData, opts: { withConsent?: boolean } = {}) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend) return
@@ -167,14 +187,17 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
   const subject = subjectTpl
     ? renderSubject(subjectTpl, vars)
     : t(locale, 'email.confirm.subjectFallback', { place: restaurant.name })
+  const consent = opts.withConsent
+    ? await consentForConfirmation({ locale, placeName: restaurant.name, place: { address: contactAddress(restaurant), phone: restaurant.email_contact_phone?.trim() || restaurant.phone, email: restaurant.email }, reference: `A${reservation.id}`, title: restaurant.consent_settings?.title, doc: reservation as unknown as Record<string, unknown>, name: reservation.customer_name, to: reservation.customer_email, date: reservation.date, time: reservation.start_time })
+    : null
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(restaurant.name, restaurant.slug),
       reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
-      html: confirmationHtml(data, cancelUrl),
-      attachments: [{ filename: 'foglalas.ics', content: Buffer.from(generateICS(data)) }],
+      html: confirmationHtml(data, cancelUrl, consent?.note ?? ''),
+      attachments: [{ filename: 'foglalas.ics', content: Buffer.from(generateICS(data)) }, ...(consent?.attachment ? [consent.attachment] : [])],
     })
     await logEmail('booking_confirmation', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
@@ -524,7 +547,7 @@ function detailRows(data: ReservationEmailData): string {
   ].filter(Boolean).join('')
 }
 
-function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null): string {
+function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null, consentNote = ''): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
   const logoUrl = brandImageAbs(restaurant as BrandPlace, 'email', APP_URL)
@@ -575,6 +598,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
         directionsAddress: null,
         locale,
       })}`}
+      ${consentNote}
       ${bottomSpacer()}
     `,
   })
@@ -788,7 +812,7 @@ export async function sendReservationConsentCopy(reservation: Reservation, resta
   let attachments: { filename: string; content: Buffer }[] | undefined
   try {
     const x = reservation as { customer_phone?: string | null; consent_accepted_ip?: string | null }
-    const pdf = await buildConsentPdf({ locale, placeName: restaurant.name, title: restaurant.consent_settings?.title, name: reservation.customer_name, email: to, phone: x.customer_phone, date: reservation.date, time: reservation.start_time, acceptedAt: r.consent_accepted_at, via: r.consent_accepted_via, ip: x.consent_accepted_ip, text })
+    const pdf = await buildConsentPdf({ locale, placeName: restaurant.name, place: { address: contactAddress(restaurant), phone: restaurant.email_contact_phone?.trim() || restaurant.phone, email: restaurant.email }, reference: `A${reservation.id}`, title: restaurant.consent_settings?.title, name: reservation.customer_name, email: to, phone: x.customer_phone, date: reservation.date, time: reservation.start_time, acceptedAt: r.consent_accepted_at, via: r.consent_accepted_via, ip: x.consent_accepted_ip, text })
     attachments = [{ filename: consentPdfFilename(locale, reservation.date), content: Buffer.from(pdf) }]
   } catch (err) {
     console.error('[Email] Consent PDF failed, sending without attachment:', err)
