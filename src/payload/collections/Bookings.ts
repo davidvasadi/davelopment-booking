@@ -157,6 +157,8 @@ export const Bookings: CollectionConfig = {
       defaultValue: 'pending',
       required: true,
     },
+    // melyik hírlevél-kampányból jött (a levél foglalás-linkjének `?c=` jelölése) — Marketing › kampány „foglalás a levélből”
+    { name: 'marketing_campaign', type: 'relationship', relationTo: 'marketing-campaigns', label: 'Hírlevél-kampány', admin: { readOnly: true } },
     {
       // Honnan jött a foglalás — ugyanaz, mint az éttermi foglalásnál (Reservations.source).
       name: 'source',

@@ -79,6 +79,8 @@ export const Reservations: CollectionConfig = {
         { label: 'Lemondva', value: 'cancelled' },
       ],
     },
+    // melyik hírlevél-kampányból jött (a levél foglalás-linkjének `?c=` jelölése) — Marketing › kampány „foglalás a levélből”
+    { name: 'marketing_campaign', type: 'relationship', relationTo: 'marketing-campaigns', label: 'Hírlevél-kampány', admin: { readOnly: true } },
     {
       name: 'source',
       type: 'select',

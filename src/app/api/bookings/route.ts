@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getAvailableSlots, resolveAnyStaff } from '@/lib/availability'
 import { hhmmToMinutes } from '@/lib/utils'
+import { attributedCampaign } from '@/lib/campaignAttribution'
 import { sendBookingConfirmation, sendConsentCopy, sendNewBookingNotification } from '@/lib/email'
 import { sendPushToUsers } from '@/lib/webPush'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
@@ -53,6 +54,8 @@ const schema = z.object({
   // Marketing-hírlevél hozzájárulás — alapból üres jelölőnégyzet a details lépésen, csak akkor
   // küldi a kliens `true`-val, ha a vendég MAGA bepipálta (sose retroaktív/előre kipipált).
   marketing_consent: z.boolean().optional(),
+  /** a hírlevél foglalás-linkjének `?c=` jelölése (lib/campaignAttribution) */
+  campaign: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).optional(),
   // Digitális beleegyező nyilatkozat elfogadása — csak a toggle be/ki állapotát küldi a
   // kliens, a szöveg-verziót és az IP-t a szerver írja be, sose bízunk a kliensben.
   consent_accepted: z.boolean().optional(),
@@ -95,7 +98,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_postal_code, customer_tax_number: taxIn, customer_country: countryIn, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_postal_code, customer_tax_number: taxIn, customer_country: countryIn, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers, campaign } = parsed.data
   let staffId = parsed.data.staffId
   // számlázási ország; külföldi vevő csak magánszemélyként — az adószámot ilyenkor eldobjuk (lib/countries)
   const customer_country = normalizeCountry(countryIn) ?? undefined
@@ -306,6 +309,7 @@ export async function POST(request: NextRequest) {
 
     const created: Booking[] = []
     const skipped: string[] = []
+    const campaignId = await attributedCampaign(payload, 'salon', salonId, campaign)
     for (const d of seriesDates) {
       // A sorozat első alkalmát (a kért dátum) már ellenőriztük fent; a többinél
       // alkalmanként lefuttatjuk a MEGLÉVŐ szabad-slot ellenőrzést. A foglalt/nem elérhető
@@ -366,6 +370,8 @@ export async function POST(request: NextRequest) {
           ...(d === date && Object.keys(customAnswersSnapshot).length > 0
             ? { custom_answers: customAnswersSnapshot }
             : {}),
+          // a hírlevélből jött foglalás — csak az első (kért) alkalom, hogy a sorozat ne számítson többszörösen
+          ...(d === date && campaignId ? { marketing_campaign: campaignId } : {}),
         },
       })) as unknown as Booking
       created.push(booking)

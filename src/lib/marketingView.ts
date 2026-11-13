@@ -10,8 +10,8 @@ import type { Customer, EmailLogEntry, MarketingCampaign, Salon, Restaurant, Med
 /**
  * A Marketing oldal (design 13.1–13.8) adatai VALÓS adatból — szalon és étterem közös.
  * - fejléc: e havi kiküldött / megnyitott levelek a csomag keretéhez;
- * - kampányok: kiküldöttnél megnyitás, kattintás, „foglalás belőle” (a címzett a kiküldés utáni 7 napban foglalt —
- *   Dave döntése 2026-11-03), naponkénti megnyitás, linkenkénti kattintás (Resend click tracking), leiratkozók;
+ * - kampányok: kiküldöttnél megnyitás, kattintás, „foglalás belőle” (2026-11-13-tól pontos: a levél foglalás-linkjéről
+ *   `?c=` jelöléssel jött foglalások — lib/campaignAttribution; korábban a „7 napon belül foglalt” becslés), naponkénti megnyitás, linkenkénti kattintás (Resend click tracking), leiratkozók;
  * - feliratkozók: foglalás-szám, utoljára megnyitott levél.
  */
 
@@ -92,12 +92,12 @@ export async function getMarketingVM(kind: 'salon' | 'restaurant', business: Sal
   const logs = sent.length ? ((await payload.find({ collection: 'email-log', where: { campaign: { in: sent.map((c) => c.id) } }, limit: 20000, depth: 0, overrideAccess: true, select: { to: true, status: true, opened_at: true, clicked_links: true, campaign: true } as never })).docs as EmailLogEntry[]) : []
   const byCampaign = new Map<string, EmailLogEntry[]>()
   for (const l of logs) { const c = relId(l.campaign); if (c) (byCampaign.get(c) ?? byCampaign.set(c, []).get(c)!).push(l) }
-  // foglalás a kiküldés utáni 7 napban: a címzettek e-mail-címével, egy lekérdezéssel
-  const firstSent = sent.length ? sent[sent.length - 1].createdAt : null
-  const allTo = [...new Set(logs.map((l) => (l.to ?? '').toLowerCase()).filter(Boolean))]
-  const bookingRows = firstSent && allTo.length
-    ? ((await payload.find({ collection: kind === 'salon' ? 'bookings' : 'reservations', where: { and: [scope, { createdAt: { greater_than_equal: firstSent } }, { customer_email: { in: allTo } }, { status: { not_equals: 'cancelled' } }] }, limit: 20000, depth: 0, overrideAccess: true, select: { customer_email: true, createdAt: true } as never })).docs as { customer_email?: string | null; createdAt: string }[])
+  // foglalás a levélből (pontos): a levél foglalás-linkjének `?c=` jelölésével jött foglalások (lib/campaignAttribution)
+  const attributed = sent.length
+    ? ((await payload.find({ collection: kind === 'salon' ? 'bookings' : 'reservations', where: { and: [scope, { marketing_campaign: { in: sent.map((c) => c.id) } }, { status: { not_equals: 'cancelled' } }] }, limit: 20000, depth: 0, overrideAccess: true, select: { marketing_campaign: true } as never })).docs as { marketing_campaign?: unknown }[])
     : []
+  const bookedByCampaign = new Map<string, number>()
+  for (const b of attributed) { const c = relId(b.marketing_campaign); if (c) bookedByCampaign.set(c, (bookedByCampaign.get(c) ?? 0) + 1) }
   const unsubs = (await payload.find({ collection: 'customers', where: { and: [scope, { marketing_unsubscribed_at: { exists: true } }] }, limit: 5000, depth: 0, overrideAccess: true, select: { customer_email: true, marketing_unsubscribed_at: true } as never })).docs as Customer[]
   const consentAfter = (await payload.find({ collection: 'customers', where: { and: [scope, { marketing_consent: { equals: true } }] }, limit: 5000, depth: 0, overrideAccess: true, select: { marketing_consent_at: true, createdAt: true } as never })).docs as Customer[]
 
@@ -117,7 +117,8 @@ export async function getMarketingVM(kind: 'salon' | 'restaurant', business: Sal
     const to = new Set(ls.map((l) => (l.to ?? '').toLowerCase()))
     const opened = ls.filter((l) => l.status === 'opened' || l.status === 'clicked' || l.opened_at).length
     const clicked = ls.filter((l) => l.status === 'clicked' || (Array.isArray(l.clicked_links) && l.clicked_links.length)).length
-    const booked = new Set(bookingRows.filter((b) => { const t = new Date(b.createdAt).getTime(); return t >= sentAt && t <= week && to.has((b.customer_email ?? '').toLowerCase()) }).map((b) => (b.customer_email ?? '').toLowerCase())).size
+    // a levél linkjéről jött foglalások (pontos) — a korábbi „7 napon belül foglalt” becslés helyett
+    const booked = bookedByCampaign.get(String(c.id)) ?? 0
     const unsubscribed = unsubs.filter((u) => { const t = u.marketing_unsubscribed_at ? new Date(u.marketing_unsubscribed_at).getTime() : 0; return t >= sentAt && t <= week && to.has((u.customer_email ?? '').toLowerCase()) }).length
     const perDay = Array.from({ length: 6 }, (_, i) => {
       const d0 = new Date(sentAt); d0.setHours(0, 0, 0, 0); d0.setDate(d0.getDate() + i)

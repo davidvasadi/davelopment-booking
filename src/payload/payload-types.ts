@@ -401,6 +401,7 @@ export interface Reservation {
   occasion?: string | null
   occasion_icon?: string | null
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
+  marketing_campaign?: (number | null) | MarketingCampaign
   source: 'online' | 'walk_in' | 'phone'
   reminder_sent?: boolean | null
   reminder_last_offset?: number | null
@@ -1221,6 +1222,7 @@ export interface Booking {
   start_time: string
   end_time: string
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+  marketing_campaign?: (number | null) | MarketingCampaign
   source: 'online' | 'walk_in' | 'phone'
   notes?: string | null
   reminder_sent?: boolean | null

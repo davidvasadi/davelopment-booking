@@ -137,6 +137,10 @@ export function RestaurantBookingWizard({
   const initialPax = initialPaxProp ?? Number(searchParams.get('pax'))
   const initialTime = initialTimeProp ?? searchParams.get('time')
 
+  // hírlevélből érkezett (a levél foglalás-linkje `?c=<kampány>`): a foglalással együtt elküldjük — a szerver ellenőrzi
+  // (lib/campaignAttribution). Nem tárolunk semmit a böngészőben, csak ennek a látogatásnak az URL-jéből olvassuk.
+  const campaignRef = useRef<string | null>(null)
+  useEffect(() => { const v = new URLSearchParams(window.location.search).get('c'); if (v && /^\d+$/.test(v)) campaignRef.current = v }, [])
   const [step, setStep] = useState(0)
   const [dir, setDir] = useState(1)
   const goStep = (next: number) => {
@@ -348,6 +352,7 @@ export function RestaurantBookingWizard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           restaurantId, date, start_time: time, pax,
+          ...(campaignRef.current ? { campaign: campaignRef.current } : {}),
           customer_name: name.trim(),
           customer_email: email.trim(),
           // A teljes nemzetközi szám (előhívó + helyi), és az ország ISO-kódja külön.

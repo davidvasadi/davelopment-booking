@@ -162,6 +162,10 @@ export function ProfileCard({
     ...FORM_FIELD_IDS.filter((id) => !(fieldOrder ?? []).includes(id)),
   ]
   const tt = makeT(locale)
+  // hírlevélből érkezett (a levél foglalás-linkje `?c=<kampány>`): a foglalással együtt elküldjük — a szerver ellenőrzi
+  // (lib/campaignAttribution). Nem tárolunk semmit a böngészőben, csak ennek a látogatásnak az URL-jéből olvassuk.
+  const campaignRef = useRef<string | null>(null)
+  useEffect(() => { const v = new URLSearchParams(window.location.search).get('c'); if (v && /^\d+$/.test(v)) campaignRef.current = v }, [])
   // a kártya stílusa (design 21.2) — sötét üveg / fekete / világos üveg / fehér
   const c = cardTone(cardStyle)
   // a mezők a kártyán: sötét kártyán a design üveg-mezője, fehéren a kit mezője (design 21.7 — CardField)
@@ -627,6 +631,7 @@ export function ProfileCard({
           ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) && customerTaxNumber.trim() ? { customer_tax_number: customerTaxNumber.trim() } : {}),
           ...(depositEnabled && invoicingEnabled && billingCountry ? { customer_country: billingCountry } : {}),
           notes: customerNotes, locale,
+          ...(campaignRef.current ? { campaign: campaignRef.current } : {}),
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
           ...(marketingVisible && marketingConsent ? { marketing_consent: true } : {}),

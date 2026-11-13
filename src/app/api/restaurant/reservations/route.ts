@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { validateAndAllocate } from '@/lib/restaurantBooking'
+import { attributedCampaign } from '@/lib/campaignAttribution'
 import { sendReservationConfirmation, sendReservationConsentCopy } from '@/lib/restaurantEmail'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
@@ -44,6 +45,8 @@ const schema = z.object({
   payment_intent_id: z.string().optional(),
   voucher_code: z.string().max(20).optional(),
   marketing_consent: z.boolean().optional(),
+  /** a hírlevél foglalás-linkjének `?c=` jelölése (lib/campaignAttribution) */
+  campaign: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).optional(),
   // Digitális beleegyező nyilatkozat elfogadása — csak a toggle be/ki állapotát küldi a
   // kliens, a szöveg-verziót és az IP-t a szerver írja be, sose bízunk a kliensben.
   consent_accepted: z.boolean().optional(),
@@ -72,7 +75,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_postal_code, customer_tax_number: taxIn, customer_country: countryIn, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_postal_code, customer_tax_number: taxIn, customer_country: countryIn, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers, campaign } = parsed.data
   // számlázási ország; külföldi vevő csak magánszemélyként — az adószámot ilyenkor eldobjuk (lib/countries)
   const customer_country = normalizeCountry(countryIn) ?? undefined
   const customer_tax_number = isForeignCountry(customer_country) ? undefined : taxIn
@@ -220,6 +223,7 @@ export async function POST(request: NextRequest) {
 
     const created: Reservation[] = []
     const skipped: string[] = []
+    const campaignId = await attributedCampaign(payload, 'restaurant', restaurantId, campaign)
     for (const d of seriesDates) {
       // Az első alkalom asztal-allokációja már megvan (alloc). A többinél alkalmanként
       // lefuttatjuk a MEGLÉVŐ validateAndAllocate-ot; a telt/nincs-asztal alkalmakat
@@ -277,6 +281,8 @@ export async function POST(request: NextRequest) {
           ...(d === date && Object.keys(customAnswersSnapshot).length > 0
             ? { custom_answers: customAnswersSnapshot }
             : {}),
+          // a hírlevélből jött foglalás — csak az első (kért) alkalom
+          ...(d === date && campaignId ? { marketing_campaign: campaignId } : {}),
         },
         overrideAccess: true,
         context: { auditActor: 'Online foglalás' },

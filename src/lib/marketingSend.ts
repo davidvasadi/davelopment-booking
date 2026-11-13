@@ -6,6 +6,7 @@ import { logEmail } from '@/lib/emailLog'
 import { signUnsubscribeToken } from '@/lib/marketingUnsubscribeToken'
 import { emailLayout, richContentBlock, bottomSpacer, COLORS, escapeHtml } from '@/lib/emailLayout'
 import { fromHeader } from '@/lib/email'
+import { tagCampaignLinks } from '@/lib/campaignAttribution'
 import type { Salon, Restaurant, Customer, Media } from '@/payload/payload-types'
 import { blocksToHtml, coverOf, parseEmailBlocks, type ComposerBlock } from '@/lib/emailBlocks'
 import { normalizeLocale, t, type Locale } from '@/lib/i18n'
@@ -138,7 +139,9 @@ export async function dispatchCampaign(payload: Payload, input: DispatchInput): 
         header: v.header,
         content: [richContentBlock(personalize(absolutize(v.html), c.customer_name, c.customer_country, t(v.loc, 'marketing.guestFallback'))), `<tr><td style="background:${COLORS.surface};padding:18px 28px;text-align:center"><a href="${unsubscribeUrl}" style="color:#9A9A9A;font-size:11px;text-decoration:underline">${escapeHtml(t(v.loc, 'marketing.unsubscribe'))}</a></td></tr>`, bottomSpacer()].join(''),
       })
-      return { to: c.customer_email as string, subject: v.subject, html, unsubscribeUrl }
+      // a foglalóoldalra mutató linkek kampány-jelölést kapnak (`?c=`) → a foglalás tudja, melyik levélből jött
+      const tagged = business.slug ? tagCampaignLinks(html, `${APP_URL.replace(/\/$/, '')}/${business.slug}`, campaign.id) : html
+      return { to: c.customer_email as string, subject: v.subject, html: tagged, unsubscribeUrl }
     }))
 
     let sent = 0
