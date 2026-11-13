@@ -239,13 +239,13 @@ const partOf = (id: string) => PICK_TO_PART[id] ?? (id.startsWith('staffbio:') ?
 const fieldKeyOf = (dom: string) => (dom.startsWith('field:') ? dom.slice(6) : ['questions', 'newsletter', 'occasions'].includes(dom) ? dom : null)
 /** a gomb betűszíne: ugyanaz a 4 kör-minta, mint a márkaszínnél (fehér, sötét, sárga, zöld) — csak az olvashatók */
 const BUTTON_TEXT_COLORS = ['#FFFFFF', '#383838', '#FFD85F', '#2F5D50'] // ui-allow: a választható betűszínek maguk a minták
-/** a szöveg színe a fotón / a kártyán: fehér, halvány (szürke), krém, arany — mind jól olvasható a sötét fotón;
+/** a szöveg színe a fotón / a kártyán: fehér, halvány (szürke), fekete (világos fotóhoz), arany;
  *  az érték kulcsszó (white / soft) vagy hex. A minták megjelenése: ahogy a sötét háttéren látszanak. */
 const TEXT_TONES = ['white', 'soft', 'accent'] as const
 const TONE_PALETTE: { v: string; css: string; label: string }[] = [
   { v: 'white', css: '#FFFFFF', label: 'Fehér' }, // ui-allow: a választható szövegszínek maguk a minták
   { v: 'soft', css: '#C3C3C3', label: 'Szürke' }, // ui-allow: a halvány fehér, ahogy a sötét fotón látszik
-  { v: '#F1E6CF', css: '#F1E6CF', label: 'Krém' }, // ui-allow
+  { v: 'black', css: '#1D1C19', label: 'Fekete' }, // ui-allow: világos borítóképhez (2026-11-13: a krém helyett)
   { v: '#E9C46A', css: '#E9C46A', label: 'Arany' }, // ui-allow
 ]
 /** a márkaszín-minták és a kártya-stílusok (design 21.6 Arculat) */
@@ -2076,7 +2076,7 @@ function ButtonTextSwatches({ value, accent, onChange }: { value: string | null;
   )
 }
 
-/** A szöveg színe (design 21.6.3): fehér · szürke · krém · arany + saját — a minták úgy, ahogy a sötét fotón / kártyán
+/** A szöveg színe (design 21.6.3): fehér · szürke · fekete · arany + saját — a minták úgy, ahogy a sötét fotón / kártyán
  *  látszanak; a saját szín (ha van) külön mintaként a „+” előtt, a „+” mindig ott van. Csak olvasható szín választható (`bg`). */
 function TextToneSwatches({ value, bg, onChange }: { value: string; accent?: string; bg: string; onChange: (v: string) => void }) {
   const v = value.toUpperCase() === '#FFFFFF' ? 'white' : value

@@ -143,6 +143,8 @@ export function toneColor(tone: string | null, accent: string | null, bg: string
   const light = luminance(bg) < 0.5
   if (tone === 'white') return light ? '#FFFFFF' : '#383838'
   if (tone === 'soft') return light ? 'rgba(255,255,255,.7)' : '#828282'
+  // a kifejezetten választott fekete (világos borítóképhez) — nem cseréljük „olvashatóra”, a tulaj döntése
+  if (tone === 'black') return '#1D1C19'
   const hex = tone === 'accent' ? accent ?? '#FFD85F' : tone
   return readable(hex, bg) ? hex : null
 }
