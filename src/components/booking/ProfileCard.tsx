@@ -6,7 +6,7 @@ import type { GoogleReviewsData } from '@/components/booking/GoogleReviewsBlock'
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Loader2, Users, Gift, HandCoins } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, Loader2, Users, Gift, HandCoins } from 'lucide-react'
 import { Avatar, Button, FIELD, IconButton, IconCircle, Pill } from '@/components/ui-kit'
 import { useDayStrip } from './useDayStrip'
 import { ACCENT, CardDayPicker, CardPills, CardRow, CardSlotGrid, CardThumb, cardTone, GLASS_INPUT, SocialIcons, type LiveCard } from '@/components/blocks/public'
@@ -170,6 +170,8 @@ export function ProfileCard({
   // Browse navigation state
   // design 21.1: a kártya rögtön a foglalás 1. lépésével (szolgáltatások) indul — a régi kezdő nézet tartalma a borítón van
   const [view, setView] = useState<View>('services')
+  // a munkatárs-választóban kinyitott bemutatkozások (munkatárs-azonosító szerint)
+  const [openBio, setOpenBio] = useState<Record<string, boolean>>({})
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
   // Ha a főnézeten előbb egy konkrét munkatársat választ a vendég, ezt tároljuk — a
@@ -938,16 +940,33 @@ export function ProfileCard({
                       const socials = (m.social_links ?? []).map((l) => l.url).filter(Boolean)
                       const nf = nextFree?.staff[String(m.id)]
                       return (
-                        <div key={m.id} data-edit-id={`staff:${m.id}`}>
-                          <CardRow c={c} onClick={() => pickStaff(String(m.id))} leading={<Avatar size="md" src={avatarUrl} name={m.name} />}
+                        // a munkatárs sora és a bemutatkozása EGY dobozban; a bemutatkozás lenyíló (alapból csukva)
+                        <div key={m.id} data-edit-id={`staff:${m.id}`} className={`overflow-hidden ${c.row}`}>
+                          <CardRow c={{ ...c, row: '' } as unknown as typeof c} onClick={() => pickStaff(String(m.id))} leading={<Avatar size="md" src={avatarUrl} name={m.name} />}
                             title={m.name} meta={about ?? undefined}
                             trailing={nextFree ? <span className={`shrink-0 text-ui-meta ${nf ? '' : c.meta}`}>{nextLabel(nf ?? null)}</span> : <ChevronRight className={`h-4 w-4 shrink-0 ${c.meta}`} />} />
-                          {(bio || socials.length > 0) && (
-                            <div className={`mt-1 px-3 py-2.5 ${c.row}`}>
-                              {bio && <EditableText id={`staffbio:${m.id}`} rich value={bio} className="line-clamp-3 text-ui-meta leading-relaxed" />}
-                              {socials.length > 0 && <SocialIcons links={socials} className={bio ? 'mt-2' : ''} />}
-                            </div>
-                          )}
+                          {(bio || socials.length > 0) && (() => {
+                            const isOpen = !!openBio[String(m.id)]
+                            return (
+                              <>
+                                <button type="button" aria-expanded={isOpen} onClick={() => setOpenBio((o) => ({ ...o, [String(m.id)]: !isOpen }))}
+                                  className={`flex w-full items-center gap-1.5 px-3 pb-2.5 text-left text-ui-label ${c.meta} transition-opacity hover:opacity-80`}>
+                                  {tt('booking.staff.about')}
+                                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                <AnimatePresence initial={false}>
+                                  {isOpen && (
+                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
+                                      <div className="px-3 pb-3">
+                                        {bio && <EditableText id={`staffbio:${m.id}`} rich value={bio} className="text-ui-meta leading-relaxed" />}
+                                        {socials.length > 0 && <SocialIcons links={socials} className={bio ? 'mt-2' : ''} />}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </>
+                            )
+                          })()}
                         </div>
                       )
                     })}

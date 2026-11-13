@@ -50,6 +50,7 @@ export const it: Record<string, string> = {
   'booking.next': 'Avanti',
   'booking.price': 'Prezzo',
   'booking.staff.bestSlot': 'Orario migliore',
+  'booking.staff.about': "Chi sono",
 
   // ── Procedura di prenotazione (ristorante) ──
   'rbooking.step.datetime': 'Orario',

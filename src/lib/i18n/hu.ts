@@ -56,6 +56,7 @@ export const hu: Record<string, string> = {
   'booking.next': 'Tovább',
   'booking.price': 'Ár',
   'booking.staff.bestSlot': 'Legjobb időpont',
+  'booking.staff.about': "Bemutatkozás",
 
   // ── Étterem foglaló wizard ──
   'rbooking.step.datetime': 'Időpont',

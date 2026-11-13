@@ -52,6 +52,7 @@ export const en: Record<string, string> = {
   'booking.next': 'Next',
   'booking.price': 'Price',
   'booking.staff.bestSlot': 'Best time',
+  'booking.staff.about': "About",
 
   // ── Restaurant booking wizard ──
   'rbooking.step.datetime': 'Time',
