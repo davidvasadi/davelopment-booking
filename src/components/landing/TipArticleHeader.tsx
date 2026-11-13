@@ -72,7 +72,7 @@ export function TipArticleHeader({ tip }: { tip: Tip }) {
         </div>
         <div className="flex items-center gap-2.5">
           <span className="text-[12px] text-brand-ink/45">Oszd meg másokkal:</span>
-          <TipShareRow title={tip.title} url={`${APP_URL}/tips/${tip.slug}`} />
+          <TipShareRow title={tip.title} url={`${APP_URL}/tippek-es-cikkek/${tip.slug}`} />
         </div>
       </motion.div>
     </motion.div>

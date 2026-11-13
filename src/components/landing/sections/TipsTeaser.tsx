@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, type CSSProperties } from 'react'
 import Link from 'next/link'
+import { TipCardImage } from '@/components/landing/TipCardImage'
 import { motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { HeroButton } from '@/components/landing/FeatureHeroCentered'
@@ -42,10 +43,9 @@ function TipCard({ tip, k2 = false, grid = false }: { tip: Tip; k2?: boolean; gr
     // ugyanaz a kártya, mint a főoldali „Tippek” blokké (TipsK2): krém kártya, 190 px-es fehér képmező (a borító teteje),
     // alatta fehér kategória-pill, cím, kivonat. `grid`: rácsban (kevés cikknél), különben a lapozó sávban
     <motion.div variants={cardOuter} className={grid ? 'w-[88%] shrink-0 snap-start md:w-auto' : 'w-[80%] shrink-0 sm:w-[45%] lg:w-[30%]'}>
-      <Link href={`/tips/${tip.slug}`} className="group flex h-full flex-col rounded-ui-container bg-ui-yellow/15 p-3">
+      <Link href={`/tippek-es-cikkek/${tip.slug}`} className="group flex h-full flex-col rounded-ui-container bg-ui-yellow/15 p-3">
         <div className="relative h-[190px] overflow-hidden rounded-ui-card bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={tip.image} alt={tip.title} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:-translate-y-1" />
+          <TipCardImage src={tip.image} alt={tip.title} />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
         </div>
         <div className="flex flex-1 flex-col px-3 pb-3 pt-4 font-onest">
@@ -58,11 +58,10 @@ function TipCard({ tip, k2 = false, grid = false }: { tip: Tip; k2?: boolean; gr
   )
   return (
     <motion.div variants={cardOuter} className={`shrink-0 ${k2 ? 'w-[80%] sm:w-[45%] lg:w-[30%]' : 'w-[85%] sm:w-[55%] lg:w-[38%]'}`}>
-      <Link href={`/tips/${tip.slug}`} className={`group flex h-full flex-col p-3 ${k2 ? 'rounded-ui-container bg-ui-cell' : 'rounded-ui-container bg-[#F7F7F7]'}`}>
+      <Link href={`/tippek-es-cikkek/${tip.slug}`} className={`group flex h-full flex-col p-3 ${k2 ? 'rounded-ui-container bg-ui-cell' : 'rounded-ui-container bg-[#F7F7F7]'}`}>
         {/* ugyanaz a kártya, mint a főoldali tippeké (TipsK2): fehér, 190 px-es képmező, alatta pill, cím, leírás */}
         <div className="relative h-[190px] overflow-hidden rounded-ui-card bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={tip.image} alt={tip.title} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:-translate-y-1" />
+          <TipCardImage src={tip.image} alt={tip.title} />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
         </div>
         <div className="flex flex-1 flex-col px-3 pb-3 pt-4 font-onest">
@@ -131,6 +130,32 @@ export function TipsTeaser({ relatedExclude, slugs, look }: {
     el.scrollBy({ left: dir * step, behavior: 'smooth' })
   }
 
+  const scrollable = canLeft || canRight
+  const arrows = (
+    <>
+          <button
+            type="button"
+            aria-label="Előző"
+            onClick={() => scrollBy(-1)}
+            disabled={!canLeft}
+            className="flex h-10 w-10 items-center justify-center rounded-[12px] transition-opacity disabled:opacity-40"
+            style={{ background: '#3B3B3B' }}
+          >
+            <ChevronLeft className="h-4 w-4 text-white" />
+          </button>
+          <button
+            type="button"
+            aria-label="Következő"
+            onClick={() => scrollBy(1)}
+            disabled={!canRight}
+            className="flex h-10 w-10 items-center justify-center rounded-[12px] transition-opacity disabled:opacity-40"
+            style={{ background: '#3B3B3B' }}
+          >
+            <ChevronRight className="h-4 w-4 text-white" />
+          </button>
+    </>
+  )
+
   return (
     <section id="tippek" className={`mx-auto px-4 py-16 lg:py-20 ${grid ? 'max-w-6xl' : 'max-w-7xl lg:px-5'}`}>
       <motion.div
@@ -149,28 +174,8 @@ export function TipsTeaser({ relatedExclude, slugs, look }: {
           </motion.h2>
         </div>
 
-        {!grid && <motion.div variants={cardItem} className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            aria-label="Előző"
-            onClick={() => scrollBy(-1)}
-            disabled={!canLeft}
-            className={`flex items-center justify-center transition-opacity disabled:opacity-40 ${k2 ? 'h-10 w-10 rounded-full' : 'h-[52px] w-[52px] rounded-[16px]'}`}
-            style={{ background: k2 ? 'var(--ui-dark, #383838)' : '#3B3B3B' }}
-          >
-            <ChevronLeft className="h-4 w-4 text-white" />
-          </button>
-          <button
-            type="button"
-            aria-label="Következő"
-            onClick={() => scrollBy(1)}
-            disabled={!canRight}
-            className={`flex items-center justify-center transition-opacity disabled:opacity-40 ${k2 ? 'h-10 w-10 rounded-full' : 'h-[52px] w-[52px] rounded-[16px]'}`}
-            style={{ background: k2 ? 'var(--ui-dark, #383838)' : '#3B3B3B' }}
-          >
-            <ChevronRight className="h-4 w-4 text-white" />
-          </button>
-        </motion.div>}
+        {/* a lapozó nyilak csak akkor, ha van mit lapozni (ha minden kártya kifér — pl. max. 3 —, nem jelennek meg); k2-ben lent, az „Összes tipp” sorában jobbra */}
+        {!grid && !k2 && scrollable && <motion.div variants={cardItem} className="flex items-center gap-2.5 shrink-0">{arrows}</motion.div>}
       </motion.div>
 
       <motion.div
@@ -187,7 +192,13 @@ export function TipsTeaser({ relatedExclude, slugs, look }: {
           <TipCard key={tip.slug} tip={tip} k2={k2} grid={grid} />
         ))}
       </motion.div>
-      {k2 && <div className="mt-10 flex justify-center"><HeroButton href="/tips" label="Összes tipp" /></div>}
+      {k2 && (
+        <div className="relative mt-10 flex justify-center">
+          <HeroButton href="/tippek-es-cikkek" label="Összes tipp" />
+          {/* mobilon ujjal lapozható a sáv, ott nem kell nyíl (a gomb mellett nem is férne el) */}
+          {!grid && scrollable && <div className="absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-2.5 sm:flex">{arrows}</div>}
+        </div>
+      )}
     </section>
   )
 }

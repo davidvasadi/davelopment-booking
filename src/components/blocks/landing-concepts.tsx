@@ -1029,7 +1029,7 @@ export function TipsK2() {
       {/* mobilon vízszintesen lapozható sáv (snap), md-től 3 oszlopos rács */}
       <motion.div {...inView} variants={stagger(0.1)} className="-mx-4 mt-12 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
         {latest.map(({ t, screen }) => (
-          <motion.a key={t.slug} variants={rise} href={`/tips/${t.slug}`} className="group flex w-[88%] shrink-0 snap-start flex-col rounded-ui-container bg-ui-yellow/15 p-3 md:w-auto">
+          <motion.a key={t.slug} variants={rise} href={`/tippek-es-cikkek/${t.slug}`} className="group flex w-[88%] shrink-0 snap-start flex-col rounded-ui-container bg-ui-yellow/15 p-3 md:w-auto">
             <div className="relative h-[190px] overflow-hidden rounded-ui-card bg-white">
               {BRAND_BADGE}
               <PhoneFrameK2 className="absolute left-1/2 top-5 w-[190px] -translate-x-1/2 transition-transform duration-500 group-hover:-translate-y-1">{screen}</PhoneFrameK2>
@@ -1043,7 +1043,7 @@ export function TipsK2() {
           </motion.a>
         ))}
       </motion.div>
-      <div className="mt-10 flex justify-center"><HeroButton href="/tips" label="Összes tipp" /></div>
+      <div className="mt-10 flex justify-center"><HeroButton href="/tippek-es-cikkek" label="Összes tipp" /></div>
     </section>
   )
 }
@@ -1053,7 +1053,7 @@ export function TipsK2() {
 // SEO: az összes iparági landing belső linkje (ugyanaz a kör, mint a régi láblécben + a vendéglátós oldalak)
 const FOOT_INDUSTRY: [string, string][] = [['/fodrasz-idopontfoglalas', 'Fodrászoknak'], ['/barber-idopontfoglalas', 'Barbereknek'], ['/kozmetikus-idopontfoglalas', 'Kozmetikusoknak'], ['/mukormos-idopontfoglalas', 'Műkörmösöknek'], ['/masszor-idopontfoglalas', 'Masszőröknek'], ['/csontkovacs-idopontfoglalas', 'Csontkovácsoknak'], ['/fogorvos-idopontfoglalas', 'Fogorvosoknak'], ['/maganrendelo-idopontfoglalas', 'Magánrendelőknek'], ['/szemelyi-edzo-idopontfoglalas', 'Személyi edzőknek'], ['/pilates-idopontfoglalas', 'Pilates stúdióknak'], ['/joga-idopontfoglalas', 'Jóga oktatóknak']]
 const FOOT_GASTRO: [string, string][] = [['/etterem-asztalfoglalas', 'Éttermeknek'], ['/kavezo-asztalfoglalas', 'Kávézóknak'], ['/pizzeria-asztalfoglalas', 'Pizzériáknak'], ['/fine-dining-asztalfoglalas', 'Fine dining éttermeknek'], ['/csapatkezeles-vallalkozasoknak', 'Csapatkezelés vállalkozásoknak']]
-const FOOT_COMPANY: [string, string][] = [['/#hogyan', 'Hogyan működik'], ['/arak', 'Árak'], ['/#gyik', 'GYIK'], ['/tips', 'Tippek'], ['/kapcsolat', 'Kapcsolat'], ['/login', 'Bejelentkezés'], ['/register', 'Regisztráció']]
+const FOOT_COMPANY: [string, string][] = [['/#hogyan', 'Hogyan működik'], ['/arak', 'Árak'], ['/#gyik', 'GYIK'], ['/tippek-es-cikkek', 'Tippek'], ['/kapcsolat', 'Kapcsolat'], ['/login', 'Bejelentkezés'], ['/register', 'Regisztráció']]
 const FOOT_LEGAL: [string, string][] = [['/terms', 'Felhasználási feltételek'], ['/privacy', 'Adatkezelési tájékoztató'], ['/cookies', 'Sütikezelés']]
 
 /** Világos lábléc: balra a logó, egy mondat, e-mail és a gomb; jobbra a link-oszlopok (funkciók, kinek, cég, jogi —

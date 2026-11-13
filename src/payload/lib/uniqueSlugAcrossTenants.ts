@@ -6,7 +6,7 @@ import { RESERVED_INDUSTRY_SLUGS } from '@/lib/industryLandings'
 const RESERVED_ROUTE_SLUGS = [
   'admin', 'api', 'arak', 'backstage', 'booking', 'business', 'cookies', 'dashboard', 'forgot-password',
   'funkciok', 'kapcsolat', 'login', 'marketing', 'privacy', 'register', 'register-restaurant', 'reset-password',
-  'restaurant', 'review', 'team', 'terms', 'tips', 'verify-email',
+  'restaurant', 'review', 'team', 'terms', 'tippek-es-cikkek', 'tips', 'verify-email',
 ]
 
 /**

@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
+import { TipCardImage } from './TipCardImage'
 import { motion } from 'framer-motion'
 import { EASE } from '@/lib/motion'
 import type { Tip } from '@/lib/tips-content'
@@ -40,10 +41,9 @@ export function TipsIndexGrid({ tips }: { tips: Tip[] }) {
         <motion.div key={tip.slug} variants={cardOuter} className="h-full">
           {/* ugyanaz a kártya, mint a főoldali tippeké (TipsK2): fehér, 190 px-es képmező a telefon tetejével, alatta
               kategória-pill, cím és kétsoros leírás */}
-          <Link href={`/tips/${tip.slug}`} className="group flex h-full flex-col rounded-ui-container bg-[#F7F7F7] p-3">
+          <Link href={`/tippek-es-cikkek/${tip.slug}`} className="group flex h-full flex-col rounded-ui-container bg-[#F7F7F7] p-3">
             <div className="relative h-[190px] overflow-hidden rounded-ui-card bg-white">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={tip.image} alt={tip.title} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-500 group-hover:-translate-y-1" />
+              <TipCardImage src={tip.image} alt={tip.title} />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white to-transparent" />
             </div>
             <div className="flex flex-1 flex-col px-3 pb-3 pt-4 font-onest">

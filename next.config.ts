@@ -37,7 +37,20 @@ const nextConfig: NextConfig = {
     return [
       // 2026-11-13: a csapatkezelés-oldal új URL-je (a pozicionálás „vállalkozásoknak és stúdióknak”, nem „kisvállalkozásoknak”)
       { source: '/csapatkezeles-kisvallalkozasoknak', destination: '/csapatkezeles-vallalkozasoknak', permanent: true },
+      // 2026-11-13: a nyilvános tippek / cikkek magyar címre költöztek (a régi /tips címek helyezése így átjön)
+      { source: '/tips', destination: '/tippek-es-cikkek', permanent: true },
+      { source: '/tips/:slug', destination: '/tippek-es-cikkek/:slug', permanent: true },
     ]
+  },
+  async rewrites() {
+    // a /tippek-es-cikkek címet az app/(app)/tips mappa szolgálja ki (a mappa neve szándékosan maradt — a régi /tips címek
+    // fent 308-cal ide jönnek; a belső átírás nem fut újra a redirecteken)
+    return {
+      beforeFiles: [
+        { source: '/tippek-es-cikkek', destination: '/tips' },
+        { source: '/tippek-es-cikkek/:slug', destination: '/tips/:slug' },
+      ],
+    }
   },
   async headers() {
     return [

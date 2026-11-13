@@ -58,8 +58,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       { url: `${SITE_URL}/`, changeFrequency: 'weekly', priority: 1 },
     ]
     const tipsLastModified = gitLastModified('src/lib/tips-content.ts')
+    entries.push({ url: `${SITE_URL}/tippek-es-cikkek`, lastModified: tipsLastModified, changeFrequency: 'weekly', priority: 0.7 })
     for (const tip of TIPS) {
-      entries.push({ url: `${SITE_URL}/tips/${tip.slug}`, lastModified: tipsLastModified, changeFrequency: 'monthly', priority: 0.6 })
+      entries.push({ url: `${SITE_URL}/tippek-es-cikkek/${tip.slug}`, lastModified: tipsLastModified, changeFrequency: 'monthly', priority: 0.6 })
     }
     const industryLandingsLastModified = gitLastModified('src/lib/industryLandings.ts')
     for (const landing of Object.values(INDUSTRY_LANDINGS)) {

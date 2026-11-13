@@ -21,7 +21,7 @@ import { MobileMegaAccordion } from '@/components/landing/NavMegaMenu'
 const LINKS: { id: string; label: string; href?: string }[] = [
   { id: 'hogyan', label: 'Funkciók' },
   { id: 'arazas', label: 'Árak', href: '/arak' },
-  { id: 'tippek', label: 'Tippek', href: '/tips' },
+  { id: 'tippek', label: 'Tippek', href: '/tippek-es-cikkek' },
   { id: 'kapcsolat', label: 'Kapcsolat', href: '/kapcsolat' },
 ]
 

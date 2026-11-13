@@ -17,7 +17,7 @@ import { MegaPanel, MegaTrigger, useMegaMenu } from '@/components/landing/NavMeg
 // `href` = külön aloldalra visz (nem a főoldali szekcióra görget)
 const HERO_LINKS: { id: string; label: string; href?: string }[] = [
   { id: 'arazas',     label: 'Árak', href: '/arak' },
-  { id: 'tippek',     label: 'Tippek', href: '/tips' },
+  { id: 'tippek',     label: 'Tippek', href: '/tippek-es-cikkek' },
   { id: 'kapcsolat',  label: 'Kapcsolat', href: '/kapcsolat' },
 ]
 const NAV_OFFSET = 60

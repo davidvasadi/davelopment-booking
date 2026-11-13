@@ -37,7 +37,7 @@ export default async function ContactPage() {
   const quick = [
     { icon: Calculator, title: 'Árak és kalkulátor', body: 'Csomagok, összehasonlítás és díjkalkulátor.', href: '/arak#kalkulator' },
     { icon: LayoutGrid, title: 'Funkciók', body: 'Foglalás, naptár, vendégek, pénz, marketing, csapat.', href: '/funkciok' },
-    { icon: Lightbulb, title: 'Tippek', body: 'Gyakorlati cikkek a foglalásról és a vendégmegtartásról.', href: '/tips' },
+    { icon: Lightbulb, title: 'Tippek', body: 'Gyakorlati cikkek a foglalásról és a vendégmegtartásról.', href: '/tippek-es-cikkek' },
     { icon: Rocket, title: `${pricing.trial_days} nap ingyen`, body: 'Próbáld ki bankkártya nélkül, minden funkcióval.', href: '/register' },
   ]
 

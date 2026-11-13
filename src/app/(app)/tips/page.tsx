@@ -10,7 +10,7 @@ import { TIPS, articleJsonLd } from '@/lib/tips-content'
 import { SITE_URL, orgGraphNodes } from '@/lib/publicSeo'
 import { CtaGlow } from '@/components/landing/sections/CtaGlow'
 
-const URL = `${SITE_URL}/tips`
+const URL = `${SITE_URL}/tippek-es-cikkek`
 const TITLE = 'Tippek és cikkek — davelopment booking'
 const DESCRIPTION = 'Útmutatók a davelopment booking használatához, és gyakorlati cikkek a foglalásról, a no-show csökkentéséről, a csapatbeosztásról és a vendégmegtartásról.'
 
@@ -46,7 +46,7 @@ export default async function TipsIndexPage() {
         about: { '@id': `${SITE_URL}/#organization` },
         mainEntity: {
           '@type': 'ItemList',
-          itemListElement: TIPS.map((t, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE_URL}/tips/${t.slug}`, name: t.title })),
+          itemListElement: TIPS.map((t, i) => ({ '@type': 'ListItem', position: i + 1, url: `${SITE_URL}/tippek-es-cikkek/${t.slug}`, name: t.title })),
         },
       },
       {

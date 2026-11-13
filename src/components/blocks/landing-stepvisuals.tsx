@@ -172,3 +172,8 @@ export function stepVisuals(groupId: string): React.ReactNode[] {
 export function HomeSteps() {
   return <StepsK2 fills={stepVisuals('home')} />
 }
+
+/** Egy kártya-kompozíció csoport + sorszám szerint (pl. a kézikönyv-oldalak képeihez). */
+export function StepVisual({ group, index }: { group: string; index: number }) {
+  return <>{stepVisuals(group)[index] ?? null}</>
+}

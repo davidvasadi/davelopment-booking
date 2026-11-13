@@ -1,6 +1,12 @@
 import { SITE_URL } from '@/lib/publicSeo'
 
-export type TipSection = { title: string; body: string }
+/** Kép a szakasz alján: a rendszer valódi képernyője telefonkeretben (`shot`, kép-útvonal), vagy a funkció-oldalak
+ *  kártya-kompozíciója (`visual`: a landing-stepvisuals csoportja + sorszáma). */
+export type TipFigure =
+  | { kind: 'shot'; src: string; alt: string; caption?: string }
+  | { kind: 'visual'; group: string; index: number; caption?: string }
+/** Egy szakasz: cím, bekezdés, (kézikönyvnél) számozott lépések, kép és egy „Tipp” doboz. */
+export type TipSection = { title: string; body: string; steps?: string[]; figure?: TipFigure; note?: string }
 
 export type Tip = {
   /** tipp = a rendszer használata (hogyan csináld nálunk); cikk = általános blogcikk. Alapból cikk. */
@@ -47,8 +53,28 @@ export type Tip = {
 const PUBLISHED_ISO = '2026-08-01T09:00:00+02:00'
 
 /** schema.org JSON-LD (BlogPosting) a cikk-oldal rich-resultjához. */
+/** Kézikönyv-oldal (tipp, lépésekkel): HowTo strukturált adat a lépésekből — a Google lépésenkénti találatként is mutathatja. */
+export function howToJsonLd(tip: Tip): Record<string, unknown> | null {
+  const sections = tip.sections.filter((s) => s.steps?.length)
+  if (tip.kind !== 'tipp' || !sections.length) return null
+  const url = `${SITE_URL}/tippek-es-cikkek/${tip.slug}`
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: tip.title,
+    description: tip.excerpt,
+    image: `${SITE_URL}${tip.image}`,
+    step: sections.map((s, i) => ({
+      '@type': 'HowToSection',
+      name: s.title,
+      position: i + 1,
+      itemListElement: (s.steps ?? []).map((t, j) => ({ '@type': 'HowToStep', position: j + 1, text: t, url: `${url}#lepes-${i + 1}` })),
+    })),
+  }
+}
+
 export function articleJsonLd(tip: Tip): Record<string, unknown> {
-  const url = `${SITE_URL}/tips/${tip.slug}`
+  const url = `${SITE_URL}/tippek-es-cikkek/${tip.slug}`
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -68,6 +94,19 @@ export function articleJsonLd(tip: Tip): Record<string, unknown> {
 }
 
 const TIP_IMAGES: Record<string, string> = {
+  // kézikönyv-oldalak: a rendszer valódi telefonos képe
+  'foglalasok-kezelese': '/landing/hero/foglalasok-idovonal-davelopment-booking.webp',
+  'elso-lepesek': '/landing/funkciok/mobil/bemutatkozo-weboldal-davelopment-booking.webp',
+  'attekintes': '/landing/funkciok/mobil/jovahagyas-davelopment-booking.webp',
+  'vendegek-kezelese': '/landing/funkciok/mobil/vendegkartya-davelopment-booking.webp',
+  'naptar-beosztas': '/landing/funkciok/mobil/beosztas-davelopment-booking.webp',
+  'munkatarsak-es-jogok': '/landing/funkciok/mobil/munkatarsak-davelopment-booking.webp',
+  'utalvanyok': '/landing/funkciok/mobil/ajandekutalvany-davelopment-booking.webp',
+  'marketing-hirlevel-ertekeles': '/landing/funkciok/mobil/hirlevel-davelopment-booking.webp',
+  'fizetes-eloleg-szamlazas': '/landing/funkciok/mobil/eloleg-davelopment-booking.webp',
+  'foglalooldal-es-megosztas': '/landing/funkciok/mobil/google-cegprofil-davelopment-booking.webp',
+  'statisztikak': '/landing/funkciok/mobil/statisztikak-davelopment-booking.webp',
+  'nyitvatartas-es-kinalat': '/landing/funkciok/mobil/elo-asztalallapot-davelopment-booking.webp',
   // a rendszer valódi mobilnézete telefonkeretben (2026-11-09; a landing-tipcovers TipCover-jéből exportálva)
   'no-show-csokkentese': '/landing/tips/borito/no-show-csokkentese-davelopment-booking.webp',
   'emlekeztetok-automatizalasa': '/landing/tips/borito/emlekeztetok-automatizalasa-davelopment-booking.webp',
@@ -84,12 +123,621 @@ const TIP_IMAGES: Record<string, string> = {
   'mikor-kell-jogosultsagkezeles-csapatnak': '/landing/tips/borito/mikor-kell-jogosultsagkezeles-csapatnak-davelopment-booking.webp',
   'elolegkeres-foglalaskor-csokkenti-noshowt': '/landing/tips/borito/elolegkeres-foglalaskor-csokkenti-noshowt-davelopment-booking.webp',
   'naptar-szinkron-idopontfoglalohoz': '/landing/tips/borito/naptar-szinkron-idopontfoglalohoz-davelopment-booking.webp',
-  'audit-naplo-kisvallalkozasban': '/landing/tips/borito/audit-naplo-kisvallalkozasban-davelopment-booking.webp',
+  'audit-naplo-vallalkozasban': '/landing/tips/borito/audit-naplo-vallalkozasban-davelopment-booking.webp',
   'jelek-hogy-elavult-a-foglalasi-rendszered': '/landing/tips/borito/jelek-hogy-elavult-a-foglalasi-rendszered-davelopment-booking.webp',
   'nav-kompatibilis-szamlazas-foglalasi-rendszerbol': '/landing/tips/borito/nav-kompatibilis-szamlazas-foglalasi-rendszerbol-davelopment-booking.webp',
 }
 
 const RAW_TIPS: Omit<Tip, 'image'>[] = [
+  // ══ Kézikönyv (a menü szerint) ══
+  {
+    slug: 'elso-lepesek',
+    kind: 'tipp',
+    category: 'Első lépések',
+    date: '2026. november 11.',
+    title: 'Első lépések: így indulsz el a davelopment bookinggal',
+    excerpt: 'Regisztráció, üzlettípus, foglalóoldal, és az app a telefonodon — az első pár perc lépésről lépésre.',
+    intro: 'Az indulás pár perc: kiválasztod az üzleted típusát, a rendszer betölt egy kész sablont, kitöltöd a foglalóoldalad, és megosztod a linket. Ez az útmutató sorra veszi a lépéseket, és megmutatja, hogyan teszed fel az appot a telefonodra.',
+    sections: [
+      {
+        title: 'Regisztráció és üzlettípus',
+        body: 'A regisztrációnál megadod az üzleted nevét, és kiválasztod a típusát: szalon (időpontfoglalás) vagy étterem (asztalfoglalás). A típus alapján a rendszer betölt egy kész sablont — kategóriákat és minta szolgáltatásokat —, amit utána a saját képedre szabsz.',
+        steps: [
+          'Regisztrálj az e-mail-címeddel vagy a Google-fiókoddal.',
+          'Add meg az üzleted nevét, és válaszd ki a típusát.',
+          'Válaszd ki, mivel foglalkozol (például fodrászat, körömszalon, masszázs) — ehhez töltjük be a mintákat.',
+        ],
+        figure: { kind: 'visual', group: 'home', index: 0, caption: 'Szalon vagy étterem — a kész sablon a típushoz igazodik.' },
+      },
+      {
+        title: 'A bevezető túra',
+        body: 'Az első belépéskor egy rövid bevezető túra mutatja meg a rendszer fő részeit: az időpontokat, a vendégeket, a számokat és az appot. A túrát bármikor kihagyhatod, és a Súgóból újraindíthatod.',
+      },
+      {
+        title: 'A foglalóoldal kitöltése',
+        body: 'A foglalóoldal az a weboldal, ahol a vendégeid foglalnak. Az élő szerkesztőben közvetlenül az oldalon írsz és cserélsz képet — ahogy szerkesztesz, úgy fog kinézni.',
+        steps: [
+          'Nyisd meg a Beállítások › Foglalóoldal menüt.',
+          'Tölts fel borítóképet, írd meg a bemutatkozást, add meg az elérhetőségeidet.',
+          'Ellenőrizd a szolgáltatásokat (szalon) vagy az asztalokat (étterem).',
+          'Tedd közzé az oldalt.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/bemutatkozo-weboldal-davelopment-booking.webp', alt: 'A foglalóoldal élő szerkesztője — davelopment booking', caption: 'Az élő szerkesztőben közvetlenül az oldalon írsz.' },
+      },
+      {
+        title: 'A link megosztása',
+        body: 'A foglalóoldalad linkjét tedd ki mindenhova, ahol a vendégeid keresnek: a Google Cégprofilodra, az Instagram- és Facebook-oldaladra, a névjegyedre. A Beállítások › Foglalóoldal alatt QR-kódot is letölthetsz a kirakatra vagy a pultra.',
+        figure: { kind: 'visual', group: 'home', index: 1, caption: 'Megosztod a linket — és jönnek a foglalások.' },
+      },
+      {
+        title: 'Az app a telefonodra',
+        body: 'A rendszer app store nélkül, egy lépésben telepíthető a telefonodra: ikon kerül a főképernyőre, és úgy működik, mint egy alkalmazás — teljes képernyőn, böngészősáv nélkül.',
+        steps: [
+          'iPhone (Safari): koppints a képernyő alján a Megosztás gombra, majd válaszd a „Főképernyőhöz adás” lehetőséget.',
+          'Android (Chrome): koppints a jobb felső három pontra, majd az „Alkalmazás telepítése” vagy a „Főképernyőhöz adás” lehetőségre.',
+          'Gépen (Chrome, Edge): a címsor jobb oldalán megjelenő telepítés-ikonra kattints.',
+          'Telepítés után a Beállítások › Értesítések alatt kapcsold be a push-értesítéseket.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/mobil-app-davelopment-booking.webp', alt: 'Az értesítések beállítása az appban — davelopment booking', caption: 'Az appban bekapcsolod, miről kérsz értesítést.' },
+        note: 'iPhone-on a push-értesítések csak a főképernyőre telepített appból működnek, a sima böngészőfülről nem.',
+      },
+      {
+        title: 'Csapat meghívása',
+        body: 'Ha nem egyedül dolgozol, hívd meg a munkatársaidat e-mailben — mindenki a saját belépésével, a saját naptárával dolgozik. Ha most egyedül indulsz, bármikor később is bővítheted a csapatot.',
+        figure: { kind: 'visual', group: 'home', index: 2, caption: 'A meghívott munkatárs elfogadja a meghívót, és már dolgozhat is.' },
+      },
+    ],
+    closing: 'Ha elakadsz, az app Súgó menüpontjában minden oldalhoz találsz rövid magyarázatot, és ebben a kézikönyvben menüpontonként részletes útmutatót.',
+  },
+  {
+    slug: 'attekintes',
+    kind: 'tipp',
+    category: 'Áttekintés',
+    date: '2026. november 11.',
+    title: 'Áttekintés: a napod egy pillantásra',
+    excerpt: 'Belépés után az Áttekintés mutatja, mi vár rád ma: a foglalások állapota, a várható bevétel, a következő vendég, a közelgő foglalások és a teendők.',
+    intro: 'Az Áttekintés a kezdőképernyőd. Belépés után rögtön látod a mai napot, anélkül hogy bárhová kattintanod kellene — és innen egy koppintással ugrasz oda, ahol dolgod van.',
+    sections: [
+      {
+        title: 'A nap állapota',
+        body: 'Felül egy sávban látod a mai foglalásokat állapot szerint: megerősített, függő (jóváhagyásra vár), szabad (mennyi hely vagy idő maradt még) és lemondott. Alatta a legfontosabb számok: a mai foglalások száma, a várható bevétel, a ma beérkezett előleg és a következő foglalás ideje.',
+      },
+      {
+        title: 'Közelgő foglalások',
+        body: 'A Közelgő foglalások kártya a következő órák foglalásait mutatja idővonalon, munkatársakkal. Ha egy órában több foglalás is van, a sárga szám jelzi, hányan vannak még — koppintásra kinyílik. A kártya sarkában lévő nyíllal a Foglalások oldalra ugrasz.',
+        figure: { kind: 'visual', group: 'booking', index: 2, caption: 'Új foglalásról azonnal értesülsz — az Áttekintésen is megjelenik.' },
+      },
+      {
+        title: 'Jóváhagyásra váró foglalások',
+        body: 'Ha kézi jóváhagyást használsz, a függő foglalások száma az Áttekintésen is látszik, és az oldal alján egy sáv jelzi, hány foglalás vár rád. A Megnézem gombbal sorban átnézed őket, és egy koppintással jóváhagyod vagy elutasítod.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/jovahagyas-davelopment-booking.webp', alt: 'Jóváhagyásra váró foglalás az Áttekintésen — davelopment booking', caption: 'A függő foglalásokat sorban, lapozva nézed át.' },
+      },
+      {
+        title: 'Teendők',
+        body: 'A Teendők a csapat közös feladatlistája: mai, holnapi és korábbi teendők külön lapon, mindegyiknél a felelős munkatárs és a határidő. A kész feladatot egy koppintással kipipálod — így semmi nem csúszik el szóban vagy csoportchatben.',
+      },
+      {
+        title: 'Napi összefoglaló',
+        body: 'A Pro csomagban reggel és este rövid összefoglalót kaphatsz: reggel a mai napról, este a holnapiról — hány foglalás vár, és hány vár jóváhagyásra. Hogy kérsz-e ilyet, a Beállítások › Értesítések alatt állítod be.',
+      },
+    ],
+    closing: 'Az Áttekintés minden számára koppintva a részletekhez jutsz — a foglalásokhoz, a statisztikához vagy a teendőkhöz.',
+  },
+  {
+    slug: 'vendegek-kezelese',
+    kind: 'tipp',
+    category: 'Vendégek',
+    date: '2026. november 11.',
+    title: 'Vendégek: vendégkártya, tiltólista, térkép és export',
+    excerpt: 'A Vendégek oldal a foglalásaidból épül: minden vendégnek saját kártyája van az előzményekkel, és itt kezeled a tiltólistát, a térképet és az exportot is.',
+    intro: 'Nem kell kézzel vendéglistát vezetned: minden foglalásból automatikusan vendégkártya lesz. Ez az útmutató megmutatja, mit látsz egy vendégről, hogyan egészíted ki az adatait, és hogyan használod a vendéglistát.',
+    sections: [
+      {
+        title: 'A vendégkártya',
+        body: 'Egy vendégre koppintva megnyílik a kártyája: elérhetőségek, hányszor járt nálad, hányszor nem jött el, a következő foglalása, és a korábbi foglalások listája. Ha értékelést is adott, az is itt jelenik meg.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/vendegkartya-davelopment-booking.webp', alt: 'Vendégkártya a látogatásokkal és a következő foglalással — davelopment booking', caption: 'A vendégkártya mindent mutat egy vendégről.' },
+      },
+      {
+        title: 'Kiegészíted, amit tudsz',
+        body: 'A vendégkártyán megjegyzést írhatsz (például „kávét kér, cukor nélkül”), megadhatod a születésnapját, és csoportba sorolhatod (például törzsvendég). Ezek legközelebb a foglalásnál is látszanak.',
+        figure: { kind: 'visual', group: 'guests', index: 1, caption: 'Születésnap, csoport, megjegyzés — a vendégkártyán.' },
+      },
+      {
+        title: 'Tiltólista',
+        body: 'Ha egy vendég többször nem jött el, vagy más okból nem szeretnéd, hogy online foglaljon, tiltólistára teheted, indoklással. A tiltott vendég nem tud online foglalást leadni.',
+        steps: [
+          'Nyisd meg a vendég kártyáját.',
+          'Válaszd a tiltást, és írd be az okát.',
+          'Erősítsd meg — a tiltás bármikor visszavonható.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/feketelista-davelopment-booking.webp', alt: 'Vendég tiltólistára tétele indoklással — davelopment booking', caption: 'A tiltásnál az indoklást is rögzíted.' },
+      },
+      {
+        title: 'Honnan jönnek a vendégeid',
+        body: 'A térképen a vendégeid városa és országa alapján látod, honnan érkeznek. Ez segít eldönteni, hol érdemes hirdetni, és hogy kell-e idegen nyelvű foglalóoldal.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/vendeg-terkep-davelopment-booking.webp', alt: 'Vendég-térkép a visszatérő vendégek arányával — davelopment booking', caption: 'A térkép a vendégeid városa alapján készül.' },
+      },
+      {
+        title: 'Keresés és export',
+        body: 'A vendéglistában név, e-mail vagy telefonszám szerint keresel. Az exporttal a vendégeidet vagy a foglalásaidat CSV-fájlba mented, amit Excelben vagy Google Táblázatban megnyithatsz.',
+        steps: [
+          'Koppints az export gombra.',
+          'Válaszd ki, mit exportálsz: vendégeket vagy foglalásokat.',
+          'Add meg az időszakot (például 30 nap, egy év vagy egyedi), és jelöld be a szükséges mezőket.',
+          'Töltsd le a CSV-fájlt.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/export-davelopment-booking.webp', alt: 'Vendégek exportálása CSV-be — davelopment booking', caption: 'Az export Excelben is megnyitható.' },
+        note: 'A tiltott vendégek az exportban is jelölve vannak.',
+      },
+    ],
+    closing: 'A vendégkártyák a foglalásokból maguktól épülnek — minél tovább használod a rendszert, annál többet tudsz a vendégeidről.',
+  },
+  {
+    slug: 'naptar-beosztas',
+    kind: 'tipp',
+    category: 'Naptár',
+    date: '2026. november 11.',
+    title: 'Naptár: beosztás, szabadság, munkaidő és bérezés',
+    excerpt: 'A Naptárban tervezed a csapat műszakjait, rögzíted a szabadságot és a betegséget, és itt követed a munkaidőt és a bérköltséget is.',
+    intro: 'A Naptár a csapat havi és heti rendje: ki mikor dolgozik, ki van szabadságon, és mennyi a ledolgozott idő. A beosztás összhangban van a foglalásokkal — aki nem dolgozik, arra az időre nem foglalható.',
+    sections: [
+      {
+        title: 'Heti beosztás készítése',
+        body: 'A beosztást hétre vagy hónapra készíted. A fedetlen napok azonnal látszanak, így nem marad nap munkatárs nélkül.',
+        steps: [
+          'Nyisd meg a Naptárat, és koppints a + gombra (Beosztás).',
+          'Ha a múlt hét jó volt, az Előző hét másolása gombbal egy lépésben átveheted.',
+          'Állítsd be a napokat munkatársanként, majd mentsd el.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/beosztas-davelopment-booking.webp', alt: 'Új heti beosztás munkatársanként — davelopment booking', caption: 'A heti rácsban egy pillantásra látod, ki mikor dolgozik.' },
+      },
+      {
+        title: 'Szabadság, betegség, szabadnap',
+        body: 'A távolléteket külön jelölöd: műszak, szabadság, beteg vagy szabadnap. Szabadságnál a rendszer az éves keretet is számolja — látod, mennyi nap maradt.',
+        steps: [
+          'Koppints a munkatárs napjára a Naptárban.',
+          'Válaszd a távollét típusát, és add meg a kezdetét és a végét.',
+          'Mentsd el — a foglalóoldalon arra az időre a munkatárs nem lesz foglalható.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/szabadsag-davelopment-booking.webp', alt: 'Szabadság rögzítése éves kerettel — davelopment booking', caption: 'Szabadságnál az éves keret is látszik.' },
+      },
+      {
+        title: 'Munkaidő és ledolgozott órák',
+        body: 'Munkatársanként havi bontásban látod a ledolgozott órákat, a műszakokat, a betegnapokat és a szabadságot. A számok a beosztásból és a távollétekből maguktól adódnak.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/munkaido-davelopment-booking.webp', alt: 'Havi munkaidő munkatársanként — davelopment booking', caption: 'Havi munkaidő munkatársanként.' },
+      },
+      {
+        title: 'Bérezés',
+        body: 'A bérköltség havi összesítője megmutatja a bért, a borravalót és a túlórát, munkatársanként is. A bérlistát le is töltheted a könyvelőnek.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/berezes-davelopment-booking.webp', alt: 'Havi bérköltség munkatársanként — davelopment booking', caption: 'A bérlista egy kattintással letölthető.' },
+      },
+      {
+        title: 'Borravaló (étterem)',
+        body: 'Étteremben minden naphoz egy összegben megadod az aznap befolyt borravalót, a rendszer pedig elosztja az aznap dolgozó, borravalóra jogosult munkatársak között. Ki jogosult, azt a tulajdonos állítja be a munkatárs profilján; mindenki a saját havi összegét látja.',
+        note: 'A szabadságon vagy betegszabadságon lévők nem kapnak részt az aznapi borravalóból.',
+      },
+      {
+        title: 'Munkatársként: a saját beosztásod',
+        body: 'Munkatársként a Naptár a saját beosztásodat mutatja: melyik napokon dolgozol, mikor van szabadnapod. A napodra koppintva látod a pontos kezdést és zárást. Ha hibás a beosztásod, a vezetődnek szólj.',
+        figure: { kind: 'visual', group: 'calendar', index: 1, caption: 'A kész beosztásról mindenki értesül.' },
+      },
+    ],
+    closing: 'A beosztást a tulajdonos és azok szerkesztik, akik erre jogot kaptak — mindenki más csak a saját sávját látja.',
+  },
+  {
+    slug: 'munkatarsak-es-jogok',
+    kind: 'tipp',
+    category: 'Munkatársak',
+    date: '2026. november 11.',
+    title: 'Munkatársak és jogok: meghívás, szerepek, profil',
+    excerpt: 'Hogyan hívod meg a munkatársaidat, hogyan adsz nekik szerepet, és hogyan döntöd el pontosan, ki mit lát és mit módosíthat.',
+    intro: 'Minden munkatárs saját belépéssel dolgozik, és csak azt látja, amire jogot kapott. A tulajdonos mindig mindent lát. Ez az útmutató végigveszi a meghívást, a szerepeket és a munkatárs-profilt.',
+    sections: [
+      {
+        title: 'Munkatárs meghívása',
+        body: 'A munkatársat e-mailben hívod meg. Amikor elfogadja a meghívót, a profilja automatikusan létrejön, és a saját belépésével dolgozhat.',
+        steps: [
+          'Nyisd meg a Munkatársak oldalt, és koppints a Meghívás gombra.',
+          'Add meg a munkatárs e-mail-címét, és válassz neki szerepet.',
+          'Küldd el a meghívót. Amíg nem fogadja el, a listában Meghívott állapotban látod.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/munkatarsak-davelopment-booking.webp', alt: 'A Munkatársak oldal aktív, meghívott és felfüggesztett tagokkal — davelopment booking', caption: 'Aktív, meghívott és felfüggesztett munkatársak egy listában.' },
+      },
+      {
+        title: 'Szerepek és jogok',
+        body: 'Minden munkatárs (a tulajdonoson kívül) egy szerephez tartozik, amelynek te állítod be a jogait — területenként (foglalás, naptár, vendégek és a többi): mit láthat és mit módosíthat. Szerepet kész sablonból is indíthatsz.',
+        steps: [
+          'Nyisd meg a Beállítások › Csapat & jogok menüt, és válaszd a Szerepek fület.',
+          'Koppints az Új szerep gombra, vagy indulj egy sablonból (például Üzletvezető, Recepcionista, Stylist / Szakember, Asszisztens).',
+          'Kapcsold be területenként a jogokat, majd mentsd el.',
+          'A munkatárs profilján rendeld hozzá a szerepet.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/jogosultsagok-davelopment-booking.webp', alt: 'Szerepek és jogok szerkesztése — davelopment booking', caption: 'A szerepeket sablonból is indíthatod.' },
+        note: 'Aki nem kap szerepet, be tud lépni, de üres a felülete. Az üzlet törlése sosem adható ki — az mindig a tulajdonosé.',
+      },
+      {
+        title: 'Ki láthatja a fizetéseket',
+        body: 'A saját fizetését mindenki látja, mások fizetését viszont csak az, akinek ezt külön jogként megadod. Így a bérek nem kerülnek véletlenül szem elé.',
+      },
+      {
+        title: 'A munkatárs profilja',
+        body: 'A munkatársra koppintva látod az alapadatait (belépés dátuma, telefon, heti óraszám) és a statisztikáját: ledolgozott órák, betegnapok, szabadság. Szalonban itt rendeled hozzá, milyen szolgáltatásokat végez — ezek közül választhat a vendég foglaláskor.',
+        figure: { kind: 'visual', group: 'team', index: 0, caption: 'A meghívott munkatárs elfogad, és már aktív.' },
+      },
+      {
+        title: 'Felfüggesztés',
+        body: 'Ha valaki egy időre nem dolgozik nálad, felfüggesztheted: nem tud belépni, de minden adata megmarad, és bármikor visszaállíthatod.',
+      },
+      {
+        title: 'Ki mit módosított',
+        body: 'A Beállítások › Audit-napló alatt visszakövetheted, ki mikor mit változtatott a rendszerben — például egy árat vagy egy foglalást.',
+      },
+    ],
+    closing: 'A jogokkal pontosan szabályozod, ki mit lát — a csapat így biztonságosan dolgozhat ugyanabban a rendszerben.',
+  },
+  {
+    slug: 'utalvanyok',
+    kind: 'tipp',
+    category: 'Utalványok',
+    date: '2026. november 11.',
+    title: 'Ajándékutalványok: típus, eladás, beváltás',
+    excerpt: 'A vendégeid ajándékutalványt vehetnek a foglalóoldaladon — te pedig a pultnál is eladhatod és be is válthatod. Így állítod be.',
+    intro: 'Az ajándékutalvány extra bevétel, szezonon kívül is. A vendég a foglalóoldaladon vásárol, de a pultnál is kiállíthatsz utalványt. Ez az útmutató a beállítástól a beváltásig végigvezet.',
+    sections: [
+      {
+        title: 'Az utalványok bekapcsolása',
+        body: 'Az utalványokat a beállításokban kapcsolod be. Online fizetéshez a Stripe-fiókod összekötése kell — a pénz egyenesen hozzád érkezik.',
+        steps: [
+          'Nyisd meg a Beállítások › Ajándékutalvány menüt, és kapcsold be.',
+          'Ha még nem tetted, kösd össze a Stripe-fiókodat a Fizetés & számlázás alatt.',
+        ],
+      },
+      {
+        title: 'Utalvány-típus létrehozása',
+        body: 'Egy típus az utalvány összege, neve és kinézete. A kinézetet sablonból választod (forma és szín), a jegyen pedig rögtön látod az eredményt.',
+        steps: [
+          'Az Utalványok oldalon koppints az Új típus gombra.',
+          'Add meg a nevet és az összeget.',
+          'Válassz sablont és színt — saját képet is tehetsz rá.',
+          'Mentsd el. A típus megjelenik a foglalóoldaladon.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/ajandekutalvany-davelopment-booking.webp', alt: 'Ajándékutalvány-típusok és kiállítás — davelopment booking', caption: 'Az utalványok az Utalványok oldalon.' },
+      },
+      {
+        title: 'Eladás a pultnál',
+        body: 'Ha a vendég személyesen veszi meg az utalványt, a varázslóban pár lépésben kiállítod: kiválasztod a típust, megadod a megajándékozott nevét, és rögzíted a fizetés módját.',
+      },
+      {
+        title: 'Beváltás',
+        body: 'Beváltáskor beolvasod az utalvány QR-kódját a telefonod kamerájával, vagy beírod a kódját. A rendszer ellenőrzi, érvényes-e, és mennyi van még rajta.',
+      },
+      {
+        title: 'ÁFA és számla',
+        body: 'Az utalvány eladásakor az ÁFA még nem keletkezik: eladáskor áfa nélküli bizonylat megy, és beváltáskor (a látogatáskor) a teljes összeget számlázod — az utalvány ott fizetési mód. Ha összekötötted a számlázódat, a rendszer ezt követi.',
+      },
+    ],
+    closing: 'Ünnepek előtt érdemes az utalványt a közösségi oldalaidon és a hírleveledben is megemlíteni.',
+  },
+  {
+    slug: 'marketing-hirlevel-ertekeles',
+    kind: 'tipp',
+    category: 'Marketing',
+    date: '2026. november 11.',
+    title: 'Marketing: hírlevél, Google-értékelés és QR-kód',
+    excerpt: 'Hírlevél a feliratkozóknak, automatikus értékeléskérés a látogatás után, és QR-kód a kirakatra — így hozod vissza a vendégeidet.',
+    intro: 'A Marketing oldalon hírlevelet küldesz azoknak a vendégeknek, akik ehhez hozzájárultak, a beállításokban pedig bekapcsolod az automatikus Google-értékeléskérést. A hírlevél a csomagodba épített, nincs küldésenkénti díj.',
+    sections: [
+      {
+        title: 'Feliratkozók',
+        body: 'A vendég foglaláskor jelezheti, hogy kér hírlevelet — csak ők kerülnek a listádra. A Feliratkozók fülön kereshetsz és szűrhetsz; aki leiratkozik, automatikusan kikerül.',
+        figure: { kind: 'visual', group: 'marketing', index: 0, caption: 'Új feliratkozó érkezik a foglalásból.' },
+      },
+      {
+        title: 'Hírlevél küldése',
+        body: 'A hírlevelet blokkokból rakod össze: szöveg, cím, kép, gomb, elválasztó. Az előnézetben látod, hogyan fog kinézni.',
+        steps: [
+          'A Marketing oldalon nyisd meg a Kampányok fület, és indíts új kampányt.',
+          'Add meg a tárgyat, és válaszd ki a címzetteket (mindenki vagy egy szűrt kör).',
+          'Rakd össze a levelet blokkokból — sablonból is indulhatsz.',
+          'Küldd el, vagy mentsd piszkozatként.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/hirlevel-davelopment-booking.webp', alt: 'Kiküldött hírlevél megnyitási aránnyal — davelopment booking', caption: 'A kampány után látod, hányan nyitották meg.' },
+        note: 'A legjobb célcsoport a régen nem járt, korábban aktív vendég.',
+      },
+      {
+        title: 'Eredmények',
+        body: 'Minden kiküldött kampánynál látod, hányan nyitották meg, és a címzettek listáját is: ki mikor nyitotta meg. A kiküldött levelet nem módosíthatod, de másolatként új kampányt indíthatsz belőle.',
+      },
+      {
+        title: 'Google-értékelés kérése',
+        body: 'A látogatás után a vendég automatikusan rövid e-mailt kap egy csillagozó-oldallal. Ha 4 vagy 5 csillagot ad, az oldal továbbviszi a Google-értékelésedhez; alacsonyabb értékelésnél a visszajelzés csak nálad marad.',
+        steps: [
+          'Nyisd meg a Beállítások › Értékelések menüt.',
+          'Add meg a Google-profilodat — a rendszer ehhez viszi a jó értékeléseket.',
+          'Kapcsold be az értékeléskérést e-mailben.',
+          'Válaszd ki, mikor menjen ki: 1 órával, 2 órával a foglalás vége után, vagy másnap.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/google-ertekeles-davelopment-booking.webp', alt: 'Az értékeléskérés beállításai — davelopment booking', caption: 'Az időzítést te választod meg.' },
+      },
+      {
+        title: 'QR-kód a kirakatra',
+        body: 'A foglalóoldaladhoz QR-kódot kapsz: plakátra, kirakatra, asztalra, névjegyre. Beolvasva rögtön a foglalóoldalad nyílik meg. A lapra a nyitvatartást és a közösségi oldalaidat is rárakhatod.',
+        steps: [
+          'Nyisd meg a Beállítások › Foglalóoldal menüt, és válaszd a QR-kódot.',
+          'Kapcsold be, mi kerüljön a lapra (nyitvatartás, közösségi oldalak).',
+          'Töltsd le PNG-ként, vagy nyomtasd ki.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/qr-kod-davelopment-booking.webp', alt: 'QR-kód a foglalóoldalhoz letöltés és nyomtatás gombbal — davelopment booking', caption: 'A QR-kód letölthető és nyomtatható.' },
+      },
+    ],
+    closing: 'A hírlevél, az értékelés és a QR-kód együtt hozza vissza a vendégeket — mindhárom a csomagod része.',
+  },
+  {
+    slug: 'fizetes-eloleg-szamlazas',
+    kind: 'tipp',
+    category: 'Pénz',
+    date: '2026. november 11.',
+    title: 'Fizetés, előleg és számlázás: így állítsd be',
+    excerpt: 'Stripe összekötése, előleg foglaláskor, automatikus számla a Számlázz.hu vagy Billingo fiókodból, és a számlák egy helyen.',
+    intro: 'A vendégek kártyás fizetése a saját Stripe-fiókodba érkezik — a rendszer nem kezeli a pénzedet. Ez az útmutató megmutatja, hogyan kötöd össze a fizetést, hogyan kérsz előleget, és hogyan készül magától a számla.',
+    sections: [
+      {
+        title: 'A Stripe összekötése',
+        body: 'Az online fizetéshez (előleg, utalvány) a saját Stripe-fiókodat kötöd össze. Pár perc az egész, és a vendégek pénze ezután egyenesen hozzád érkezik.',
+        steps: [
+          'Nyisd meg a Beállítások › Fizetés & számlázás menüt.',
+          'Koppints a Stripe összekötésére, és kövesd a Stripe lépéseit (ehhez a cég- és bankszámla-adataid kellenek).',
+          'Ha kész, a Stripe mellett az Összekötve felirat jelenik meg.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/automatikus-szamla-davelopment-booking.webp', alt: 'Stripe és Számlázz.hu összekötve — davelopment booking', caption: 'A Stripe és a számlázó összekötve.' },
+      },
+      {
+        title: 'Előleg kérése foglaláskor',
+        body: 'Az előleg csökkenti a meg nem jelenést: aki előre fizet, jóval nagyobb eséllyel eljön, vagy időben lemond. Előleget csak automatikus megerősítésnél kérhetsz — ha kézi jóváhagyást használsz, a beállításnál egy gombbal átkapcsolhatsz.',
+        steps: [
+          'Nyisd meg a Beállítások › Előleg menüt, és kapcsold be az előleg kérését.',
+          'Válaszd ki, mely foglalásoknál: mindig, egy ár felett, vagy kiemelt napokon.',
+          'Add meg az összeget: fix összeg, vagy az ár bizonyos százaléka.',
+          'Állítsd be a díjmentes lemondás határidejét: 12 vagy 24 óra.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/eloleg-davelopment-booking.webp', alt: 'Az előleg beállításai — davelopment booking', caption: 'Mikor, mennyit, és meddig mondható le díjmentesen.' },
+        note: 'Ha a vendég a határidőn belül lemond, az előleget automatikusan visszakapja.',
+      },
+      {
+        title: 'Automatikus számla',
+        body: 'Összekötöd a Számlázz.hu vagy Billingo fiókodat, és minden kártyás fizetés után a számla magától elkészül a nevedre, a vendég pedig e-mailben kapja meg. Beállíthatod, hogy az üzlet számlázzon, vagy szakemberenként külön.',
+        steps: [
+          'A Fizetés & számlázás alatt válaszd a számlázó összekötését.',
+          'Add meg a Számlázz.hu vagy Billingo fiókod kulcsát.',
+          'Válaszd ki, ki számláz: az üzlet vagy a szakemberek külön.',
+        ],
+        figure: { kind: 'visual', group: 'money', index: 2, caption: 'A számla magától elkészül, és a vendég megkapja.' },
+      },
+      {
+        title: 'Számlák egy helyen',
+        body: 'A Beállítások › Számlák alatt minden vendég-fizetést és bizonylatot látsz: előleget, ajándékutalványt és a helyszíni fizetést. Ami a számlázódból ment, letölthető. A foglalásnál vagy utalványnál a számlaszámra koppintva is ide jutsz, és rögtön megnyílik az a számla.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/szamlak-davelopment-booking.webp', alt: 'A Számlák lista kiállított számlákkal — davelopment booking', caption: 'Minden számla és bizonylat egy listában.' },
+      },
+      {
+        title: 'ÁFA az utalványnál és az előlegnél',
+        body: 'Az utalvány és az előleg befizetésekor az ÁFA még nem keletkezik: ilyenkor áfa nélküli bizonylat megy. A beváltáskor vagy a látogatáskor a teljes összeget számlázod, és az utalvány vagy az előleg ott fizetési mód.',
+      },
+    ],
+    closing: 'Foglalásonkénti jutalék nincs: csak a havidíjat fizeted, a kártyás fizetéseknél pedig a Stripe saját tranzakciós díja érvényes.',
+  },
+  {
+    slug: 'foglalooldal-es-megosztas',
+    kind: 'tipp',
+    category: 'Foglalóoldal',
+    date: '2026. november 11.',
+    title: 'Foglalóoldal és megosztás: weboldal, Google Cégprofil, QR',
+    excerpt: 'A saját foglalóoldalad szerkesztése, a „Időpont foglalása” gomb a Google Cégprofilon, és a foglalási szabályok.',
+    intro: 'A foglalóoldal a saját weboldalad, ahol a vendégek foglalnak. Ez az útmutató megmutatja, hogyan szerkeszted, hogyan kötöd a Google Cégprofilodhoz, és milyen szabályok szerint foglalhatnak rajta.',
+    sections: [
+      {
+        title: 'Szerkesztés az élő szerkesztőben',
+        body: 'A foglalóoldalt közvetlenül az oldalon szerkeszted: a borítóképet, a bemutatkozást, az elérhetőségeket és a nyitvatartást. Több nyelven is megadhatod a szövegeket.',
+        steps: [
+          'Nyisd meg a Beállítások › Foglalóoldal menüt.',
+          'Koppints arra a részre, amit módosítanál — szöveget írhatsz, képet cserélhetsz.',
+          'Ha kész, koppints a Közzététel gombra.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/bemutatkozo-weboldal-davelopment-booking.webp', alt: 'A foglalóoldal élő szerkesztője közzététel gombbal — davelopment booking', caption: 'Ahogy szerkeszted, úgy fog kinézni.' },
+      },
+      {
+        title: 'Foglalási szabályok',
+        body: 'A szabályokkal döntöd el, hogyan foglalhatnak: meddig előre, milyen időközzel, kell-e telefonszám, és hogy a foglalás azonnal megerősített legyen-e, vagy jóváhagyásra várjon.',
+        figure: { kind: 'visual', group: 'booking', index: 1, caption: 'Nyitvatartás, jóváhagyás, időköz — egy helyen.' },
+      },
+      {
+        title: '„Időpont foglalása” gomb a Google Cégprofilon',
+        body: 'Ha a Google Cégprofilodra kiteszed a foglalóoldalad linkjét, a Google-keresésben és a térképen is megjelenik a foglalás gomb.',
+        steps: [
+          'Nyisd meg a Beállítások › Google Cégprofil menüt, és másold ki a foglalási linket.',
+          'Nyisd meg a business.google.com oldalt a céges fiókoddal, és válaszd ki a vállalkozásod.',
+          'A Foglalások › Foglalási link résznél illeszd be a linket.',
+          'A rendszerben kapcsold be a „Beállítottam a Google-nél” jelölést.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/google-cegprofil-davelopment-booking.webp', alt: 'A Google Cégprofil foglalási linkjének beállítása — davelopment booking', caption: 'Három lépés a Google-nél.' },
+      },
+      {
+        title: 'Értékelés a foglalóoldalon',
+        body: 'Ha összekötötted a Google-profilodat, az értékelésed és a csillagaid a foglalóoldalon is megjelennek — ez bizalmat ad az új vendégeknek.',
+      },
+      {
+        title: 'QR-kód és megosztás',
+        body: 'A foglalóoldal linkjét tedd ki az Instagram- és Facebook-oldaladra, a névjegyedre, és QR-kóddal a kirakatra. A QR-kódot a Beállítások › Foglalóoldal alatt töltöd le vagy nyomtatod ki.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/qr-kod-davelopment-booking.webp', alt: 'QR-kód a foglalóoldalhoz — davelopment booking', caption: 'Beolvasva a foglalóoldalad nyílik meg.' },
+      },
+    ],
+    closing: 'Minél több helyen ott a link, annál több vendég foglal magától — telefon nélkül.',
+  },
+  {
+    slug: 'statisztikak',
+    kind: 'tipp',
+    category: 'Statisztikák',
+    date: '2026. november 11.',
+    title: 'Statisztikák: foglalások, bevétel, visszatérő vendégek',
+    excerpt: 'A Statisztikák oldal megmutatja, hogyan teljesít az üzleted: a foglalások aránya, a bevétel, a visszatérő vendégek és a legerősebb napok.',
+    intro: 'A Statisztikák a foglalásaidból számolnak, nincs mit beírnod. A számokból kiderül, mely napok és időszakok a legerősebbek, és hol van még szabad kapacitás.',
+    sections: [
+      {
+        title: 'Az időszak kiválasztása',
+        body: 'Felül választod ki az időszakot (például a hét, a hónap vagy egyedi). A rendszer minden számot az előző, azonos hosszú időszakhoz is hasonlítja.',
+      },
+      {
+        title: 'Teljesített, függő, lemondott',
+        body: 'A sáv megmutatja, a foglalások hány százaléka teljesült, hány függő és hány lett lemondva. Alatta a foglalások száma, a bevétel és a visszatérő vendégek aránya.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/statisztikak-davelopment-booking.webp', alt: 'A Statisztikák oldal heti eloszlással és bevétellel — davelopment booking', caption: 'A legfontosabb számok egy képernyőn.' },
+      },
+      {
+        title: 'Heti eloszlás és bevétel alakulása',
+        body: 'A heti eloszlás megmutatja, melyik nap a legerősebb — a csúcsnap sárgával kiemelve. A bevétel alakulásán az aktuális és az előző időszak görbéje együtt látszik.',
+        figure: { kind: 'visual', group: 'team', index: 2, caption: 'Heti bevétel és foglalásszám.' },
+      },
+      {
+        title: 'Részletek és export',
+        body: 'Bármelyik kártyát kinyithatod a részletekért. Az adatokat CSV-be is exportálhatod napi, heti vagy havi bontásban.',
+      },
+      {
+        title: 'Munkatársként',
+        body: 'Munkatársként — a jogaidtól függően — a saját foglalásaid statisztikáját látod, nem az egész üzletét.',
+      },
+    ],
+    closing: 'A számok alapján érdemes finomhangolni a nyitvatartást és a kapacitást — például a gyenge napokra akciót hirdetni a hírlevélben.',
+  },
+  {
+    slug: 'nyitvatartas-es-kinalat',
+    kind: 'tipp',
+    category: 'Nyitvatartás',
+    date: '2026. november 11.',
+    title: 'Nyitvatartás, szolgáltatások és asztalok',
+    excerpt: 'Mikor lehet foglalni, mit lehet foglalni: a nyitvatartás és a kivételek, a szolgáltatások (szalon), és a termek és asztalok (étterem).',
+    intro: 'Az online foglalás csak a nyitvatartáson belül lehetséges, és csak arra, amit kínálsz: szalonban a szolgáltatásokra, étteremben a szabad asztalokra. Ez az útmutató megmutatja, hogyan állítod be őket.',
+    sections: [
+      {
+        title: 'Nyitvatartás',
+        body: 'Naponként külön sávokat adsz meg — például ebéd és vacsora külön. A foglalható időpontok ezekből számolódnak.',
+        steps: [
+          'Nyisd meg a Nyitvatartás oldalt.',
+          'Add meg naponként a nyitás és a zárás idejét, akár több sávban.',
+          'Mentsd el.',
+        ],
+        figure: { kind: 'visual', group: 'booking', index: 1, caption: 'A nyitvatartás a foglalási szabályokkal együtt dönt.' },
+      },
+      {
+        title: 'Kivételek: ünnepnap, zárva tartás',
+        body: 'Egy-egy napra eltérő nyitvatartást vagy zárást adhatsz meg — például ünnepnapra vagy szabadságra. Ezeken a napokon a foglalóoldal is ennek megfelelően kínál időpontot.',
+      },
+      {
+        title: 'Szalon: szolgáltatások',
+        body: 'Minden szolgáltatáshoz árat és időtartamot adsz meg — az időtartamból és a köztük lévő szünetből számolódnak a szabad időpontok. A szolgáltatásokat kategóriákba rendezheted, és a sorrendjüket húzással állítod be.',
+        steps: [
+          'Nyisd meg a Szolgáltatások oldalt, és adj hozzá új szolgáltatást.',
+          'Add meg a nevét, az árát és az időtartamát.',
+          'A munkatárs profilján rendeld hozzá, ki végzi.',
+        ],
+      },
+      {
+        title: 'Szalon: munkatársanként eltérő idő',
+        body: 'A szalon nyitvatartása az alap minden munkatársnak. Ha valaki egy napon máskor dolgozik vagy szabadnapos, azt a Naptárban rögzíted — a foglalóoldalon arra az időre csak a valóban ráérő munkatárs választható.',
+      },
+      {
+        title: 'Étterem: termek és asztalok',
+        body: 'Felveszed a termeidet (zónáidat) és az asztalokat férőhellyel. Nagyobb társaságnak asztalokat vonhatsz össze, és szezonális teremet (például nyári teraszt) is megadhatsz. A rendszer a létszám alapján dönti el, hol fér el a társaság.',
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/elo-asztalallapot-davelopment-booking.webp', alt: 'Asztalok termenként, élő foglaltsággal — davelopment booking', caption: 'Termek és asztalok, élő állapottal.' },
+      },
+      {
+        title: 'Étterem: ülésidő',
+        body: 'Az ülésidővel szabályozod, mennyi időre foglal le egy társaság egy asztalt — ez dönti el, hányszor fordulhat egy asztal egy este.',
+      },
+    ],
+    closing: 'Ha a nyitvatartás és a kínálat pontos, a foglalóoldal mindig csak valóban szabad időpontot kínál — nincs átfedés, nincs üresjárat.',
+  },
+  {
+    slug: 'foglalasok-kezelese',
+    kind: 'tipp',
+    category: 'Foglalások',
+    date: '2026. november 11.',
+    title: 'Foglalások: így kezeld a napodat lépésről lépésre',
+    excerpt: 'A Foglalások oldal a mindennapi munka közepe: itt látod a napot, itt veszel fel új foglalást, hagysz jóvá, és itt követed a vendéget az érkezéstől a távozásig.',
+    intro: 'A Foglalások oldalon egy helyen látod a nap minden foglalását — az online érkezőket és a telefonon vagy személyesen felvetteket is. Ez az útmutató végigvezet mindenen, amit itt meg tudsz csinálni, szalonban és étteremben is.',
+    sections: [
+      {
+        title: 'Mit látsz a Foglalások oldalon',
+        body: 'Felül a nap számai: hány foglalás megerősített, hány függő (jóváhagyásra vár), mennyi a szabad hely, és hány lett lemondva. Alatta a napváltó (Ma és a hét napjai), majd a nap idővonala óránként — a mostani óra sárgával kiemelve. Szalonban munkatársanként, étteremben asztalonként és termenként látod, ki mikor érkezik.',
+        figure: { kind: 'shot', src: '/landing/hero/foglalasok-idovonal-davelopment-booking.webp', alt: 'A Foglalások oldal napi idővonala telefonon — davelopment booking', caption: 'A nap idővonala: felül a számok, alatta a napváltó és a foglalások óránként.' },
+      },
+      {
+        title: 'Nap, hét vagy hónap',
+        body: 'A napot óráról órára, a hetet és a hónapot rácsban is átnézheted. A heti és havi nézetben a zárt napok szürkén jelennek meg, így rögtön látod, hol van még hely.',
+        steps: [
+          'Koppints a fejlécben a Nézet és szűrők gombra (a csúszkák ikon).',
+          'Válaszd a napi, heti vagy havi nézetet.',
+          'A napváltón lapozz előre-hátra, vagy koppints egy napra, hogy annak a foglalásait lásd.',
+        ],
+      },
+      {
+        title: 'Az online foglalások maguktól megjelennek',
+        body: 'Amikor a vendég a foglalóoldaladon foglal, a foglalás azonnal megjelenik az idővonalon, és értesítést kapsz a csengőnél — telefonon is, ha az appot telepítetted. Nem kell semmit átírnod vagy felvinned.',
+        figure: { kind: 'visual', group: 'home', index: 1, caption: 'Új online foglalás érkezik — értesítést kapsz róla.' },
+      },
+      {
+        title: 'Új foglalás felvétele telefonos vagy beeső vendégnek',
+        body: 'Ha a vendég telefonon hív vagy személyesen érkezik, pár koppintással rögzíted a foglalást — ugyanúgy megjelenik az idővonalon, mint az online foglalások.',
+        steps: [
+          'Koppints a fejléc + gombjára.',
+          'Kezdd el írni a vendég nevét vagy telefonszámát. Ha járt már nálad, a rendszer felajánlja, és egy koppintással kitölti az adatait.',
+          'Szalonban válassz szolgáltatást, munkatársat és időpontot. Étteremben add meg a létszámot, a napot és az időpontot — az asztalt a rendszer ajánlja a termek és asztalok alapján.',
+          'Mentsd el a foglalást.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/gyors-felvetel-davelopment-booking.webp', alt: 'Új foglalás felvétele, korábbi vendég adataival kitöltve — davelopment booking', caption: 'Korábbi vendégnél a rendszer kitölti az adatokat.' },
+        note: 'Étteremben, ha sietsz, név nélkül is rögzítheted a foglalást: ilyenkor „Beeső” vagy „Telefon” alapnév kerül rá.',
+      },
+      {
+        title: 'Jóváhagyásra váró foglalások',
+        body: 'Ha kézi jóváhagyást állítottál be, az online foglalások függő állapotban érkeznek. Az oldal alján egy sötét sáv jelzi, hány foglalás vár rád — a legrégebbi elöl.',
+        steps: [
+          'Koppints a sáv Megnézem gombjára.',
+          'Nézd át a foglalást: a vendéget, az időpontot és — ha kérsz — az előleget.',
+          'Döntsd el: Jóváhagyom vagy Elutasítom. Jóváhagyáskor a vendég megkapja a visszaigazolást.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/jovahagyas-davelopment-booking.webp', alt: 'Jóváhagyásra váró foglalás a Jóváhagyom és Elutasítom gombokkal — davelopment booking', caption: 'Egy koppintás a jóváhagyás.' },
+        note: 'A beállításokban automatikus jóváhagyásra is válthatsz: ekkor minden szabad időpontra érkező foglalás azonnal megerősített lesz.',
+      },
+      {
+        title: 'A vendég érkezése: megérkezett, nem jött el',
+        body: 'A foglalásra koppintva alulról felcsúszik a részletes lap: a vendég adatai, a foglalás ideje, a megjegyzés, és az ide tartozó gombok. Ha a vendég késik, a lap ezt is jelzi.',
+        steps: [
+          'Koppints a foglalásra az idővonalon vagy a listában.',
+          'Érkezéskor nyomd meg a Megérkezett gombot.',
+          'Ha a vendég nem jön el, a Nem jött el gombot — ez bekerül a vendég előzményeibe, így legközelebb is látod.',
+          'A Hívás gombbal közvetlenül felhívhatod a vendéget.',
+        ],
+      },
+      {
+        title: 'Áthelyezés másik időpontra, munkatárshoz vagy asztalhoz',
+        body: 'Az idővonalon a foglalást egyszerűen áthúzhatod másik időpontra — szalonban másik munkatárshoz, étteremben másik asztalhoz is. Ha az új hely ütközne egy másik foglalással, a rendszer jelzi, mielőtt elmentenéd. A részletes lap Áthelyezés gombjával ugyanezt húzás nélkül is megteheted.',
+      },
+      {
+        title: 'Net nélkül is működik',
+        body: 'Ha megszakad az internet, nem áll meg a munka: a foglalásokat ugyanúgy felveheted, a rendszer az eszközön tartja őket.',
+        steps: [
+          'Netkiesésnél felül narancssárga sáv jelzi: vázlat módban dolgozol.',
+          'Az új foglalásokat ugyanúgy felveszed — az eszközön maradnak.',
+          'Amint visszajön a net, a rendszer ellenőrzi, nem foglalta-e le közben valaki online ugyanazt az időpontot. Az ütközőket külön jelzi, a többit egy gombbal véglegesíted.',
+        ],
+        figure: { kind: 'shot', src: '/landing/funkciok/mobil/offline-mod-davelopment-booking.webp', alt: 'Vázlat mód netkiesésnél a Foglalások oldalon — davelopment booking', caption: 'Netkiesésnél vázlat módban dolgozol tovább.' },
+      },
+      {
+        title: 'A nap listája papíron',
+        body: 'Ha a pultnál vagy a konyhában papíron is kéznél akarod tartani a nap vendégeit, a Foglalások oldal tetején a nyomtató gombbal nyomtatható listában nyitod meg a kiválasztott napot: idő szerint sorban, a vendég nevével, létszámával, idejével és a megjegyzéssel.',
+        note: 'A böngésző nyomtatási ablakából PDF-be is mentheted, és elküldheted a csapatnak.',
+      },
+    ],
+    closing: 'Ha még nincs fiókod, a davelopment booking ingyen kipróbálható, bankkártya nélkül — a Foglalások oldalt az első perctől használhatod.',
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
+  },
   {
     slug: 'no-show-csokkentese',
     category: 'Foglalások',
@@ -118,7 +766,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Tudod-e fejből a legforgalmasabb napszakodat?', body: 'Ha nem, akkor vakon tervezel — egy rendszer ezt automatikusan megmutatja, és ez alapján tudsz árazni vagy beosztani.' },
     ],
     closing: 'Ha kettőnél többre igent mondtál, itt az idő — a davelopment booking ingyen kipróbálható, kártya nélkül.',
-    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'csapatkezeles-vallalkozasoknak'],
   },
   {
     slug: 'csapat-beosztas-hatekonyan',
@@ -134,7 +782,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'A műszak-átfedést kézzel is nézd át', body: 'A vendég-foglalásoknál a legtöbb rendszer automatikusan blokkolja az ütközést — de azt, hogy két munkatárs beosztása nem csúszik-e egymásba, gyakran senki nem ellenőrzi automatikusan. Ez rajtad marad, néhány perc alatt átnézhető.' },
     ],
     closing: 'A davelopment bookingban a beosztást a tulajdonos és a vezetők (illetve akik erre jogosultságot kapnak) állítják össze — mindenki más csak a saját sávját látja. A vendég-foglalásoknál a rendszer automatikusan blokkolja az ütközést, a szabadnap pedig azonnal kizárja az adott napot a foglalható időpontok közül.',
-    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
+    relatedIndustrySlugs: ['csapatkezeles-vallalkozasoknak', 'fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
   },
   {
     slug: 'emlekeztetok-automatizalasa',
@@ -150,7 +798,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Bárki jelezhessen, ne csak egy ember', body: 'Ha csak a tulajdonos vezetheti a listát, ő lesz a szűk keresztmetszet. Hagyd, hogy a csapat bármely tagja felírjon és kipipáljon egy teendőt.' },
     ],
     closing: 'A davelopment bookingban minden csapattag (tulajdonos, vezető, munkatárs) ugyanazt a napi teendő-listát látja és szerkesztheti — a mai, holnapi és korábbi feladatok külön fülön, dátumhoz kötve. Nem kell hozzá külön alkalmazás vagy csoportchat.',
-    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'maganrendelo-idopontfoglalas', 'etterem-asztalfoglalas'],
+    relatedIndustrySlugs: ['csapatkezeles-vallalkozasoknak', 'maganrendelo-idopontfoglalas', 'etterem-asztalfoglalas'],
   },
   {
     slug: 'torzsvendegek-megtartasa',
@@ -236,7 +884,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Számold ki, mennyit ér a saját időd', body: 'Ha az ingyenes rendszer hiányzó funkciói miatt kézzel kell pótolnod (pl. külön emlékeztetőt írsz, manuálisan foglalsz be telefonon), az az idő is költség — csak nem számla formájában jelenik meg.' },
     ],
     closing: 'A davelopment booking kártyaszám nélküli, teljes hozzáférésű próbaidőt ad — így pontosan látod, mennyit ér neked azok a funkciók, amikért egyébként fizetnél.',
-    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'kozmetikus-idopontfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'kozmetikus-idopontfoglalas', 'csapatkezeles-vallalkozasoknak'],
   },
   {
     slug: 'idopontfoglalo-szoftver-funkciok-amire-konnyu-nem-gondolni',
@@ -296,7 +944,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Az online foglalásnál nincs félreértés az asztal méretében', body: 'Telefonon könnyen elsikkad egy részlet (hányan lesznek, kell-e gyerekülés, van-e allergia) — egy online űrlap ezeket eleve bekéri, így az asztal és a felkészülés is pontosan illeszkedik a vendéghez.' },
     ],
     closing: 'A davelopment bookingban a vendég percek alatt lefoglalja az asztalt bármikor, a rendszer pedig automatikusan figyeli a kapacitást asztalonként — a személyzetnek nem kell manuálisan egyeztetnie minden hívást.',
-    relatedIndustrySlugs: ['etterem-asztalfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+    relatedIndustrySlugs: ['etterem-asztalfoglalas', 'csapatkezeles-vallalkozasoknak'],
   },
   {
     slug: 'mikor-kell-jogosultsagkezeles-csapatnak',
@@ -311,7 +959,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Az audit-napló akkor válik fontossá, amikor már ketten-hárman módosítanak', body: 'Ha nem csak te nyúlsz a rendszerhez, előbb-utóbb felmerül a kérdés: ki módosított egy adott foglalást vagy árat. Enélkül ez csak találgatás marad.' },
     ],
     closing: 'A davelopment bookingban egyedi szerepeket hozhatsz létre testreszabott jogokkal (pl. csak-olvasás az árazáshoz, törlési jog nélkül) — a rendszer pedig minden módosítást naplóz, hogy visszakövethető legyen, ki mit csinált.',
-    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
+    relatedIndustrySlugs: ['csapatkezeles-vallalkozasoknak', 'fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
   },
   {
     slug: 'elolegkeres-foglalaskor-csokkenti-noshowt',
@@ -344,10 +992,10 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
     relatedIndustrySlugs: ['maganrendelo-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'masszor-idopontfoglalas'],
   },
   {
-    slug: 'audit-naplo-kisvallalkozasban',
+    slug: 'audit-naplo-vallalkozasban',
     category: 'Biztonság',
     date: '2026. augusztus 1.',
-    title: 'Audit-napló kisvállalkozásban: ki módosított mit, és miért fontos ezt tudni',
+    title: 'Audit-napló a vállalkozásban: ki módosított mit, és miért fontos ezt tudni',
     excerpt: 'Nem a bizalmatlanságról szól — arról, hogy egy vitás helyzetben percek alatt kiderüljön, mi történt valójában.',
     intro: 'Amint egynél többen nyúlnak a rendszeredhez, előbb-utóbb felmerül egy kérdés: ki törölte azt a foglalást, ki módosította az árat. Az audit-napló nem a bizalmatlanság eszköze, hanem egy biztonsági háló, amit remélhetőleg sosem kell komolyan használnod — de ha mégis, percek alatt választ ad.',
     sections: [
@@ -356,7 +1004,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Ne tegye lassabbá a napi munkát', body: 'Az audit-napló háttérben kell fusson, anélkül hogy bárkinek külön adminisztrációs terhet jelentene — ha valakinek külön be kell jegyeznie, mit csinált, azt előbb-utóbb el fogják hagyni.' },
     ],
     closing: 'A davelopment bookingban minden módosítás automatikusan, láthatóan naplózva van — ki, mit, mikor változtatott —, 90 napra visszamenőleg kereshető a Beállítások alatt, minden plusz adminisztráció nélkül.',
-    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'fodrasz-idopontfoglalas', 'maganrendelo-idopontfoglalas'],
+    relatedIndustrySlugs: ['csapatkezeles-vallalkozasoknak', 'fodrasz-idopontfoglalas', 'maganrendelo-idopontfoglalas'],
   },
   {
     slug: 'jelek-hogy-elavult-a-foglalasi-rendszered',
@@ -402,8 +1050,14 @@ const PUBLISHED_TIP_SLUGS = new Set([
   'mennyibe-kerul-idopontfoglalo-szoftver',
 ])
 
-export const TIPS: Tip[] = RAW_TIPS
-  .filter((t) => process.env.NODE_ENV === 'development' || PUBLISHED_TIP_SLUGS.has(t.slug))
+/** A kézikönyv-oldalak sorrendje = az app menüjének sorrendje (a Tippek fülön így jelennek meg); a többi utána. */
+const MANUAL_ORDER = ['elso-lepesek', 'attekintes', 'foglalasok-kezelese', 'statisztikak', 'vendegek-kezelese', 'nyitvatartas-es-kinalat', 'munkatarsak-es-jogok', 'naptar-beosztas', 'utalvanyok', 'marketing-hirlevel-ertekeles', 'fizetes-eloleg-szamlazas', 'foglalooldal-es-megosztas']
+const manualRank = (slug: string) => { const i = MANUAL_ORDER.indexOf(slug); return i < 0 ? MANUAL_ORDER.length : i }
+
+export const TIPS: Tip[] = [...RAW_TIPS].sort((a, b) => manualRank(a.slug) - manualRank(b.slug))
+  // élesben: a kézikönyv-útmutatók (kind 'tipp') mind + a kiadott cikkek; a többi cikk csak fejlesztésben látszik
+  // (2026-11-14, Dave: az útmutatók mehetnek, az új cikkeket még át kell gondolni)
+  .filter((t) => process.env.NODE_ENV === 'development' || t.kind === 'tipp' || PUBLISHED_TIP_SLUGS.has(t.slug))
   .map((t) => ({ ...t, image: TIP_IMAGES[t.slug] }))
 
 export function getTip(slug: string): Tip | undefined {

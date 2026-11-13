@@ -24,7 +24,7 @@ const STAGGER = 0.05
 function isMarketing(path: string): boolean {
   if (path === '/') return true
   const first = path.split('/')[1] ?? ''
-  return ['funkciok', 'arak', 'kapcsolat', 'tips'].includes(first) || INDUSTRY.has(first)
+  return ['funkciok', 'arak', 'kapcsolat', 'tips', 'tippek-es-cikkek'].includes(first) || INDUSTRY.has(first)
 }
 
 type Phase = 'idle' | 'cover' | 'reveal'
@@ -141,6 +141,6 @@ function pageLabel(path: string): string {
   if (first === 'funkciok') return second ? (FEATURE_GROUPS.find((g) => g.slug === second)?.label ?? 'Funkciók') : 'Funkciók'
   if (first === 'arak') return 'Árak'
   if (first === 'kapcsolat') return 'Kapcsolat'
-  if (first === 'tips') return 'Tippek'
+  if (first === 'tips' || first === 'tippek-es-cikkek') return 'Tippek'
   return INDUSTRY_SHORT_LABEL[first] ?? ''
 }

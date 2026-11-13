@@ -159,8 +159,8 @@ export default async function FeatureGroupPage({ params }: { params: Promise<{ s
       </section>
 
       {/* Kapcsolódó tippek — ugyanaz a lapozó, mint a főoldalon */}
-      {x && x.related.some((r) => r.href.startsWith('/tips/')) && (
-        <TipsTeaser slugs={x.related.filter((r) => r.href.startsWith('/tips/')).map((r) => r.href.replace('/tips/', ''))} look="k2" />
+      {x && x.related.some((r) => r.href.startsWith('/tippek-es-cikkek/')) && (
+        <TipsTeaser slugs={x.related.filter((r) => r.href.startsWith('/tippek-es-cikkek/')).map((r) => r.href.replace('/tippek-es-cikkek/', ''))} look="k2" />
       )}
 
       <CtaGlow trial_days={pricing.trial_days} button="dark" bg="/landing/hero/new-york-studio-online-foglalas-davelopment-booking.webp" strong label={group.cta?.label} title={group.cta?.title} lead={group.cta?.lead} />

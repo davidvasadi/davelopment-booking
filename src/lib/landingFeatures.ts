@@ -128,9 +128,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         { q: 'Szükség van-e programozói tudásra a szerkesztéshez?', a: 'Nem. Az élő szerkesztőben úgy szerkeszted az oldalt, ahogy a vendég látja: rákattintasz, átírod, és mented.' },
       ],
       related: [
-        { label: 'Mikor éri meg online foglalóra váltani?', href: '/tips/mikor-eri-meg-online-foglalo' },
-        { label: 'Hogyan válassz időpontfoglaló rendszert?', href: '/tips/hogyan-valassz-idopontfoglalo-rendszert' },
-        { label: 'Emlékeztetők automatizálása', href: '/tips/emlekeztetok-automatizalasa' },
+        { label: 'Mikor éri meg online foglalóra váltani?', href: '/tippek-es-cikkek/mikor-eri-meg-online-foglalo' },
+        { label: 'Hogyan válassz időpontfoglaló rendszert?', href: '/tippek-es-cikkek/hogyan-valassz-idopontfoglalo-rendszert' },
+        { label: 'Emlékeztetők automatizálása', href: '/tippek-es-cikkek/emlekeztetok-automatizalasa' },
         { label: 'Fodrászoknak', href: '/fodrasz-idopontfoglalas' },
         { label: 'Éttermeknek', href: '/etterem-asztalfoglalas' },
       ],
@@ -245,7 +245,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         { q: 'Kell-e hozzá külön bérszámfejtő program?', a: 'Nem kötelező. A rendszer kiszámolja a ledolgozott időt és a járó bért, a hivatalos bérszámfejtést pedig a könyvelőd ezek alapján elvégzi.' },
       ],
       related: [
-        { label: 'Csapatbeosztás hatékonyan', href: '/tips/csapat-beosztas-hatekonyan' },
+        { label: 'Csapatbeosztás hatékonyan', href: '/tippek-es-cikkek/csapat-beosztas-hatekonyan' },
         { label: 'Csapatkezelés vállalkozásoknak', href: '/csapatkezeles-vallalkozasoknak' },
         { label: 'Éttermeknek', href: '/etterem-asztalfoglalas' },
       ],
@@ -344,8 +344,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         { q: 'Látom-e, ki mondta le a legtöbbször?', a: 'Igen. A vendégkártyán a lemondások és az el nem jött alkalmak száma is látszik, így a problémás vendégek könnyen kiszűrhetők.' },
       ],
       related: [
-        { label: 'Hogyan tartsd meg a törzsvendégeidet', href: '/tips/torzsvendegek-megtartasa' },
-        { label: 'Elmaradó vendégek csökkentése', href: '/tips/no-show-csokkentese' },
+        { label: 'Hogyan tartsd meg a törzsvendégeidet', href: '/tippek-es-cikkek/torzsvendegek-megtartasa' },
+        { label: 'Elmaradó vendégek csökkentése', href: '/tippek-es-cikkek/no-show-csokkentese' },
         { label: 'Kozmetikusoknak', href: '/kozmetikus-idopontfoglalas' },
       ],
     },
@@ -440,8 +440,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         { q: 'Kiállíthatok ajándékutalványt helyben, a pultnál is?', a: 'Igen. Küldhetsz fizetési linket a vásárlónak, vagy rögzítheted, hogy már kifizette (készpénzzel vagy terminálon). A vásárló ugyanúgy e-mailben kapja meg az utalványt QR-kóddal.' },
       ],
       related: [
-        { label: 'Hogyan csökkentsd az elmaradó vendégek számát', href: '/tips/no-show-csokkentese' },
-        { label: 'Mennyibe kerül egy időpontfoglaló szoftver?', href: '/tips/mennyibe-kerul-idopontfoglalo-szoftver' },
+        { label: 'Hogyan csökkentsd az elmaradó vendégek számát', href: '/tippek-es-cikkek/no-show-csokkentese' },
+        { label: 'Mennyibe kerül egy időpontfoglaló szoftver?', href: '/tippek-es-cikkek/mennyibe-kerul-idopontfoglalo-szoftver' },
         { label: 'Fodrászoknak', href: '/fodrasz-idopontfoglalas' },
         { label: 'Éttermeknek', href: '/etterem-asztalfoglalas' },
       ],
@@ -539,8 +539,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         { q: 'Küldhetek-e hírlevelet telefonról is?', a: 'Igen. A szerkesztő telefonon is működik, így bárhonnan megírhatod és elküldheted.' },
       ],
       related: [
-        { label: 'Hogyan tartsd meg a törzsvendégeidet', href: '/tips/torzsvendegek-megtartasa' },
-        { label: 'Mikor éri meg online foglalóra váltani?', href: '/tips/mikor-eri-meg-online-foglalo' },
+        { label: 'Hogyan tartsd meg a törzsvendégeidet', href: '/tippek-es-cikkek/torzsvendegek-megtartasa' },
+        { label: 'Mikor éri meg online foglalóra váltani?', href: '/tippek-es-cikkek/mikor-eri-meg-online-foglalo' },
         { label: 'Masszőröknek', href: '/masszor-idopontfoglalas' },
       ],
     },
@@ -636,7 +636,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         { q: 'Átkerülnek-e a foglalások, ha egy munkatárs távozik?', a: 'A korábbi foglalásai és adatai megmaradnak, a jövőbeli foglalásait pedig áthúzással átteheted egy kollégához.' },
       ],
       related: [
-        { label: 'Csapatbeosztás hatékonyan', href: '/tips/csapat-beosztas-hatekonyan' },
+        { label: 'Csapatbeosztás hatékonyan', href: '/tippek-es-cikkek/csapat-beosztas-hatekonyan' },
         { label: 'Csapatkezelés vállalkozásoknak', href: '/csapatkezeles-vallalkozasoknak' },
         { label: 'Barber szalonoknak', href: '/barber-idopontfoglalas' },
       ],

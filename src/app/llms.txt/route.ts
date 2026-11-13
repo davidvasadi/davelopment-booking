@@ -44,11 +44,11 @@ ${groups.map((g) => `### [${g.label}](${SITE_URL}/funkciok/${g.slug})\n${g.tagli
 
 ## Tippek (a rendszer használata)
 
-${TIPS.filter((t) => t.kind === 'tipp').map((t) => `- [${t.title}](${SITE_URL}/tips/${t.slug}): ${t.excerpt}`).join('\n')}
+${TIPS.filter((t) => t.kind === 'tipp').map((t) => `- [${t.title}](${SITE_URL}/tippek-es-cikkek/${t.slug}): ${t.excerpt}`).join('\n')}
 
 ## Cikkek
 
-${TIPS.filter((t) => (t.kind ?? 'cikk') === 'cikk').map((t) => `- [${t.title}](${SITE_URL}/tips/${t.slug}): ${t.excerpt}`).join('\n')}
+${TIPS.filter((t) => (t.kind ?? 'cikk') === 'cikk').map((t) => `- [${t.title}](${SITE_URL}/tippek-es-cikkek/${t.slug}): ${t.excerpt}`).join('\n')}
 
 ## Megjegyzés
 
