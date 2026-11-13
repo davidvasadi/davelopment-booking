@@ -134,7 +134,7 @@ export function StaffTable({ more, rows = SAMPLE_ROWS, openKey = 'viktoria', sel
               return (
                 <Tr key={r.key} onClick={onOpen ? () => onOpen(r.key) : undefined} className={`${on ? '[&>td]:bg-ui-yellow [&:hover>td]:bg-ui-yellow/80' : '[&>td]:bg-white [&:hover>td]:bg-white/60'} ${r.muted && !on ? '[&>td:not(:last-child)>*]:opacity-55' : ''}`}>
                   <Td>{r.owner ? <span className="block h-6 w-6" /> : <RowCheck checked={selected.includes(r.key)} onToggle={onToggle ? () => onToggle(r.key) : undefined} />}</Td>
-                  <Td><span className="flex items-center gap-2.5"><Avatar src={r.img} name={r.name} /><span className={r.muted ? 'line-through' : ''}>{r.name}</span>{r.owner && <Pill tone="dark" size="sm">Tulaj</Pill>}{r.review && <StatusPill status="warn">Nézd át</StatusPill>}</span></Td>
+                  <Td><span className="flex items-center gap-2.5"><Avatar src={r.img} name={r.name} /><span className={r.muted ? 'line-through' : ''}>{r.name}</span>{r.owner && <Pill tone="dark" size="sm">Tulajdonos</Pill>}{r.review && <StatusPill status="warn">Nézd át</StatusPill>}</span></Td>
                   <Td>{r.position || <span className="text-ui-muted">—</span>}</Td>
                   <Td><Meta>{r.email || '—'}</Meta></Td>
                   <Td>{r.join}</Td>

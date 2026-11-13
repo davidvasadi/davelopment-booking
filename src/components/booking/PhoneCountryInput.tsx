@@ -125,7 +125,7 @@ export function PhoneCountryInput({
             initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 28 } }}
             exit={{ opacity: 0, scale: 0.6, transition: { duration: 0.12 } }}
-            className="flex h-[13px] w-5 shrink-0 overflow-hidden rounded-[2px] shadow-[0_0_0_1px_rgba(0,0,0,.08)]"
+            className="flex h-[10px] w-[15px] shrink-0 overflow-hidden rounded-[2px] shadow-[0_0_0_1px_rgba(0,0,0,.08)]"
             title={ALL.find((c) => c.code === flagCode)?.name}
           >
             <Flag title="" />
