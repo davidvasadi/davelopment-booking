@@ -296,7 +296,8 @@ export function GalleryViewer({ mobile = false, active = 1, items, onClose, onPi
 export type LiveCard = 'dark' | 'black' | 'glass' | 'white'
 // a foglaló kártya három stílusa (a szerkesztő Arculat › Foglaló kártya): felület, szöveg, sorok, pillek, mellékszöveg
 const LIVE_CARD = {
-  dark: { box: `text-white ${DARK_GLASS}`, row: DARK_ROW, pill: 'onDark', meta: 'text-white/55', dark: true },
+  // a sötét üveg egy árnyalattal sötétebb (2026-11-13): világos borítókép előtt is olvasható maradjon
+  dark: { box: 'text-white border border-white/10 bg-black/[0.18] backdrop-blur-xl', row: DARK_ROW, pill: 'onDark', meta: 'text-white/55', dark: true }, // ui-allow: az élő sötét üveg-kártya
   black: { box: 'bg-ui-dark text-white', row: 'rounded-ui-inner bg-white/10', pill: 'onDark', meta: 'text-white/55', dark: true },
   glass: { box: 'border border-white/25 bg-white/15 text-white backdrop-blur-lg', row: 'rounded-ui-inner bg-white/10', pill: 'onDark', meta: 'text-white/65', dark: true }, // ui-allow: világos üveg-kártya
   white: { box: 'bg-white text-ui-dark shadow-ui-float', row: 'rounded-ui-inner bg-ui-cell', pill: 'cell', meta: 'text-ui-muted', dark: false },
