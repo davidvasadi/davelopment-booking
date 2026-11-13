@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { t, type Locale } from '@/lib/i18n'
 import Script from 'next/script'
 import { AnimatePresence, motion } from 'framer-motion'
 import { EASE } from '@/lib/motion'
@@ -36,7 +37,7 @@ const writeBiz = (key: string, v: Choice) => {
  * A vállalkozó szkriptjei csak az ő mérésének elfogadása után töltődnek be.
  * A `next.config.ts` CSP-je csak ezt a két konkrét domaint engedi, nem tetszőleges harmadik felet.
  */
-export function MarketingTrackingScripts({ business, bizKey, ga4Id, facebookPixelId, privacyHref }: { business: string; bizKey: string; ga4Id?: string | null; facebookPixelId?: string | null; privacyHref?: string | null }) {
+export function MarketingTrackingScripts({ business, bizKey, ga4Id, facebookPixelId, privacyHref, locale = 'hu' }: { business: string; bizKey: string; ga4Id?: string | null; facebookPixelId?: string | null; privacyHref?: string | null; locale?: Locale }) {
   const tools = [...(ga4Id ? ['ga4'] : []), ...(facebookPixelId ? ['pixel'] : [])]
   const hasBiz = tools.length > 0
   const [stats, setStats] = useState<Choice | 'checking'>('checking')
@@ -106,22 +107,22 @@ export function MarketingTrackingScripts({ business, bizKey, ga4Id, facebookPixe
             transition={{ duration: 0.5, ease: EASE }}
             className="fixed inset-x-0 bottom-0 z-[65] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           >
-            <CookieBar className="mx-auto max-w-[760px]" business={business} tools={tools} platform
+            <CookieBar className="mx-auto max-w-[760px]" business={business} tools={tools} platform locale={locale}
               onAccept={() => save(true, true)} onReject={() => save(false, false)} onDetails={openSettings} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      <PopupModal open={open} onClose={() => setOpen(false)} title="Süti-beállítások" subtitle={`${business} foglalóoldala`} maxWidth="sm:max-w-[440px]"
+      <PopupModal open={open} onClose={() => setOpen(false)} title={t(locale, 'cookie.title')} subtitle={t(locale, 'cookie.subtitle', { business })} maxWidth="sm:max-w-[440px]"
         // az elutasítás ugyanolyan könnyű és hangsúlyos, mint az elfogadás (GDPR / NMHH-ajánlás): két egyforma gomb + a mentés
         footer={<div className="w-full space-y-1.5">
           <div className="flex gap-1.5">
-            <Button variant="dark" className="flex-1" onClick={() => save(false, false)}>Mindet elutasítom</Button>
-            <Button variant="dark" className="flex-1" onClick={() => save(true, true)}>Mindet elfogadom</Button>
+            <Button variant="dark" className="flex-1" onClick={() => save(false, false)}>{t(locale, 'cookie.rejectAll')}</Button>
+            <Button variant="dark" className="flex-1" onClick={() => save(true, true)}>{t(locale, 'cookie.acceptAll')}</Button>
           </div>
-          <Button variant="cell" className="w-full" onClick={() => save(dStats, dBiz)}>Kiválasztottak mentése</Button>
+          <Button variant="cell" className="w-full" onClick={() => save(dStats, dBiz)}>{t(locale, 'cookie.saveSelected')}</Button>
         </div>}>
-        <CookieChoices business={business} tools={tools} stats={dStats} onStats={setDStats} biz={dBiz} onBiz={setDBiz} bizPrivacyHref={privacyHref ?? undefined} />
+        <CookieChoices locale={locale} business={business} tools={tools} stats={dStats} onStats={setDStats} biz={dBiz} onBiz={setDBiz} bizPrivacyHref={privacyHref ?? undefined} />
       </PopupModal>
     </>
   )

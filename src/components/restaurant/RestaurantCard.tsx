@@ -696,7 +696,7 @@ export function RestaurantCard({
           </AnimatePresence>
 
           {/* a kártya alján mindig a rendszer jele (design 21.1) — beágyazva linkként */}
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1"><PoweredBy dark={c.dark} />{!embed && <CookieFooterLink dark={c.dark} onClick={openCookieSettings} />}{company?.privacy_url && <a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className={`text-ui-label ${c.dark ? 'text-white/55' : 'text-ui-muted'} underline-offset-2 outline-none hover:underline`}>{t(locale, 'public.footer.privacy')}</a>}</div>
+          <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1"><PoweredBy dark={c.dark} label={t(locale, 'public.poweredBy')} />{!embed && <CookieFooterLink dark={c.dark} onClick={openCookieSettings} locale={locale} />}{company?.privacy_url && <a href={company.privacy_url} target="_blank" rel="noopener noreferrer" className={`text-ui-label ${c.dark ? 'text-white/55' : 'text-ui-muted'} underline-offset-2 outline-none hover:underline`}>{t(locale, 'public.footer.privacy')}</a>}</div>
           {/* Beágyazott (iframe) widgeten márkajelzés — ingyen marketing minden beágyazott oldalról. */}
           {embed && (
             <a

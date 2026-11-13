@@ -247,7 +247,7 @@ export default async function SalonPublicPage({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(placeBreadcrumbJsonLd(salon)) }}
           />
-          <MarketingTrackingScripts business={salon.name} bizKey={`salon:${salon.id}`} privacyHref={safeHttpUrl(salon.privacy_url)} ga4Id={salon.marketing_tracking?.ga4_measurement_id} facebookPixelId={salon.marketing_tracking?.facebook_pixel_id} />
+          <MarketingTrackingScripts locale={locale} business={salon.name} bizKey={`salon:${salon.id}`} privacyHref={safeHttpUrl(salon.privacy_url)} ga4Id={salon.marketing_tracking?.ga4_measurement_id} facebookPixelId={salon.marketing_tracking?.facebook_pixel_id} />
         </>
       )}
       <PublicPlaceView data={view} nextSlotNode={nextSlotNode} editor={editor} />

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui-kit'
 import { EditableText, EditorSelection, PageTexts } from '@/components/booking/EditableText'
 import { PreviewQuickBar } from '@/components/booking/PreviewQuickBar'
 import { stripRich } from '@/lib/richText'
-import { ACCENT, BookingPausedCard, DefaultCover, GalleryStrip, GalleryViewer, GoodToKnow, InfoList, PageNav, RatingBadges, SocialIcons, VoucherPill, type HoursInfo, type InfoItem, type RatingItem } from '@/components/blocks/public'
+import { ACCENT, BookingPausedCard, cardTone, DefaultCover, GalleryStrip, GalleryViewer, GoodToKnow, InfoList, PageNav, RatingBadges, SocialIcons, VoucherPill, type HoursInfo, type InfoItem, type RatingItem } from '@/components/blocks/public'
 import { PageLangPills } from '@/components/booking/PageLangPills'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import { ProfileCard, type ProfileCardProps, type EditorView } from '@/components/booking/ProfileCard'
@@ -209,7 +209,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
     gtk: info.length > 0 ? (
       <div data-edit-id="gtk" className="relative">
         <GoodToKnow items={pills} onMore={() => setInfoOpen(true)} />
-        {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:flex lg:max-h-[min(58dvh,560px)]" />}
+        {infoOpen && <InfoList items={info} hours={hours} title={t(locale, 'goodToKnow.title')} onClose={() => setInfoOpen(false)} surface={pg.card === 'white' ? cardTone('black').box : cardTone(pg.card).box} className="absolute bottom-full left-0 z-30 mb-2 hidden w-[400px] shadow-ui-popup lg:flex lg:max-h-[min(58dvh,560px)]" />}
       </div>
     ) : null,
   }

@@ -2,6 +2,7 @@ import { BarChart3, Lock, Megaphone, ShieldCheck } from 'lucide-react'
 import { Button, Card, IconCircle, Meta, Modal } from '@/components/ui-kit'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { Switch } from '@/components/ui/toggle-switch'
+import { t, type Locale } from '@/lib/i18n'
 
 /* Sütik a foglalóoldalon (design 21.x) — csak akkor jelenik meg, ha a vállalkozó beállított mérést (Google Analytics,
  * Meta Pixel); enélkül a foglalóoldal nem tesz le nem-szükséges sütit, így nem is kérdez. A mérést a VÁLLALKOZÓ végzi
@@ -23,8 +24,8 @@ function texts(business: string, tools: string[]) {
 }
 
 /** Az alsó sáv: ki és mire használ sütit, a részletek linkje, két egyforma gomb. Élőben `onAccept` / `onReject` / `onDetails`. */
-export function CookieBar({ business = 'Anna Fodrászat', tools = ['ga4', 'pixel'], platform = false, policyHref = '/cookies', onAccept, onReject, onDetails, className = '' }: {
-  business?: string; tools?: string[]; platform?: boolean; policyHref?: string; onAccept?: () => void; onReject?: () => void; onDetails?: () => void; className?: string
+export function CookieBar({ business = 'Anna Fodrászat', tools = ['ga4', 'pixel'], platform = false, policyHref = '/cookies', onAccept, onReject, onDetails, className = '', locale = 'hu' }: {
+  business?: string; tools?: string[]; platform?: boolean; policyHref?: string; onAccept?: () => void; onReject?: () => void; onDetails?: () => void; className?: string; locale?: Locale
 }) {
   return (
     <Card tone="dark" className={`flex flex-col gap-4 sm:flex-row sm:items-center ${className}`}>
@@ -32,9 +33,9 @@ export function CookieBar({ business = 'Anna Fodrászat', tools = ['ga4', 'pixel
         /* élőben: ugyanaz a szöveg, mint a landing sávján — ikon nélkül; a kötelező: a tájékoztató linkje és a két egyforma gomb
            + a „Beállítások” (a részletes választás elsőre is elérhető); később a lábléc „Süti-beállítások” linkje */
         <span className="min-w-0 flex-1 text-ui-row leading-relaxed text-white">
-          Sütiket használunk az oldal működéséhez és a felhasználói élmény javításához. Részletek a{' '}
-          <a href={policyHref} className="underline underline-offset-2 outline-none">süti-tájékoztatóban</a>.{' '}
-          {onDetails && <button type="button" onClick={onDetails} className="text-white/70 underline underline-offset-2 outline-none hover:text-white">Beállítások</button>}
+          {t(locale, 'cookie.bar')}{' '}
+          <a href={policyHref} className="underline underline-offset-2 outline-none">{t(locale, 'cookie.barLink')}</a>.{' '}
+          {onDetails && <button type="button" onClick={onDetails} className="text-white/70 underline underline-offset-2 outline-none hover:text-white">{t(locale, 'cookie.settings')}</button>}
         </span>
       ) : (<>
       <IconCircle tone="onDark" size="lg" icon={BarChart3} className="max-sm:hidden" />
@@ -48,8 +49,8 @@ export function CookieBar({ business = 'Anna Fodrászat', tools = ['ga4', 'pixel
       </>)}
       {/* a két gomb egyforma — az elutasítás ugyanolyan könnyű, mint az elfogadás */}
       <span className="flex shrink-0 gap-1.5">
-        <Button variant="ghostDark" className="flex-1 sm:flex-none" onClick={onReject}>Elutasítom</Button>
-        <Button variant="yellow" className="flex-1 sm:flex-none" onClick={onAccept}>Elfogadom</Button>
+        <Button variant="ghostDark" className="flex-1 sm:flex-none" onClick={onReject}>{t(locale, 'cookie.reject')}</Button>
+        <Button variant="yellow" className="flex-1 sm:flex-none" onClick={onAccept}>{t(locale, 'cookie.accept')}</Button>
       </span>
     </Card>
   )
@@ -95,10 +96,10 @@ function CookieSettingsBody({ business = 'Anna Fodrászat', tools = ['ga4', 'pix
 }
 
 /** A lábléc linkje (a „Powered by” mellé) — a döntés bármikor módosítható. */
-export function CookieFooterLink({ onClick, dark = false }: { onClick?: () => void; dark?: boolean }) {
+export function CookieFooterLink({ onClick, dark = false, locale = 'hu' }: { onClick?: () => void; dark?: boolean; locale?: Locale }) {
   const tone = dark ? 'text-white/55' : 'text-ui-muted'
   return onClick
-    ? <button type="button" onClick={onClick} className={`text-ui-label ${tone} underline-offset-2 outline-none hover:underline`}>Süti-beállítások</button>
+    ? <button type="button" onClick={onClick} className={`text-ui-label ${tone} underline-offset-2 outline-none hover:underline`}>{t(locale, 'cookie.title')}</button>
     : <span className={`text-ui-label ${tone}`}>Süti-beállítások</span>
 }
 
@@ -107,7 +108,8 @@ export function CookieFooterLink({ onClick, dark = false }: { onClick?: () => vo
  *  - Szükséges: mindig (nem kapcsolható ki).
  *  - Látogatottság mérése: a davelopment booking (Google Analytics) — mindig fut a foglalóoldalon.
  *  - A vállalkozó saját mérése: csak ha beállított (Google Analytics / Meta Pixel); adatkezelő a vállalkozó — külön kapcsoló. */
-export function CookieChoices({ business, tools, stats, onStats, biz, onBiz, policyHref = '/cookies', bizPrivacyHref }: {
+export function CookieChoices({ business, tools, stats, onStats, biz, onBiz, policyHref = '/cookies', bizPrivacyHref, locale = 'hu' }: {
+  locale?: Locale
   business: string; tools: string[]; stats: boolean; onStats: (on: boolean) => void; biz: boolean; onBiz: (on: boolean) => void; policyHref?: string
   /** a vállalkozó saját adatkezelési tájékoztatója (ha megadta) */
   bizPrivacyHref?: string
@@ -123,14 +125,14 @@ export function CookieChoices({ business, tools, stats, onStats, biz, onBiz, pol
   return (
     <>
       <div className="space-y-1.5">
-        {row(Lock, 'Feltétlenül szükséges sütik', <>Ezek nélkül az oldal nem működne: megjegyzik a választott nyelvet és időpontot, és biztonságossá teszik a fizetést.</>, <Meta>mindig aktív</Meta>)}
-        {row(BarChart3, 'Statisztikai sütik', <>Segítenek megérteni, hogyan használják az oldalt (pl. hányan nézik meg), név nélkül. Ebből fejlesztjük a foglalórendszert. Szolgáltató: Google Analytics.</>,
-          <Switch checked={stats} onChange={onStats} ariaLabel="Statisztikai sütik" />)}
-        {tools.length > 0 && row(Megaphone, hasPixel ? `Marketing sütik — ${business}` : `Statisztikai sütik — ${business}`, <>{hasPixel ? 'Látogatottság és hirdetések mérése' : 'Látogatottság mérése'} — honnan érkeznek a vendégek{hasPixel ? ', és mely hirdetések működnek' : ''}. Szolgáltató: {toolList(tools)}. Adatkezelő: {business}.{bizPrivacyHref && <> <a href={bizPrivacyHref} target="_blank" rel="noopener noreferrer" className="text-ui-text underline underline-offset-2">Adatkezelési tájékoztató</a></>}</>,
-          <Switch checked={biz} onChange={onBiz} ariaLabel={hasPixel ? 'Marketing sütik' : `${business} mérése`} />)}
+        {row(Lock, t(locale, 'cookie.necessaryTitle'), t(locale, 'cookie.necessaryDesc'), <Meta>{t(locale, 'cookie.always')}</Meta>)}
+        {row(BarChart3, t(locale, 'cookie.statsTitle'), t(locale, 'cookie.statsDesc'),
+          <Switch checked={stats} onChange={onStats} ariaLabel={t(locale, 'cookie.statsTitle')} />)}
+        {tools.length > 0 && row(Megaphone, t(locale, hasPixel ? 'cookie.bizMarketingTitle' : 'cookie.bizStatsTitle', { business }), <>{t(locale, hasPixel ? 'cookie.bizAdsDesc' : 'cookie.bizDesc')} {t(locale, 'cookie.provider')}: {toolList(tools)}. {t(locale, 'cookie.controller')}: {business}.{bizPrivacyHref && <> <a href={bizPrivacyHref} target="_blank" rel="noopener noreferrer" className="text-ui-text underline underline-offset-2">{t(locale, 'cookie.privacy')}</a></>}</>,
+          <Switch checked={biz} onChange={onBiz} ariaLabel={t(locale, hasPixel ? 'cookie.bizMarketingTitle' : 'cookie.bizStatsTitle', { business })} />)}
       </div>
       <Meta className="mt-4 flex items-start gap-1.5 leading-relaxed"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>A döntésed bármikor módosíthatod az oldal alján, a „Süti-beállítások” linkkel. Részletek: <a href={policyHref} className="text-ui-text underline underline-offset-2">Süti-tájékoztató</a></span>
+        <span>{t(locale, 'cookie.note')} <a href={policyHref} className="text-ui-text underline underline-offset-2">{t(locale, 'cookie.policy')}</a></span>
       </Meta>
     </>
   )
