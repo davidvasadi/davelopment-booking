@@ -390,6 +390,7 @@ export interface Reservation {
   customer_email: string
   customer_phone?: string | null
   customer_city?: string | null
+  customer_postal_code?: string | null
   customer_address?: string | null
   deposit_kind?: string | null
   customer_country?: string | null
@@ -1209,6 +1210,7 @@ export interface Booking {
   customer_email?: string | null
   customer_phone?: string | null
   customer_city?: string | null
+  customer_postal_code?: string | null
   customer_address?: string | null
   deposit_kind?: string | null
   customer_country?: string | null

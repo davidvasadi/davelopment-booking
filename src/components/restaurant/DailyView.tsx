@@ -965,6 +965,8 @@ function RestaurantBookingDrawer({ r, date, canManage, consentEnabled = false, o
             ['Állapot', r.status === 'confirmed' || r.status === 'pending' ? null : statusOf(r.status).label],
             ['Telefon', r.customer_phone],
             ['E-mail', r.customer_email],
+            // a vendég pontos címe (ha megadta) — eddig csak a város látszott
+            ['Cím', [[r.customer_postal_code?.trim(), r.customer_city?.trim()].filter(Boolean).join(' '), r.customer_address?.trim()].filter(Boolean).join(', ') || null],
             ['Forrás', RES_SOURCE_LABEL[r.source ?? ''] ?? r.source],
             ['Előleg', r.payment_status === 'paid' ? 'fizetve' : r.payment_status === 'failed' ? 'sikertelen fizetés' : null],
             ['Megjegyzés', r.notes],

@@ -19,7 +19,7 @@ export function CountryField({ value, onChange, locale, tt, inputCls, metaCls, r
     <div className={cn('space-y-1', error && 'animate-shake')}>
       <Label className={`text-ui-label ${metaCls}`}>{tt('booking.field.country')}{required ? ' *' : ''}</Label>
       <select value={value} onChange={(e) => onChange(e.target.value)} autoComplete="country" aria-invalid={!!error}
-        className={cn(inputCls, 'w-full', error && 'ring-1 ring-red-400')}>
+        className={cn(inputCls, 'w-full', error && 'ring-1 ring-inset ring-red-400')}>
         <option value="" className="text-ui-text">{tt('booking.field.countryChoose')}</option>
         {options.map((o) => <option key={o.code} value={o.code} className="text-ui-text">{o.name}</option>)}
       </select>

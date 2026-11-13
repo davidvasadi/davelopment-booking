@@ -93,6 +93,7 @@ export const Bookings: CollectionConfig = {
       label: 'Ügyfél városa',
       admin: { description: 'Opcionális — a vendég a foglalónál adja meg (vendég-analitika / térkép).' },
     },
+    { name: 'customer_postal_code', type: 'text', label: 'Ügyfél irányítószáma' },
     {
       name: 'customer_address',
       type: 'text',

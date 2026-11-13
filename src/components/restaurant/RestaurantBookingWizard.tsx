@@ -187,6 +187,9 @@ export function RestaurantBookingWizard({
   const [country, setCountry] = useState('HU')
   const [city, setCity] = useState('')
   const [address, setAddress] = useState('')
+  const [zip, setZip] = useState('')
+  // az irányítószámból kitöltött település (ha a vendég utána átírja, többé nem írjuk felül)
+  const autoCityRef = useRef('')
   const [isCompany, setIsCompany] = useState(false)
   // számlázási ország (előleg-számla) — a `country` a telefonszám országa; ez a számláé (lib/countries)
   const [billingCountry, setBillingCountry] = useState(() => defaultCountryFor(locale))
@@ -233,13 +236,14 @@ export function RestaurantBookingWizard({
   }
 
   // ── Mező-szintű validáció (a szalon-wizarddal AZONOS minta: error-placement, blur, focus) ──
-  type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address' | 'taxNumber'
+  type FieldKey = 'name' | 'email' | 'phone' | 'zip' | 'city' | 'address' | 'taxNumber'
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [detailsShakeKey, setDetailsShakeKey] = useState(0)
   const fieldRefs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
     phone: useRef<HTMLInputElement>(null),
+    zip: useRef<HTMLInputElement>(null),
     city: useRef<HTMLInputElement>(null),
     address: useRef<HTMLInputElement>(null),
     taxNumber: useRef<HTMLInputElement>(null),
@@ -266,6 +270,7 @@ export function RestaurantBookingWizard({
     if (key === 'name') return name.trim().length < 2 ? tt('rbooking.err.name') : null
     if (key === 'email') return !/^\S+@\S+\.\S+$/.test(email) ? tt('rbooking.err.email') : null
     if (key === 'phone') return phoneVisible && requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
+    if (key === 'zip') return addressGateOn && !addressCityOnly && !zip.trim() ? 'Az irányítószám megadása kötelező' : null
     if (key === 'city') return addressGateOn && !city.trim() ? 'A város megadása kötelező' : null
     if (key === 'address') return addressGateOn && !addressCityOnly && !address.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     if (key === 'taxNumber') return isCompany && !taxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
@@ -309,7 +314,7 @@ export function RestaurantBookingWizard({
   }, [restaurantId, date, pax, slotsReloadKey])
 
   const validateDetails = (): boolean => {
-    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), 'city', 'address', ...(depositEnabled && isCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...((addressCityOnly ? ['city'] : ['zip', 'city', 'address']) as FieldKey[]), ...(depositEnabled && isCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -350,6 +355,7 @@ export function RestaurantBookingWizard({
           country,
           customer_city: city.trim() || undefined,
           customer_address: address.trim() || undefined,
+          customer_postal_code: zip.trim() || undefined,
           ...(depositEnabled && isCompany && !isForeignCountry(billingCountry) && taxNumber.trim() ? { customer_tax_number: taxNumber.trim() } : {}),
           ...(depositEnabled && invoicingEnabled && billingCountry ? { customer_country: billingCountry } : {}),
           notes: notes.trim() || undefined,
@@ -513,7 +519,7 @@ export function RestaurantBookingWizard({
                   <div key={`name-${detailsShakeKey}`} className={cn(errors.name && 'animate-shake')}>
                     <input
                       ref={fieldRefs.name}
-                      className={cn(inputClass, errors.name && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      className={cn(inputClass, errors.name && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                       aria-label={tt("rbooking.field.name")}
                       value={name}
                       onChange={(e) => { setName(e.target.value); clearError('name') }}
@@ -530,7 +536,7 @@ export function RestaurantBookingWizard({
                   <div key={`email-${detailsShakeKey}`} className={cn(errors.email && 'animate-shake')}>
                     <input
                       ref={fieldRefs.email}
-                      className={cn(inputClass, errors.email && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      className={cn(inputClass, errors.email && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                       type="email"
                       inputMode="email"
                       autoComplete="email"
@@ -557,7 +563,7 @@ export function RestaurantBookingWizard({
                       required={requirePhone}
                       inputClass={cn(
                         phoneInputClass,
-                        errors.phone && 'ring-2 ring-red-400 focus-visible:ring-red-400'
+                        errors.phone && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400'
                       )}
                     />
                     {errors.phone && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.phone}</p>}
@@ -571,10 +577,35 @@ export function RestaurantBookingWizard({
                       <p className={`text-[12px] ${dk ? 'text-white/45' : 'text-ui-muted'}`}><Txt k="booking.details.billingWhy">{tt('booking.details.billingWhy')}</Txt></p>
                     </div>
                   )}
+                  {!addressCityOnly && (
+                  <div key={`zip-${detailsShakeKey}`} className={cn(errors.zip && 'animate-shake')}>
+                    <input
+                      ref={fieldRefs.zip}
+                      className={cn(inputClass, errors.zip && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
+                      autoComplete="postal-code" inputMode="numeric"
+                      aria-label={tt('booking.field.zip').replace(/\s*\([^)]*\)\s*$/, '')}
+                      placeholder={addressGateOn ? `${tt('booking.field.zip').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.zip')}
+                      aria-invalid={!!errors.zip}
+                      value={zip}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^\dA-Za-z -]/g, '').slice(0, 10)
+                        setZip(v); clearError('zip')
+                        if (/^\d{4}$/.test(v) && !isForeignCountry(billingCountry)) {
+                          fetch(`/api/geo/postal?code=${v}`).then((r) => r.json()).then((d: { city?: string | null }) => {
+                            if (!d?.city) return
+                            setCity((cur) => (!cur.trim() || cur === autoCityRef.current ? (autoCityRef.current = d.city as string) : cur))
+                          }).catch(() => {})
+                        }
+                      }}
+                      onBlur={() => onFieldBlur('zip')}
+                    />
+                    {errors.zip && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.zip}</p>}
+                  </div>
+                  )}
                   <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
                     <input
                       ref={fieldRefs.city}
-                      className={cn(inputClass, errors.city && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      className={cn(inputClass, errors.city && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                       autoComplete="address-level2"
                       aria-label={addressGateOn ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
                       aria-invalid={!!errors.city}
@@ -590,7 +621,7 @@ export function RestaurantBookingWizard({
                   <div key={`address-${detailsShakeKey}`} className={cn(errors.address && 'animate-shake')}>
                     <input
                       ref={fieldRefs.address}
-                      className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      className={cn(inputClass, errors.address && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                       autoComplete="street-address"
                       aria-label={addressGateOn ? tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '') : tt('booking.field.address')}
                       aria-invalid={!!errors.address}
@@ -618,7 +649,7 @@ export function RestaurantBookingWizard({
                         <div key={`taxNumber-${detailsShakeKey}`} className={cn(errors.taxNumber && 'animate-shake')}>
                           <input
                             ref={fieldRefs.taxNumber}
-                            className={cn(inputClass, errors.taxNumber && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                            className={cn(inputClass, errors.taxNumber && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                             placeholder="12345678-1-42"
                             aria-label={tt('public.voucher.taxNumber')}
                             aria-invalid={!!errors.taxNumber}
@@ -656,7 +687,7 @@ export function RestaurantBookingWizard({
                             value={val}
                             onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
                             aria-label={q.label}
-                            className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                            className={cn(inputClass, err && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                           >
                             <option value="">{q.label}{q.required ? ' *' : ''}</option>
                             {(q.options ?? []).map((o, oi) => o.value ? (
@@ -670,7 +701,7 @@ export function RestaurantBookingWizard({
                     return (
                       <div key={`${key}-${detailsShakeKey}`} className={cn(err && 'animate-shake')}>
                         <input
-                          className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                          className={cn(inputClass, err && 'ring-2 ring-inset ring-red-400 focus-visible:ring-red-400')}
                           placeholder={`${q.label}${q.required ? ' *' : ''}`}
                           aria-label={q.label}
                           aria-invalid={!!err}
@@ -854,7 +885,8 @@ export function RestaurantBookingWizard({
                   { label: tt('booking.field.name'), value: name.trim() || null },
                   { label: tt('booking.field.email'), value: email.trim() || null },
                   { label: tt('booking.field.phone'), value: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : null },
-                  { label: tt('booking.field.city'), value: city.trim() || null },
+                  // a teljes cím (irányítószám, település, utca) — eddig csak a város látszott
+                  { label: tt('booking.field.fullAddress'), value: [[zip.trim(), city.trim()].filter(Boolean).join(' '), address.trim()].filter(Boolean).join(', ') || null },
                   { label: tt('booking.field.note'), value: notes.trim() || null },
                   ...(paymentIntentId && depositAmountHuf ? [{ label: 'Foglaló (fizetve)', value: `${depositAmountHuf.toLocaleString('hu-HU')} Ft` }] : []),
                   ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: `${redeemValid.amount_huf.toLocaleString('hu-HU')} Ft` }] : []),

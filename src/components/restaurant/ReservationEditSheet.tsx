@@ -163,6 +163,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   const [tableId, setTableId] = useState<string>('') // '' = auto
   const [name, setName] = useState('')
   const [city, setCity] = useState('')
+  const [address, setAddress] = useState('')
+  const [zip, setZip] = useState('')
   const [phone, setPhone] = useState('')
   const [country, setCountry] = useState('HU')
   const [email, setEmail] = useState('')
@@ -250,6 +252,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     setTableId(currentTables.length ? currentTables.map(String).join(',') : '')
     setName(r?.customer_name ?? '')
     setCity(r?.customer_city ?? '')
+    setAddress(r?.customer_address ?? '')
+    setZip(r?.customer_postal_code ?? '')
     // A tárolt teljes szám (pl. „+36 30…") vissza ország-kódra + helyi részre a mezőhöz.
     const initCountry = r?.country ?? 'HU'
     const parsedPhone = splitLocalPhone(r?.customer_phone, initCountry)
@@ -282,7 +286,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       r?.pax ?? 2,
       currentTables.length ? currentTables.map(String).join(',') : '',
       r?.customer_name ?? '',
-      r?.customer_city ?? '',
+      r?.customer_city ?? '', r?.customer_address ?? '', r?.customer_postal_code ?? '',
       parsedPhone.phone,
       parsedPhone.country,
       r?.customer_email ?? '',
@@ -443,6 +447,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       tableIds: selectedTableIds,
       customer_name: name,
       customer_city: city,
+    customer_address: address,
+    customer_postal_code: zip,
       customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
       // a telefonszámból felismert ország → a nemzetiség-statisztika szerkesztéskor is frissüljön
       ...(phone.trim() ? { country } : {}),
@@ -502,6 +508,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
           tableIds: selectedTableIds,
           customer_name: name,
           customer_city: city.trim(),
+          customer_address: address.trim(),
+          customer_postal_code: zip.trim(),
           // A helyi szám elé az ország-előhívó (a publikus foglaló formátumával egyezően).
           customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
           country,
@@ -569,7 +577,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
 
   // Dirty-guard: a jelenlegi állapot aláírása vs. a nyitáskori. Ha eltér → mentetlen változás.
   const dirty = JSON.stringify([
-    selectedDate, startTime, pax, tableId, name, city, phone, country, email, notes, status, source, occasion, occasionIcon, duration,
+    selectedDate, startTime, pax, tableId, name, city, address, zip, phone, country, email, notes, status, source, occasion, occasionIcon, duration,
   ]) !== initSigRef.current
 
   // Záráskor rákérdezünk, ha van mentetlen változás (X, háttér-kattintás, Esc).
@@ -699,7 +707,12 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         <div className="mt-1.5 grid gap-1.5 sm:grid-cols-2">
           <PhoneCountryInput country={country} phone={phone} onCountryChange={setCountry} onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }} inputClass={`${FIELD} h-11`} />
           <Input value={email} onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }} placeholder="E-mail (opcionális)" aria-invalid={!!emailErr} />
-          <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Város (opcionális)" />
+          {/* a cím egy sorban: keskeny irányítószám, város, utca + házszám */}
+          <div className="grid gap-1.5 sm:col-span-2 sm:grid-cols-[120px_minmax(0,1fr)_minmax(0,1.4fr)]">
+            <Input value={zip} onChange={(e) => setZip(e.target.value.slice(0, 10))} placeholder="Irsz." aria-label="Irányítószám" inputMode="numeric" />
+            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Város" aria-label="Város" />
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Utca, házszám" aria-label="Utca, házszám" />
+          </div>
         </div>
         {emailErr && <p className="mt-1 text-ui-label text-ui-bad">{emailErr}</p>}
         {isEdit && reservation?.id && (

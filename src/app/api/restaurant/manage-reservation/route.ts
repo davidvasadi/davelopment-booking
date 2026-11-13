@@ -35,6 +35,8 @@ interface Body {
   tableIds?: (string | number)[] | null
   customer_name?: string
   customer_city?: string
+  customer_address?: string
+  customer_postal_code?: string
   customer_phone?: string
   customer_email?: string
   country?: string
@@ -117,6 +119,8 @@ export async function POST(req: NextRequest) {
   }
   if (body.customer_name !== undefined) data.customer_name = body.customer_name
   if (body.customer_city !== undefined) data.customer_city = body.customer_city.trim() || null
+  if (body.customer_address !== undefined) data.customer_address = body.customer_address.trim().slice(0, 200) || null
+  if (body.customer_postal_code !== undefined) data.customer_postal_code = body.customer_postal_code.trim().slice(0, 10) || null
   if (body.customer_phone !== undefined) data.customer_phone = body.customer_phone
   if (body.country !== undefined) data.country = body.country
   // Üres email-t ne küldjünk: a Payload 'email' mezője az üres stringet is validálja → hiba.

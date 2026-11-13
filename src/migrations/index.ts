@@ -95,6 +95,7 @@ import * as migration_20261107_290000_voucher_type_text from './20261107_290000_
 import * as migration_20261108_100000_customer_country from './20261108_100000_customer_country';
 import * as migration_20261108_110000_vat_at_redemption from './20261108_110000_vat_at_redemption';
 import * as migration_20261108_120000_brand_icon from './20261108_120000_brand_icon';
+import * as migration_20261113_100000_customer_postal_code from './20261113_100000_customer_postal_code';
 
 export const migrations = [
   {
@@ -581,5 +582,10 @@ export const migrations = [
     up: migration_20261108_120000_brand_icon.up,
     down: migration_20261108_120000_brand_icon.down,
     name: '20261108_120000_brand_icon',
+  },
+  {
+    up: migration_20261113_100000_customer_postal_code.up,
+    down: migration_20261113_100000_customer_postal_code.down,
+    name: '20261113_100000_customer_postal_code',
   },
 ];

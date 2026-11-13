@@ -34,6 +34,7 @@ const schema = z.object({
   customer_phone: z.string().min(7).max(30),
   customer_city: z.string().max(120).optional(),
   customer_address: z.string().max(200).optional(),
+  customer_postal_code: z.string().trim().max(10).optional(),
   customer_tax_number: z.string().max(30).optional(),
   customer_country: z.string().max(2).optional(),
   notes: z.string().max(1000).optional(),
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number: taxIn, customer_country: countryIn, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_postal_code, customer_tax_number: taxIn, customer_country: countryIn, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
   let staffId = parsed.data.staffId
   // számlázási ország; külföldi vevő csak magánszemélyként — az adószámot ilyenkor eldobjuk (lib/countries)
   const customer_country = normalizeCountry(countryIn) ?? undefined
@@ -338,6 +339,7 @@ export async function POST(request: NextRequest) {
           notes: notes ?? undefined,
           ...(customer_city ? { customer_city } : {}),
           ...(customer_address ? { customer_address } : {}),
+          ...(customer_postal_code ? { customer_postal_code } : {}),
           ...(customer_tax_number ? { customer_tax_number } : {}),
           ...(customer_country ? { customer_country } : {}),
           locale,
@@ -397,7 +399,7 @@ export async function POST(request: NextRequest) {
         id: booking.id,
         invoiceSettings: payee.invoiceSettings,
         sellerTaxNumber: payee.taxNumber,
-        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number, country: customer_country },
+        buyer: { name: customer_name, email: customer_email, zip: customer_postal_code, city: customer_city, address: customer_address, taxNumber: customer_tax_number, country: customer_country },
         // foglaló: áfa nélküli (TAHK) — megjelenéskor beszámít a végösszegbe, az ÁFA a végszámlán keletkezik (docs/manual)
         label: isForeignCountry(customer_country) ? `Booking deposit — ${service.name} · ${salon.name} · ${date} (outside the scope of VAT)` : `Foglaló — ${service.name} · ${salon.name} · ${date} (ÁFA tv. hatályán kívül)`,
         vatOverride: 'TAHK',

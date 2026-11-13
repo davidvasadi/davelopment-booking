@@ -25,6 +25,7 @@ const schema = z.object({
   customer_phone: z.string().max(30).optional(),
   customer_city: z.string().max(120).optional(),
   customer_address: z.string().max(200).optional(),
+  customer_postal_code: z.string().trim().max(10).optional(),
   customer_tax_number: z.string().max(30).optional(),
   /** számlázási ország (ISO) — a `country` a telefonszám országa, ez a számláé */
   customer_country: z.string().max(2).optional(),
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number: taxIn, customer_country: countryIn, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_postal_code, customer_tax_number: taxIn, customer_country: countryIn, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
   // számlázási ország; külföldi vevő csak magánszemélyként — az adószámot ilyenkor eldobjuk (lib/countries)
   const customer_country = normalizeCountry(countryIn) ?? undefined
   const customer_tax_number = isForeignCountry(customer_country) ? undefined : taxIn
@@ -248,6 +249,7 @@ export async function POST(request: NextRequest) {
           ...(customer_phone ? { customer_phone } : {}),
           ...(customer_city ? { customer_city } : {}),
           ...(customer_address ? { customer_address } : {}),
+          ...(customer_postal_code ? { customer_postal_code } : {}),
           ...(customer_tax_number ? { customer_tax_number } : {}),
           ...(customer_country ? { customer_country } : {}),
           ...(country ? { country } : {}),
@@ -311,7 +313,7 @@ export async function POST(request: NextRequest) {
         id: reservation.id,
         invoiceSettings: restaurant.invoice_settings,
         sellerTaxNumber: restaurant.tax_number,
-        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number, country: customer_country },
+        buyer: { name: customer_name, email: customer_email, zip: customer_postal_code, city: customer_city, address: customer_address, taxNumber: customer_tax_number, country: customer_country },
         // foglaló: áfa nélküli (TAHK) — megjelenéskor beszámít a végösszegbe, az ÁFA az étterem végszámláján (docs/manual)
         label: isForeignCountry(customer_country) ? `Booking deposit — ${restaurant.name} · ${date} · ${pax} ${pax === 1 ? 'guest' : 'guests'} (outside the scope of VAT)` : `Foglaló — ${restaurant.name} · ${date} · ${pax} fő (ÁFA tv. hatályán kívül)`,
         vatOverride: 'TAHK',

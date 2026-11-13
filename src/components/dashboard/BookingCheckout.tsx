@@ -11,7 +11,7 @@ import { CheckoutModal, type CheckoutLine, type PayMethod } from '@/components/b
 export type OnsiteSettings = { enabled: boolean; mode: 'register' | 'invoice'; methods: string[]; invoiceDefault: 'ask' | 'always' }
 
 type Booked = {
-  id: string | number; customerName: string; customerEmail?: string | null; customerCity?: string | null; customerAddress?: string | null
+  id: string | number; customerName: string; customerEmail?: string | null; customerCity?: string | null; customerAddress?: string | null; customerZip?: string | null
   when: string; service: { name: string; meta?: string; price: number }
   deposit: number; depositInvoice?: string | null; voucher: number; voucherCode?: string | null
   /** a „+ Tétel”-hez választható szolgáltatások (név, ár) */
@@ -32,7 +32,7 @@ export function BookingCheckout({ open, onClose, onDone, booking, settings, sett
   const [method, setMethod] = useState<PayMethod>(allowed[0] ?? 'cash')
   const [invoice, setInvoice] = useState(settings.invoiceDefault === 'always')
   const [buyerKind, setBuyerKind] = useState<'person' | 'company'>('person')
-  const [buyer, setBuyer] = useState({ name: booking.customerName, taxNumber: '', zip: '', city: booking.customerCity ?? '', address: booking.customerAddress ?? '', email: booking.customerEmail ?? '' })
+  const [buyer, setBuyer] = useState({ name: booking.customerName, taxNumber: '', zip: booking.customerZip ?? '', city: booking.customerCity ?? '', address: booking.customerAddress ?? '', email: booking.customerEmail ?? '' })
   const [busy, setBusy] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [payLink, setPayLink] = useState<string | null>(null)

@@ -588,6 +588,11 @@ function answersCard(booking: Booking): string {
   return rows ? detailsCard(rows) : ''
 }
 
+/** A vendég megadott címe (utca, házszám, város) — ha megadta. */
+function guestAddress(b: { customer_postal_code?: string | null; customer_address?: string | null; customer_city?: string | null }): string | null {
+  return [[b.customer_postal_code?.trim(), b.customer_city?.trim()].filter(Boolean).join(' '), b.customer_address?.trim()].filter(Boolean).join(', ') || null
+}
+
 function bookingRows(data: BookingEmailData): string {
   const { booking, salon, service, staff } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
@@ -595,6 +600,7 @@ function bookingRows(data: BookingEmailData): string {
   return [
     infoRow('user', t(locale, 'email.label.name'), booking.customer_name),
     booking.customer_email ? infoRow('mail', t(locale, 'email.label.email'), booking.customer_email) : '',
+    guestAddress(booking) ? infoRow('pin', t(locale, 'email.label.customerAddress'), escapeHtml(guestAddress(booking)!)) : '',
     infoRow('scissors', t(locale, 'email.label.service'), service.name),
     infoRow('user', t(locale, 'email.label.staff'), staff.name),
     infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(booking.date, locale)),
@@ -662,6 +668,7 @@ function notificationHtml(data: BookingEmailData): string {
     infoRow('user', 'Ügyfél', booking.customer_name),
     booking.customer_phone ? infoRow('phone', 'Telefon', booking.customer_phone) : '',
     booking.customer_email ? infoRow('mail', 'Email', booking.customer_email) : '',
+    guestAddress(booking) ? infoRow('pin', 'Cím', escapeHtml(guestAddress(booking)!)) : '',
     infoRow('scissors', 'Szolgáltatás', service.name),
     infoRow('user', 'Munkatárs', staff.name),
     infoRow('calendar', 'Dátum', booking.date),

@@ -45,7 +45,7 @@ const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c 
 
 type Slot = { start: string; end: string }
 type View = 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
-type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address' | 'taxNumber'
+type FieldKey = 'name' | 'email' | 'phone' | 'zip' | 'city' | 'address' | 'taxNumber'
 
 export type ProfileCardProps = Props
 
@@ -190,6 +190,19 @@ export function ProfileCard({
   const [customerCountry, setCustomerCountry] = useState('HU')
   const [customerCity, setCustomerCity] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerZip, setCustomerZip] = useState('')
+  // az irányítószámból kitöltött település (ha a vendég utána átírja, többé nem írjuk felül)
+  const autoCityRef = useRef('')
+  const onZipChange = (v: string) => {
+    const zip = v.replace(/[^\dA-Za-z -]/g, '').slice(0, 10)
+    setCustomerZip(zip)
+    if (/^\d{4}$/.test(zip) && !isForeignCountry(billingCountry)) {
+      fetch(`/api/geo/postal?code=${zip}`).then((r) => r.json()).then((d: { city?: string | null }) => {
+        if (!d?.city) return
+        setCustomerCity((cur) => (!cur.trim() || cur === autoCityRef.current ? (autoCityRef.current = d.city as string) : cur))
+      }).catch(() => {})
+    }
+  }
   const [customerIsCompany, setCustomerIsCompany] = useState(false)
   // számlázási ország (előleg-számla) — a `customerCountry` a telefonszám országa; ez a számláé (lib/countries)
   const [billingCountry, setBillingCountry] = useState(() => defaultCountryFor(locale))
@@ -206,11 +219,13 @@ export function ProfileCard({
     setCustomerPhone((v) => v || g.phone)
     setCustomerCountry(g.country || 'HU')
     setCustomerCity((v) => v || g.city)
+    setCustomerZip((v) => v || g.zip || '')
+    setCustomerAddress((v) => v || g.address || '')
     setRememberedGuest(true)
   }, [salonId])
   const forgetRememberedGuest = () => {
     forgetGuest(salonId)
-    setCustomerName(''); setCustomerEmail(''); setCustomerPhone(''); setCustomerCity('')
+    setCustomerName(''); setCustomerEmail(''); setCustomerPhone(''); setCustomerCity(''); setCustomerZip(''); setCustomerAddress('')
     setRememberedGuest(false)
   }
   // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
@@ -296,6 +311,7 @@ export function ProfileCard({
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
     phone: useRef<HTMLInputElement>(null),
+    zip: useRef<HTMLInputElement>(null),
     city: useRef<HTMLInputElement>(null),
     address: useRef<HTMLInputElement>(null),
     taxNumber: useRef<HTMLInputElement>(null),
@@ -430,6 +446,7 @@ export function ProfileCard({
     setCustomerEmail('')
     setCustomerPhone('')
     setCustomerCity('')
+    setCustomerZip('')
     setCustomerAddress('')
     setCustomerNotes('')
     setMarketingConsent(false)
@@ -546,6 +563,7 @@ export function ProfileCard({
     if (key === 'name') return !customerName || customerName.trim().length < 2 ? tt('booking.err.name') : null
     if (key === 'email') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ? tt('booking.err.email') : null
     if (key === 'phone') return phoneVisible && requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
+    if (key === 'zip') return addressGateOn && !addressCityOnly && !customerZip.trim() ? 'Az irányítószám megadása kötelező' : null
     if (key === 'city') return addressGateOn && !customerCity.trim() ? 'A város megadása kötelező' : null
     if (key === 'address') return addressGateOn && !addressCityOnly && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     if (key === 'taxNumber') return customerIsCompany && !customerTaxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
@@ -570,7 +588,7 @@ export function ProfileCard({
 
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
-    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? ((addressCityOnly ? ['city'] : ['zip', 'city', 'address']) as FieldKey[]) : []), ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -605,6 +623,7 @@ export function ProfileCard({
             : '',
           customer_city: customerCity.trim() || undefined,
           customer_address: customerAddress.trim() || undefined,
+          customer_postal_code: customerZip.trim() || undefined,
           ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) && customerTaxNumber.trim() ? { customer_tax_number: customerTaxNumber.trim() } : {}),
           ...(depositEnabled && invoicingEnabled && billingCountry ? { customer_country: billingCountry } : {}),
           notes: customerNotes, locale,
@@ -620,7 +639,7 @@ export function ProfileCard({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? tt('booking.err.generic'))
       const created = (data.booking ?? {}) as { status?: string; cancellation_token?: string | null }
-      saveGuest(salonId, { name: customerName.trim(), email: customerEmail.trim(), phone: customerPhone.trim(), country: customerCountry, city: customerCity.trim() })
+      saveGuest(salonId, { name: customerName.trim(), email: customerEmail.trim(), phone: customerPhone.trim(), country: customerCountry, city: customerCity.trim(), zip: customerZip.trim(), address: customerAddress.trim() })
       setRememberedGuest(true)
       setSuccessDetails({
         service: bookingService?.name ?? '',
@@ -1047,7 +1066,7 @@ export function ProfileCard({
                           onBlur={() => onFieldBlur('name')}
                           autoComplete="name" aria-invalid={!!errors.name}
                           {...phName}
-                          className={cn(inputCls, errors.name && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.name && 'ring-1 ring-inset ring-red-400')}
                         />
                         {errors.name && <p role="alert" className="text-ui-label text-red-400">{errors.name}</p>}
                       </div>
@@ -1061,7 +1080,7 @@ export function ProfileCard({
                           onBlur={() => onFieldBlur('email')}
                           aria-invalid={!!errors.email}
                           {...phEmail}
-                          className={cn(inputCls, errors.email && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.email && 'ring-1 ring-inset ring-red-400')}
                         />
                         {errors.email && <p role="alert" className="text-ui-label text-red-400">{errors.email}</p>}
                       </div>
@@ -1075,7 +1094,7 @@ export function ProfileCard({
                           onPhoneChange={p => { setCustomerPhone(p); clearError('phone') }}
                           onBlur={() => onFieldBlur('phone')} required={requirePhone}
                           dark
-                          inputClass={cn(inputCls, errors.phone && 'ring-1 ring-red-400')}
+                          inputClass={cn(inputCls, errors.phone && 'ring-1 ring-inset ring-red-400')}
                         />
                         {errors.phone && <p role="alert" className="text-ui-label text-red-400">{errors.phone}</p>}
                       </div>
@@ -1089,6 +1108,22 @@ export function ProfileCard({
                           <p className={`text-ui-label ${c.meta}`}><Txt k="booking.details.billingWhy">{tt('booking.details.billingWhy')}</Txt></p>
                         </div>
                       )}
+                      {!addressCityOnly && (
+                      <div data-edit-id="field:address" key={`zip-${detailsShakeKey}`} className={cn('space-y-1', errors.zip && 'animate-shake')}>
+                        <Label htmlFor="bk-zip" className={`text-ui-label ${c.meta}`}>
+                          {addressGateOn ? `${tt('booking.field.zip').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.zip')}
+                        </Label>
+                        <Input
+                          id="bk-zip" ref={fieldRefs.zip} value={customerZip}
+                          onChange={e => { onZipChange(e.target.value); clearError('zip') }}
+                          onBlur={() => onFieldBlur('zip')}
+                          aria-invalid={!!errors.zip}
+                          inputMode="numeric" autoComplete="postal-code" placeholder="1052"
+                          className={cn(inputCls, errors.zip && 'ring-1 ring-inset ring-red-400')}
+                        />
+                        {errors.zip && <p role="alert" className="text-ui-label text-red-400">{errors.zip}</p>}
+                      </div>
+                      )}
                       <div data-edit-id="field:address" key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
                         <Label htmlFor="bk-city" className={`text-ui-label ${c.meta}`}>
                           {addressGateOn ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
@@ -1099,7 +1134,7 @@ export function ProfileCard({
                           onBlur={() => onFieldBlur('city')}
                           aria-invalid={!!errors.city}
                           autoComplete="address-level2" {...phCity}
-                          className={cn(inputCls, errors.city && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.city && 'ring-1 ring-inset ring-red-400')}
                         />
                         {errors.city && <p role="alert" className="text-ui-label text-red-400">{errors.city}</p>}
                         {addressGateOn && !depositEnabled && !errors.city && <p className={`text-ui-label ${c.meta}`}>{addressNote}</p>}
@@ -1115,7 +1150,7 @@ export function ProfileCard({
                           onBlur={() => onFieldBlur('address')}
                           aria-invalid={!!errors.address}
                           autoComplete="street-address" {...phAddress}
-                          className={cn(inputCls, errors.address && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, errors.address && 'ring-1 ring-inset ring-red-400')}
                         />
                         {errors.address && <p role="alert" className="text-ui-label text-red-400">{errors.address}</p>}
                         {addressGateOn && !depositEnabled && !errors.address && <p className={`text-ui-label ${c.meta}`}>{addressNote}</p>}
@@ -1141,7 +1176,7 @@ export function ProfileCard({
                                 onBlur={() => onFieldBlur('taxNumber')}
                                 aria-invalid={!!errors.taxNumber}
                                 placeholder="12345678-1-42"
-                                className={cn(inputCls, errors.taxNumber && 'ring-1 ring-red-400')}
+                                className={cn(inputCls, errors.taxNumber && 'ring-1 ring-inset ring-red-400')}
                               />
                               {errors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{errors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.taxNumberHint">{tt('public.voucher.taxNumberHint')}</Txt></p>}
                             </div>
@@ -1174,7 +1209,7 @@ export function ProfileCard({
                               <select
                                 value={val}
                                 onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
-                                className={cn(inputCls, 'w-full', err && 'ring-1 ring-red-400')}
+                                className={cn(inputCls, 'w-full', err && 'ring-1 ring-inset ring-red-400')}
                               >
                                 <option value="" className="text-ui-text">Válassz…</option>
                                 {(q.options ?? []).map((o, oi) => o.value ? (
@@ -1192,7 +1227,7 @@ export function ProfileCard({
                               value={val}
                               onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
                               aria-invalid={!!err}
-                              className={cn(inputCls, err && 'ring-1 ring-red-400')}
+                              className={cn(inputCls, err && 'ring-1 ring-inset ring-red-400')}
                             />
                             {err && <p role="alert" className="text-ui-label text-red-400">{err}</p>}
                           </div>
@@ -1324,7 +1359,8 @@ export function ProfileCard({
                       { label: tt('booking.field.name'), value: customerName || null },
                       { label: tt('booking.field.email'), value: customerEmail || null },
                       { label: tt('booking.field.phone'), value: customerPhone ? `${DIAL_BY_CODE[customerCountry] ?? ''} ${customerPhone}`.trim() : null },
-                      { label: tt('booking.field.city'), value: customerCity || null },
+                      // a teljes cím (irányítószám, település, utca) — eddig csak a város látszott
+                      { label: tt('booking.field.fullAddress'), value: [[customerZip.trim(), customerCity.trim()].filter(Boolean).join(' '), customerAddress.trim()].filter(Boolean).join(', ') || null },
                       { label: tt('booking.field.note'), value: customerNotes || null },
                       { label: tt('booking.price'), value: priceLabel(bookingService.price, bookingService.currency) },
                       ...(paymentIntentId && depositAmountHuf ? [{ label: 'Foglaló (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
@@ -1367,7 +1403,7 @@ export function ProfileCard({
                     <div className="space-y-4">
                       <div key={`vtype-${voucherShakeKey}`} className={cn('space-y-2 rounded-[16px]', voucherTypeError && 'animate-shake')}>
                         <Label className={cn('text-[11px] font-semibold uppercase tracking-[0.12em]', voucherTypeError ? 'text-red-400' : 'text-white/55')}>{tt('public.voucher.chooseType')} *</Label>
-                        <div className={cn('grid grid-cols-2 gap-2.5 rounded-[16px]', voucherTypeError && 'ring-1 ring-red-400')}>
+                        <div className={cn('grid grid-cols-2 gap-2.5 rounded-[16px]', voucherTypeError && 'ring-1 ring-inset ring-red-400')}>
                           {voucherTypes.map((vt) => {
                             const url = typeof vt.image === 'object' && vt.image ? (vt.image as Media).url ?? null : null
                             const selected = selectedVoucherTypeId === String(vt.id)
@@ -1403,7 +1439,7 @@ export function ProfileCard({
                         <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.yourName')} *</Label>
                         <Input
                           value={voucherPurchaserName} onChange={e => { setVoucherPurchaserName(e.target.value); clearVoucherFieldError('name') }}
-                          className={cn(inputCls, voucherFieldErrors.name && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.name && 'ring-1 ring-inset ring-red-400')}
                         />
                         {voucherFieldErrors.name && <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.name}</p>}
                       </div>
@@ -1411,7 +1447,7 @@ export function ProfileCard({
                         <Label className={`text-ui-label ${c.meta}`}>{tt('public.voucher.yourEmail')} *</Label>
                         <Input
                           type="email" inputMode="email" value={voucherPurchaserEmail} onChange={e => { setVoucherPurchaserEmail(e.target.value); clearVoucherFieldError('email') }}
-                          className={cn(inputCls, voucherFieldErrors.email && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.email && 'ring-1 ring-inset ring-red-400')}
                         />
                         {voucherFieldErrors.email && <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.email}</p>}
                       </div>
@@ -1420,7 +1456,7 @@ export function ProfileCard({
                         <Input
                           value={voucherPurchaserCity} onChange={e => { setVoucherPurchaserCity(e.target.value); clearVoucherFieldError('city') }}
                           autoComplete="address-level2"
-                          className={cn(inputCls, voucherFieldErrors.city && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.city && 'ring-1 ring-inset ring-red-400')}
                         />
                         {voucherFieldErrors.city ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.city}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.cityHint">{tt('public.voucher.cityHint')}</Txt></p>}
                       </div>
@@ -1429,7 +1465,7 @@ export function ProfileCard({
                         <Input
                           value={voucherPurchaserAddress} onChange={e => { setVoucherPurchaserAddress(e.target.value); clearVoucherFieldError('address') }}
                           autoComplete="street-address"
-                          className={cn(inputCls, voucherFieldErrors.address && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.address && 'ring-1 ring-inset ring-red-400')}
                         />
                         {voucherFieldErrors.address ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.address}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.addressHint">{tt('public.voucher.addressHint')}</Txt></p>}
                       </div>
@@ -1449,7 +1485,7 @@ export function ProfileCard({
                           <Input
                             value={voucherPurchaserTaxNumber} onChange={e => { setVoucherPurchaserTaxNumber(e.target.value); clearVoucherFieldError('taxNumber') }}
                             placeholder="12345678-1-42"
-                            className={cn(inputCls, voucherFieldErrors.taxNumber && 'ring-1 ring-red-400')}
+                            className={cn(inputCls, voucherFieldErrors.taxNumber && 'ring-1 ring-inset ring-red-400')}
                           />
                           {voucherFieldErrors.taxNumber ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.taxNumberHint">{tt('public.voucher.taxNumberHint')}</Txt></p>}
                         </div>
@@ -1468,7 +1504,7 @@ export function ProfileCard({
                         <Label className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.recipientEmail">{tt('public.voucher.recipientEmail')}</Txt></Label>
                         <Input
                           type="email" inputMode="email" value={voucherRecipientEmail} onChange={e => { setVoucherRecipientEmail(e.target.value); clearVoucherFieldError('recipientEmail') }}
-                          className={cn(inputCls, voucherFieldErrors.recipientEmail && 'ring-1 ring-red-400')}
+                          className={cn(inputCls, voucherFieldErrors.recipientEmail && 'ring-1 ring-inset ring-red-400')}
                         />
                         {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-ui-label text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className={`text-ui-label ${c.meta}`}><Txt k="public.voucher.recipientEmailHint">{tt('public.voucher.recipientEmailHint')}</Txt></p>}
                       </div>
@@ -1540,7 +1576,7 @@ export function ProfileCard({
                     if (view === 'summary') {
                       submit()
                     } else if (view === 'details') {
-                      const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
+                      const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? ((addressCityOnly ? ['city'] : ['zip', 'city', 'address']) as FieldKey[]) : []), ...(depositEnabled && customerIsCompany && !isForeignCountry(billingCountry) ? (['taxNumber'] as FieldKey[]) : [])]
                       const nextErrors: Partial<Record<FieldKey, string>> = {}
                       for (const key of order) {
                         const msg = validateField(key)

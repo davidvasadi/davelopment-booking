@@ -718,6 +718,8 @@ export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false,
             ['Állapot', b.status === 'confirmed' || b.status === 'pending' ? null : statusOf(b.status).label],
             ['Telefon', b.customer_phone],
             ['E-mail', b.customer_email],
+            // a vendég pontos címe (ha megadta) — eddig csak a város látszott
+            ['Cím', [[b.customer_postal_code?.trim(), b.customer_city?.trim()].filter(Boolean).join(' '), b.customer_address?.trim()].filter(Boolean).join(', ') || null],
             ['Forrás', SOURCE_LABEL[b.source ?? ''] ?? b.source],
             ['Sorozat', b.series_id ? 'Ismétlődő foglalás' : null],
             ['Előleg', b.payment_status === 'paid' ? 'fizetve' : b.payment_status === 'failed' ? 'sikertelen fizetés' : null],
@@ -734,7 +736,7 @@ export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false,
         <BookingCheckout open={checkout} onClose={() => setCheckout(false)} onDone={() => { setCheckout(false); markLocalMutation(); router.refresh(); onClose() }}
           settings={onsite} settingsHref="/dashboard/settings?tab=payments"
           booking={{
-            id: b.id, customerName: b.customer_name || 'Vendég', customerEmail: b.customer_email, customerCity: b.customer_city, customerAddress: b.customer_address,
+            id: b.id, customerName: b.customer_name || 'Vendég', customerEmail: b.customer_email, customerCity: b.customer_city, customerAddress: b.customer_address, customerZip: b.customer_postal_code,
             when, service: { name: svc?.name ?? 'Szolgáltatás', meta: [`${durationOf(b)} perc`, st?.name].filter(Boolean).join(' · '), price: Math.round(Number(price ?? 0)) },
             deposit: b.payment_status === 'paid' ? Math.round(Number(b.deposit_amount_huf ?? 0)) : 0, depositInvoice: b.invoice_number,
             voucher: Math.round(Number(b.voucher_discount_huf ?? 0)), voucherCode: b.voucher_code,

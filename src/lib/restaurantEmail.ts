@@ -503,6 +503,11 @@ function answersCard(reservation: Reservation): string {
   return rows ? detailsCard(rows) : ''
 }
 
+/** A vendég megadott címe (utca, házszám, város) — ha megadta. */
+function guestAddress(r: { customer_postal_code?: string | null; customer_address?: string | null; customer_city?: string | null }): string | null {
+  return [[r.customer_postal_code?.trim(), r.customer_city?.trim()].filter(Boolean).join(' '), r.customer_address?.trim()].filter(Boolean).join(', ') || null
+}
+
 function detailRows(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
@@ -510,6 +515,7 @@ function detailRows(data: ReservationEmailData): string {
   return [
     infoRow('user', t(locale, 'email.label.name'), reservation.customer_name),
     infoRow('mail', t(locale, 'email.label.email'), reservation.customer_email),
+    guestAddress(reservation) ? infoRow('pin', t(locale, 'email.label.customerAddress'), escapeHtml(guestAddress(reservation)!)) : '',
     infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(reservation.date, locale)),
     infoRow('clock', t(locale, 'email.label.time'), `${reservation.start_time} – ${reservation.end_time}`),
     infoRow('people', t(locale, 'email.label.guests'), `${reservation.pax} fő`),
@@ -583,6 +589,7 @@ function notificationHtml(data: ReservationEmailData): string {
   const contactRows = [
     infoRow('mail', 'Email', reservation.customer_email),
     reservation.customer_phone ? infoRow('phone', 'Telefon', reservation.customer_phone) : '',
+    guestAddress(reservation) ? infoRow('pin', 'Cím', escapeHtml(guestAddress(reservation)!)) : '',
     reservation.notes ? infoRow('note', 'Megjegyzés', reservation.notes) : '',
     customAnswerRows((reservation as { custom_answers?: unknown }).custom_answers),
   ].filter(Boolean).join('')
