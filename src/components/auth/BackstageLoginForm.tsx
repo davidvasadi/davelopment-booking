@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { ArrowRight, Loader2, Eye, EyeOff, Link } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { BrandLogo } from '@/components/BrandLogo'
+import { KeyboardInset } from '@/components/shared/KeyboardInset'
 
 const schema = z.object({
   email: z.string().email(),
@@ -49,7 +50,11 @@ export function BackstageLoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-ui-dark flex items-center justify-center px-6">
+    // iPhone (skill: ios-safari-mobile): a felső sáv a lap tetején álló fix réteg színét veszi át — sötét oldalon sötét réteg
+    // kell, különben világos „üveg” sávot tesz rá; gépelés közben (data-typing) az űrlap fentre kerül, a billentyűzet nem takarja
+    <div data-dark-top className="flex min-h-dvh items-center justify-center bg-ui-dark px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[calc(2.5rem+env(safe-area-inset-top))] [[data-typing]_&]:items-start">
+      <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[max(8px,env(safe-area-inset-top))] bg-ui-dark lg:hidden" />
+      <KeyboardInset />
       <div className="w-full max-w-sm">
         <div className="mb-10">
           <BrandLogo variant="dark" className="h-8" />

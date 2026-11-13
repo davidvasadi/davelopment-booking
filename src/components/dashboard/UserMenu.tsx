@@ -41,6 +41,7 @@ export function UserMenu({
   businesses = [],
   activeBusinessKey = null,
   capabilities,
+  approvals = true,
   notificationsHref,
   trialDaysLeft,
 }: {
@@ -61,6 +62,8 @@ export function UserMenu({
   activeBusinessKey?: string | null
   /** Effektív képesség-halmaz — eldönti, hogy a settings/billing gyorslinkek látszanak-e. */
   capabilities?: Capability[]
+  /** a csengőben a „Jóváhagyás” fül (foglalás-jóváhagyás) — a Backstage-ben nincs mit jóváhagyni */
+  approvals?: boolean
   /** Teljes értesítési oldal linkje — a panel fejlécének nyíl gombja ide navigál. */
   notificationsHref?: string
   /** Próbaidőszakban hátralévő napok — ha meg van adva, badge jelenik meg az Előfizetés menüpont mellett. */
@@ -348,7 +351,7 @@ export function UserMenu({
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-ui-yellow px-1.5 text-ui-label text-ui-dark">{unread}</span>
               )}
             </p>
-            <Segmented options={['Mind', 'Jóváhagyás']} active={onlyApproval ? 1 : 0} onSelect={(i) => setOnlyApproval(i === 1)} tone="glass" size="sm" />
+            {approvals && <Segmented options={['Mind', 'Jóváhagyás']} active={onlyApproval ? 1 : 0} onSelect={(i) => setOnlyApproval(i === 1)} tone="glass" size="sm" />}
           </motion.div>
           <motion.div variants={PANEL_ITEM} className="min-h-[220px] max-h-[55vh] lg:min-h-0 lg:max-h-[440px] overflow-y-auto overscroll-contain" data-lenis-prevent>
             {shownGroups.length === 0 ? (

@@ -93,7 +93,7 @@ export function DashboardNav({
   const fire = (ev: string) => () => window.dispatchEvent(new Event(ev))
   const pageTools: Tool[] = []
   const at = (sfx: string) => pathname.endsWith(sfx)
-  if (pathname.startsWith(settingsHref)) pageTools.push({ icon: Search, label: 'Beállítás keresése', onClick: fire('davelopment:open-settings-search') }, { icon: Settings2, label: 'Beállítások menü', onClick: fire('davelopment:open-settings-nav') })
+  if (!isBackstage && pathname.startsWith(settingsHref)) pageTools.push({ icon: Search, label: 'Beállítás keresése', onClick: fire('davelopment:open-settings-search') }, { icon: Settings2, label: 'Beállítások menü', onClick: fire('davelopment:open-settings-nav') })
   if (pathname.startsWith(notificationsHref)) pageTools.push({ icon: Settings2, label: 'Szűrők', onClick: fire('davelopment:open-notifications-filter') }, { icon: Settings, label: 'Értesítési beállítások', onClick: fire('davelopment:open-notifications-tabs') })
   if (at('/tips')) pageTools.push({ icon: Settings2, label: 'Kategória szűrő', onClick: fire('davelopment:open-tips-filter') })
   if (at('/guests')) pageTools.push({ icon: Download, label: 'Export', onClick: fire('davelopment:open-guests-export') })
@@ -137,6 +137,8 @@ export function DashboardNav({
   if (at('/staff') && can(capabilities, 'staff.manage')) pageTools.push({ icon: Plus, label: 'Munkatárs meghívása', onClick: fire('davelopment:open-staff-add'), dark: true })
   // Utalványok (design 12.8): a szűrő-ikon az állapot / fizetési mód lapját nyitja, mellette a beváltás (QR), a „+” az új utalvány
   if (at('/vouchers')) pageTools.push({ icon: Settings2, label: 'Szűrés', onClick: fire('davelopment:open-vouchers-filter') })
+  // Backstage: a listás oldalak szűrője mobilon a fejlécben (a chipek felugró ablakban, mint a dashboardon)
+  if (isBackstage && ['/backstage/accounts', '/backstage/salons', '/backstage/churn', '/backstage/contact'].includes(pathname)) pageTools.push({ icon: Settings2, label: 'Szűrés', onClick: fire('davelopment:open-backstage-filter') })
   if (at('/vouchers') && can(capabilities, 'vouchers.manage')) pageTools.push(
     { icon: TicketCheck, label: 'Utalvány beváltása', onClick: fire('davelopment:open-vouchers-redeem') },
     { icon: Plus, label: 'Új utalvány', onClick: fire('davelopment:open-vouchers-create'), dark: true },
@@ -174,7 +176,10 @@ export function DashboardNav({
           {pageTools.filter((t) => online || t.icon !== Download).map((t) => <IconButton key={t.label} icon={t.icon} label={t.label} size="lg" variant={t.dark ? 'dark' : 'glass'} href={t.href} download={t.download} onClick={t.onClick} className={t.yellow ? 'text-ui-yellow' : undefined} />)}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
-          {!isBackstage && (
+          {isBackstage ? (
+            // Backstage: ugyanaz a csengő + fiók-menü, mint desktopon (nincs üzlet / partnerprogram / nyilvános oldal)
+            <UserMenu showPartner={false} approvals={false} name={userName} email={userEmail} avatarUrl={userAvatarUrl} subscriptionHref={subscriptionHref} settingsHref={settingsHref} />
+          ) : (
             <UserMenu
               // a Foglalások és a Naptár fejlécében az eszközöknek (kereső, export) kell a hely — ott a fiók-avatar nem látszik
               hideAvatar={at('/bookings') || at('/schedule')}

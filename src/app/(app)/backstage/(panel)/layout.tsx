@@ -4,6 +4,10 @@ import { AppShell } from '@/components/dashboard/AppShell'
 import { PageTransition } from '@/components/ui/page-transition'
 import { LiveRefreshProvider } from '@/components/LiveRefreshProvider'
 import { expireStaleTrials } from '@/lib/subscriptionSync'
+import type { Viewport } from 'next'
+
+/** mint az üzlet-admin (dashboard / restaurant): a felső sáv színe = az oldal tetejének színe */
+export const viewport: Viewport = { themeColor: '#E3E5E6' } // ui-allow — böngésző-meta, nem osztály
 
 export default async function BackstageLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()

@@ -228,6 +228,7 @@ export function AppNavbar({
 
         <UserMenu
           showPartner={variant !== 'backstage' && !hiddenHrefs.some((h) => h.endsWith('/partnerprogram'))}
+          approvals={variant !== 'backstage'}
           name={userName}
           email={userEmail}
           avatarUrl={userAvatarUrl}
