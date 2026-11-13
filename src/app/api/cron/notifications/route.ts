@@ -345,12 +345,18 @@ async function handle(request: NextRequest) {
           const salon = (await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })) as Salon
           const ownerId = relId(salon.owner)
 
+          // a foglalás ÖSSZES levele: ha a vendég bármelyiket megnyitotta (visszaigazolás, módosítás, újraküldés,
+          // emlékeztető), látta a foglalást — nincs riasztás. Korábban csak a legutolsó visszaigazolást nézte, így a
+          // dashboard „Megnyitva” jelzése mellett is jött értesítés (2026-11-13).
           const emailLogRes = await payload.find({
             collection: 'email-log',
-            where: { and: [{ type: { equals: 'booking_confirmation' } }, { booking: { equals: doc.id } }] },
-            sort: '-createdAt', limit: 1, depth: 0, overrideAccess: true,
+            where: { booking: { equals: doc.id } },
+            sort: '-createdAt', limit: 50, depth: 0, overrideAccess: true,
           })
-          const log = emailLogRes.docs[0] as { ok?: boolean; status?: string } | undefined
+          const logs = emailLogRes.docs as { ok?: boolean; status?: string; type?: string; opened_at?: string | null }[]
+          const openedAny = logs.some((l) => l.status === 'opened' || l.status === 'clicked' || !!l.opened_at)
+          const confirmation = logs.find((l) => l.type === 'booking_confirmation')
+          const log = openedAny ? { ...confirmation, status: 'opened' } : confirmation
           // Csak akkor riasztunk, ha az email tényleg elment (nem sikertelen — az más, már látható probléma) ÉS
           // még nem lett megnyitva/rákattintva.
           const stillUnopened = !!log?.ok && !['opened', 'clicked', 'failed', 'bounced', 'complained'].includes(log.status ?? '')
@@ -416,12 +422,18 @@ async function handle(request: NextRequest) {
           const restaurant = (await payload.findByID({ collection: 'restaurants', id: restId, depth: 0, overrideAccess: true })) as Restaurant
           const ownerId = relId(restaurant.owner)
 
+          // a foglalás ÖSSZES levele: ha a vendég bármelyiket megnyitotta (visszaigazolás, módosítás, újraküldés,
+          // emlékeztető), látta a foglalást — nincs riasztás. Korábban csak a legutolsó visszaigazolást nézte, így a
+          // dashboard „Megnyitva” jelzése mellett is jött értesítés (2026-11-13).
           const emailLogRes = await payload.find({
             collection: 'email-log',
-            where: { and: [{ type: { equals: 'booking_confirmation' } }, { reservation: { equals: doc.id } }] },
-            sort: '-createdAt', limit: 1, depth: 0, overrideAccess: true,
+            where: { reservation: { equals: doc.id } },
+            sort: '-createdAt', limit: 50, depth: 0, overrideAccess: true,
           })
-          const log = emailLogRes.docs[0] as { ok?: boolean; status?: string } | undefined
+          const logs = emailLogRes.docs as { ok?: boolean; status?: string; type?: string; opened_at?: string | null }[]
+          const openedAny = logs.some((l) => l.status === 'opened' || l.status === 'clicked' || !!l.opened_at)
+          const confirmation = logs.find((l) => l.type === 'booking_confirmation')
+          const log = openedAny ? { ...confirmation, status: 'opened' } : confirmation
           const stillUnopened = !!log?.ok && !['opened', 'clicked', 'failed', 'bounced', 'complained'].includes(log.status ?? '')
 
           if (stillUnopened && (await ownerWantsEmailOpenAlert(payload, ownerId))) {
