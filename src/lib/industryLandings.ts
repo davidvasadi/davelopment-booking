@@ -351,7 +351,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
     seoTitle: 'Magánrendelői Időpontfoglaló Jogosultságkezeléssel | davelopment booking',
     seoDescription:
       'Magánrendelői és szakrendelési időpontfoglaló rendszer jogosultságkezeléssel, digitális beleegyező nyilatkozattal és emlékeztetővel. Próbáld ki ingyen, bankkártya nélkül.',
-    relatedSlugs: ['fogorvos-idopontfoglalas', 'csontkovacs-idopontfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+    relatedSlugs: ['fogorvos-idopontfoglalas', 'csontkovacs-idopontfoglalas', 'csapatkezeles-vallalkozasoknak'],
   },
 
   // ── Barber — jellemzően több borbélyos, közösségi-média-erős szakma: a csapat-naptár és a
@@ -394,7 +394,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
     seoTitle: 'Barber Szalon Időpontfoglaló Csapat-naptárral | davelopment booking',
     seoDescription:
       'Barber szalon időpontfoglaló rendszer csapat-naptárral és Instagram/bio-linkről megosztható foglalási oldallal. Próbáld ki ingyen, bankkártya nélkül.',
-    relatedSlugs: ['fodrasz-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
+    relatedSlugs: ['fodrasz-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'csapatkezeles-vallalkozasoknak'],
   },
 
   // ── Személyi edző — gyakran több helyszínen (terem, szabadtér) dolgozik, a Google/Apple
@@ -749,10 +749,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   // ── Csapatkezelés — nem egy konkrét szakma, hanem egy funkció-szög: azoknak szól, akik
   // elsősorban a munkatársak/beosztás/jogosultság kezelésére keresnek rendszert, nem csak
   // időpontfoglalóra. A jogosultságkezelés, a beosztás/szünet-kezelés és az audit-napló a fő érv.
-  'csapatkezeles-kisvallalkozasoknak': {
-    slug: 'csapatkezeles-kisvallalkozasoknak',
+  'csapatkezeles-vallalkozasoknak': {
+    slug: 'csapatkezeles-vallalkozasoknak',
     segment: 'salon',
-    heroTitle: 'Csapatkezelő rendszer kisvállalkozásoknak — időpontfoglalással együtt.',
+    heroTitle: 'Csapatkezelő rendszer vállalkozásoknak és stúdióknak — időpontfoglalással együtt.',
     heroSubtitle:
       'Egyedi jogosultsági szintek munkatársanként, beosztás- és szünetkezelés, és egy audit-napló, ami mindig mutatja, ki mit módosított — mindezt egy rendszerben az online foglalással.',
     howItWorksTitle: 'Vezesd be a csapatod 3 lépésben.',
@@ -769,7 +769,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
     teamTitle: 'Ki mit lát, ki mit módosíthat — te döntöd el.',
     teamSubtitle: 'Owner-jogok + egyedi szerepek munkatársanként — nem kell mindenkinek mindenhez hozzáférnie.',
     ctaTitle: 'Vezesd a csapatod egy helyről.',
-    testimonialsJoinLine: 'Csatlakozz a kisvállalkozásokhoz, akik már minket használnak.',
+    testimonialsJoinLine: 'Csatlakozz a vállalkozásokhoz és stúdiókhoz, akik már minket használnak.',
     faqItems: [
       {
         q: 'Be tudom állítani, hogy egy munkatárs csak a saját naptárát lássa, ne az egész üzletet?',
@@ -784,9 +784,9 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Minden munkatársnak saját naptára és beosztása van, napi több szünettel is (pl. ebéd + délutáni pihenő) — te látod át az egész csapat elfoglaltságát egyben.',
       },
     ],
-    seoTitle: 'Csapatkezelő Rendszer Kisvállalkozásoknak Audit-naplóval | davelopment booking',
+    seoTitle: 'Csapatkezelő rendszer vállalkozásoknak | davelopment booking',
     seoDescription:
-      'Munkatárs-jogosultságkezelés, beosztás- és szünetkezelés, audit-napló egy rendszerben az online időpontfoglalással kisvállalkozásoknak. Próbáld ki ingyen, bankkártya nélkül.',
+      'Munkatárs-jogosultságkezelés, beosztás- és szünetkezelés, audit-napló egy rendszerben az online időpontfoglalással szolgáltató vállalkozásoknak. Próbáld ki ingyen, bankkártya nélkül.',
     relatedSlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'maganrendelo-idopontfoglalas'],
   },
 }
@@ -813,5 +813,11 @@ export const INDUSTRY_SHORT_LABEL: Record<string, string> = {
   'kavezo-asztalfoglalas': 'Kávézó / brunch',
   'pizzeria-asztalfoglalas': 'Pizzéria',
   'fine-dining-asztalfoglalas': 'Fine dining',
-  'csapatkezeles-kisvallalkozasoknak': 'Csapatkezelés',
+  'csapatkezeles-vallalkozasoknak': 'Csapatkezelés',
 }
+
+/** Régi iparági slugok → a mostani (2026-11-13: a csapatkezelés-oldal URL-je „kisvállalkozásoknak” helyett
+ *  „vállalkozásoknak”; a régi címről 301 megy, ld. next.config). A még régi sluggal hivatkozó tartalom (pl. tippek) ezzel
+ *  linkel közvetlenül az új címre. */
+export const INDUSTRY_SLUG_ALIASES: Record<string, string> = { 'csapatkezeles-kisvallalkozasoknak': 'csapatkezeles-vallalkozasoknak' }
+export const currentIndustrySlug = (slug: string): string => INDUSTRY_SLUG_ALIASES[slug] ?? slug

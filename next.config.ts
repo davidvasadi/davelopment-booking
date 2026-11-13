@@ -33,6 +33,12 @@ const nextConfig: NextConfig = {
   // deploy: a build külön mappába megy (NEXT_DIST_DIR=.next-build), és csak a kész build cserélődik be — így a build
   // percei alatt a futó app a régi, ép `.next`-ből szolgál ki (korábban ilyenkor 500-at adott). Futáskor nincs beállítva.
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  async redirects() {
+    return [
+      // 2026-11-13: a csapatkezelés-oldal új URL-je (a pozicionálás „vállalkozásoknak és stúdióknak”, nem „kisvállalkozásoknak”)
+      { source: '/csapatkezeles-kisvallalkozasoknak', destination: '/csapatkezeles-vallalkozasoknak', permanent: true },
+    ]
+  },
   async headers() {
     return [
       {

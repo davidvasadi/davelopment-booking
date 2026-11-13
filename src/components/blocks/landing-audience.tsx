@@ -17,7 +17,7 @@ import { inView, rise, SharpStar, stagger } from './landing-concepts'
 type SideKey = 'salon' | 'restaurant'
 type Side = { key: SideKey; title: string; label: string; icon: typeof Scissors; photo: string; alt: string; links: { slug: string }[]; dark: boolean }
 
-const SALON_LANDINGS = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'salon' && l.slug !== 'csapatkezeles-kisvallalkozasoknak')
+const SALON_LANDINGS = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'salon' && l.slug !== 'csapatkezeles-vallalkozasoknak')
 const RESTAURANT_LANDINGS = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'restaurant')
 const SIDES: Record<SideKey, Side> = {
   salon: { key: 'salon', title: 'Szakembereknek', label: 'Időpontfoglalás', icon: Scissors, photo: '/landing/hero/kinek-szakember-davelopment-booking.webp', alt: 'Világos, letisztult fodrászszalon — időpontfoglalás a davelopment bookinggal', links: SALON_LANDINGS, dark: false },

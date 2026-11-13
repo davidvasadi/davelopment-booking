@@ -246,7 +246,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       ],
       related: [
         { label: 'Csapatbeosztás hatékonyan', href: '/tips/csapat-beosztas-hatekonyan' },
-        { label: 'Csapatkezelés kisvállalkozásoknak', href: '/csapatkezeles-kisvallalkozasoknak' },
+        { label: 'Csapatkezelés vállalkozásoknak', href: '/csapatkezeles-vallalkozasoknak' },
         { label: 'Éttermeknek', href: '/etterem-asztalfoglalas' },
       ],
     },
@@ -637,7 +637,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       ],
       related: [
         { label: 'Csapatbeosztás hatékonyan', href: '/tips/csapat-beosztas-hatekonyan' },
-        { label: 'Csapatkezelés kisvállalkozásoknak', href: '/csapatkezeles-kisvallalkozasoknak' },
+        { label: 'Csapatkezelés vállalkozásoknak', href: '/csapatkezeles-vallalkozasoknak' },
         { label: 'Barber szalonoknak', href: '/barber-idopontfoglalas' },
       ],
     },

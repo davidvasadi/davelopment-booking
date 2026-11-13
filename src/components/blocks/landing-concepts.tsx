@@ -1052,7 +1052,7 @@ export function TipsK2() {
 
 // SEO: az összes iparági landing belső linkje (ugyanaz a kör, mint a régi láblécben + a vendéglátós oldalak)
 const FOOT_INDUSTRY: [string, string][] = [['/fodrasz-idopontfoglalas', 'Fodrászoknak'], ['/barber-idopontfoglalas', 'Barbereknek'], ['/kozmetikus-idopontfoglalas', 'Kozmetikusoknak'], ['/mukormos-idopontfoglalas', 'Műkörmösöknek'], ['/masszor-idopontfoglalas', 'Masszőröknek'], ['/csontkovacs-idopontfoglalas', 'Csontkovácsoknak'], ['/fogorvos-idopontfoglalas', 'Fogorvosoknak'], ['/maganrendelo-idopontfoglalas', 'Magánrendelőknek'], ['/szemelyi-edzo-idopontfoglalas', 'Személyi edzőknek'], ['/pilates-idopontfoglalas', 'Pilates stúdióknak'], ['/joga-idopontfoglalas', 'Jóga oktatóknak']]
-const FOOT_GASTRO: [string, string][] = [['/etterem-asztalfoglalas', 'Éttermeknek'], ['/kavezo-asztalfoglalas', 'Kávézóknak'], ['/pizzeria-asztalfoglalas', 'Pizzériáknak'], ['/fine-dining-asztalfoglalas', 'Fine dining éttermeknek'], ['/csapatkezeles-kisvallalkozasoknak', 'Csapatkezelés vállalkozásoknak']]
+const FOOT_GASTRO: [string, string][] = [['/etterem-asztalfoglalas', 'Éttermeknek'], ['/kavezo-asztalfoglalas', 'Kávézóknak'], ['/pizzeria-asztalfoglalas', 'Pizzériáknak'], ['/fine-dining-asztalfoglalas', 'Fine dining éttermeknek'], ['/csapatkezeles-vallalkozasoknak', 'Csapatkezelés vállalkozásoknak']]
 const FOOT_COMPANY: [string, string][] = [['/#hogyan', 'Hogyan működik'], ['/arak', 'Árak'], ['/#gyik', 'GYIK'], ['/tips', 'Tippek'], ['/kapcsolat', 'Kapcsolat'], ['/login', 'Bejelentkezés'], ['/register', 'Regisztráció']]
 const FOOT_LEGAL: [string, string][] = [['/terms', 'Felhasználási feltételek'], ['/privacy', 'Adatkezelési tájékoztató'], ['/cookies', 'Sütikezelés']]
 

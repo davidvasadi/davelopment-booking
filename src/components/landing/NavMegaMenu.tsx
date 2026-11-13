@@ -23,7 +23,7 @@ import { GroupPhone } from '@/components/blocks/landing-phone'
 export type MegaId = 'features' | 'audience' | 'studio'
 
 // a „Csapatkezelés” téma-oldal, nem iparág — a Kinek menüből kimarad
-const SALON_INDUSTRIES = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'salon' && l.slug !== 'csapatkezeles-kisvallalkozasoknak')
+const SALON_INDUSTRIES = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'salon' && l.slug !== 'csapatkezeles-vallalkozasoknak')
 const RESTAURANT_INDUSTRIES = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'restaurant')
 
 export function useMegaMenu() {

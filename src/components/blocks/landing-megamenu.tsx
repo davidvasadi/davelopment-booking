@@ -22,7 +22,7 @@ import { GROUP_COVERS } from '@/components/blocks/covers'
 export type MegaId = 'features' | 'audience'
 
 // a „Csapatkezelés” téma-oldal, nem iparág — a Kinek menüből kimarad
-const SALON_INDUSTRIES = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'salon' && l.slug !== 'csapatkezeles-kisvallalkozasoknak')
+const SALON_INDUSTRIES = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'salon' && l.slug !== 'csapatkezeles-vallalkozasoknak')
 const RESTAURANT_INDUSTRIES = Object.values(INDUSTRY_LANDINGS).filter((l) => l.segment === 'restaurant')
 
 export function useMegaMenu() {

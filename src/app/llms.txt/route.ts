@@ -37,7 +37,7 @@ ${groups.map((g) => `### [${g.label}](${SITE_URL}/funkciok/${g.slug})\n${g.tagli
 
 - [Főoldal](${SITE_URL}/): termékbemutató, funkciók, árak, GYIK.
 - [Funkciók](${SITE_URL}/funkciok): az összes funkció csoportonként.\n- [Árak](${SITE_URL}/arak): csomagok, díjkalkulátor, összehasonlító táblázat, árazási GYIK.
-- [Tippek és cikkek](${SITE_URL}/tips): útmutatók a rendszer használatához és gyakorlati cikkek kisvállalkozásoknak.
+- [Tippek és cikkek](${SITE_URL}/tips): útmutatók a rendszer használatához és gyakorlati cikkek szolgáltató vállalkozásoknak és stúdióknak.
 - [Kapcsolat](${SITE_URL}/kapcsolat): ügyfélszolgálat — ${CONTACT_PHONE}, ${CONTACT_EMAIL} (${SUPPORT_HOURS_TEXT.toLowerCase()}).
 - [Regisztráció](${SITE_URL}/register): ${p.trial_days} napos ingyenes próbaidő szakembereknek.
 - [Regisztráció éttermeknek](${SITE_URL}/register-restaurant): ${p.trial_days} napos ingyenes próbaidő éttermeknek.

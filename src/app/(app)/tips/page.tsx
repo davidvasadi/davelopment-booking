@@ -68,7 +68,7 @@ export default async function TipsIndexPage() {
       <FeatureHeroCentered
         label="Tippek és cikkek"
         h1="Tippek és cikkek: így lesz több foglalásod."
-        lead="Útmutatók a rendszer használatához, és cikkek a foglalásról, a no-show-ról, a csapatról és a vendégmegtartásról — kisvállalkozásoknak."
+        lead="Útmutatók a rendszer használatához, és cikkek a foglalásról, a no-show-ról, a csapatról és a vendégmegtartásról — szolgáltató vállalkozásoknak és stúdióknak."
         trialDays={pricing.trial_days}
         secondary={{ href: '#cikkek', label: 'Olvasnivaló' }}
         breadcrumb={

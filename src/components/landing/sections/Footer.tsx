@@ -67,7 +67,7 @@ const INDUSTRY_LINKS = [
   { href: '/szemelyi-edzo-idopontfoglalas', label: 'Személyi edzőknek' },
   { href: '/pilates-idopontfoglalas', label: 'Pilates stúdióknak' },
   { href: '/joga-idopontfoglalas', label: 'Jóga oktatóknak' },
-  { href: '/csapatkezeles-kisvallalkozasoknak', label: 'Csapatkezeléshez' },
+  { href: '/csapatkezeles-vallalkozasoknak', label: 'Csapatkezeléshez' },
 ]
 const LEGAL_LINKS = [
   { href: '/terms', label: 'Felhasználási feltételek' },
