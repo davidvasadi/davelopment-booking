@@ -34,30 +34,32 @@ echo "→ Node: $(node -v)"
 ROLLBACK_HASH=$(git rev-parse HEAD)
 echo "→ Rollback pont: $ROLLBACK_HASH"
 
-# Előző .next build mentése — rollbacknél nem kell újrabuildelni
-rm -rf .next-rollback
-cp -r .next .next-rollback 2>/dev/null || echo "   (nincs előző build, folytatjuk)"
+# ── Két váltakozó build-mappa — „blue-green deploy” (.next-blue / .next-green) ─────────────────────────────
+# A futó app az AKTÍV mappából szolgál ki, az új build a MÁSIKBA megy, és csak a kész build után indul át rá az app
+# (NEXT_DIST_DIR, ld. next.config.ts). Korábban a build a futó app `.next`-jét írta felül, és a build percei alatt
+# az oldalak egy része 500-at adott. Átnevezni nem lehet: a Next a mappa nevét beleégeti a buildbe.
+# Az előző build a másik mappában megmarad → a visszaállás egy újraindítás, újrabuildelés nélkül.
+ACTIVE=$(cat .next-active 2>/dev/null || echo ".next")
+if [ "$ACTIVE" = ".next-blue" ]; then NEXT_BUILD=".next-green"; else NEXT_BUILD=".next-blue"; fi
+echo "→ Aktív build: $ACTIVE · az új ide készül: $NEXT_BUILD"
+APP_PORT=$(grep -E '^PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '"' || true)
+APP_PORT=${APP_PORT:-3001}
 
 # ── Hibakezelő: automatikus rollback ─────────────────────────────────────────
+# A build / migráció hibájánál az app még a régi mappán fut, így elég a kódot visszaállítani.
 rollback() {
   echo ""
-  echo "❌ Deploy sikertelen — visszaállás az előző verzióra..."
+  echo "❌ Deploy sikertelen — a kód visszaáll, a régi build fut tovább ($ACTIVE)."
+  git checkout -- tsconfig.json 2>/dev/null || true
   git reset --hard "$ROLLBACK_HASH"
-  if [ -d ".next-rollback" ]; then
-    rm -rf .next
-    mv .next-rollback .next
-    pm2 restart "$PM2_NAME" --update-env
-    echo "✅ Rollback kész. Az előző verzió fut."
-  else
-    echo "⚠️  Nincs mentett build — manuális beavatkozás szükséges."
-  fi
   exit 1
 }
 trap rollback ERR
 
 # ── 1. Pull ───────────────────────────────────────────────────────────────────
 echo "→ git pull..."
-git checkout -- package-lock.json
+# a build a tsconfig.json-be beírja a saját mappáját — ne akassza el a pullt
+git checkout -- package-lock.json tsconfig.json
 git pull origin main
 
 # ── 2. Install (csak ha package.json változott) ───────────────────────────────
@@ -78,18 +80,38 @@ fi
 echo "→ Migrációk..."
 npx tsx scripts/migrate.ts
 
-# ── 4. Build (a régi verzió még fut közben!) ─────────────────────────────────
-echo "→ Build..."
+# ── 4. Build — a MÁSIK mappába, a régi verzió közben zavartalanul fut ───────
+echo "→ Build ($NEXT_BUILD)..."
+rm -rf "$NEXT_BUILD"
 # alacsonyabb CPU/IO-prioritással: build közben az élő oldalak (booking, davelopment.hu) kapják a gépet
-NODE_OPTIONS="--max-old-space-size=3072" nice -n 10 ionice -c3 npm run build
+NEXT_DIST_DIR="$NEXT_BUILD" NODE_OPTIONS="--max-old-space-size=3072" nice -n 10 ionice -c3 npm run build
+git checkout -- tsconfig.json
 
-# ── 5. Graceful reload (régi process az új start után áll csak le) ────────────
-echo "→ Reload..."
-pm2 reload "$PM2_NAME" --update-env
+# ── 5. Átváltás az új buildre ────────────────────────────────────────────────
+trap - ERR
+echo "→ Reload az új buildre..."
+NEXT_DIST_DIR="$NEXT_BUILD" pm2 reload "$PM2_NAME" --update-env
 
-# ── Takarítás ────────────────────────────────────────────────────────────────
+# ellenőrzés: ha az új build nem válaszol, vissza a régire (az még megvan a lemezen)
+ok=""
+for i in $(seq 1 30); do
+  code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$APP_PORT/" || true)
+  if [ "$code" = "200" ]; then ok=1; break; fi
+  sleep 2
+done
+if [ -z "$ok" ]; then
+  echo "❌ Az új build nem válaszol (HTTP $code) — vissza a régire ($ACTIVE)..."
+  if [ "$ACTIVE" = ".next" ]; then NEXT_DIST_DIR= pm2 reload "$PM2_NAME" --update-env; else NEXT_DIST_DIR="$ACTIVE" pm2 reload "$PM2_NAME" --update-env; fi
+  git reset --hard "$ROLLBACK_HASH"
+  exit 1
+fi
+
+echo "$NEXT_BUILD" > .next-active
+pm2 save > /dev/null
+# régi maradékok (az első átálláskor: a régi `.next` és mentése) — a másik váltakozó mappa megmarad visszaállásnak
 rm -rf .next-rollback
+if [ "$ACTIVE" = ".next" ]; then rm -rf .next; fi
 
 echo ""
-echo "✅ Deploy kész."
+echo "✅ Deploy kész ($NEXT_BUILD)."
 pm2 list

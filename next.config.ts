@@ -30,6 +30,9 @@ const EDITOR_CSP = CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // deploy: a build külön mappába megy (NEXT_DIST_DIR=.next-build), és csak a kész build cserélődik be — így a build
+  // percei alatt a futó app a régi, ép `.next`-ből szolgál ki (korábban ilyenkor 500-at adott). Futáskor nincs beállítva.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   async headers() {
     return [
       {
