@@ -362,9 +362,9 @@ export function UserMenu({
                   <p className="px-3 pb-1 pt-3 text-ui-label text-ui-muted">{label}</p>
                   {rows.map((n) =>
                     n.type === 'digest_morning' || n.type === 'digest_evening'
-                      ? <DigestCard key={n.id} n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} />
+                      ? <DigestCard key={n.id} n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} onOpened={() => setOpen(false)} />
                       : n.type === 'admin_broadcast'
-                        ? <NotificationRow key={n.id} n={n} onOpen={() => { if (!n.read) markRead(n.id); window.dispatchEvent(new CustomEvent(OPEN_BROADCAST_EVENT, { detail: n })) }} onRemove={() => remove(n.id)} />
+                        ? <NotificationRow key={n.id} n={n} onOpen={() => { if (!n.read) markRead(n.id); setOpen(false); window.dispatchEvent(new CustomEvent(OPEN_BROADCAST_EVENT, { detail: n })) }} onRemove={() => remove(n.id)} />
                         : <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} onHandled={() => { if (!n.read) markRead(n.id); void reload() }} />
                   )}
                 </div>
@@ -427,12 +427,13 @@ function NotificationRow({ n, onOpen, onRemove, onHandled }: { n: Notification; 
 
 /** Digest értesítés kártya — kattintásra a KÖZPONTI `DigestAutoPopup`-mount nyitja meg a
  *  sheetet (esemény-alapú, nem saját, beágyazott portál — ld. `DigestAutoPopup.tsx`). */
-function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: () => void; onRemove: () => void }) {
+function DigestCard({ n, onMarkRead, onRemove, onOpened }: { n: Notification; onMarkRead: () => void; onRemove: () => void; /** a megnyitáskor az értesítő panel bezárul (mobilon különben a lap mögött marad) */ onOpened?: () => void }) {
   const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
 
   function openSheet() {
     if (!n.read) onMarkRead()
+    onOpened?.()
     window.dispatchEvent(new CustomEvent(OPEN_DIGEST_EVENT, { detail: n }))
   }
 
