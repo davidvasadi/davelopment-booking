@@ -76,6 +76,16 @@ export function Ring({ pct, size = 140, children, className = '' }: { pct: numbe
   )
 }
 
+
+/** Buborék a grafikon pontja fölött: középen a pont fölé áll, a szélső pontoknál (az első / utolsó ötödben) a grafikon
+ *  széléhez igazodik — így sosem lóg ki a kártyából, és nem bújik a szomszéd kártya mögé. `gap`: a pont és a buborék távolsága. */
+export function tipStyle(xPct: number, topPct: number, gap = 12): React.CSSProperties {
+  const y = `calc(-100% - ${gap}px)`
+  if (xPct <= 20) return { left: 0, top: `${topPct}%`, transform: `translateY(${y})` }
+  if (xPct >= 80) return { right: 0, top: `${topPct}%`, transform: `translateY(${y})` }
+  return { left: `${xPct}%`, top: `${topPct}%`, transform: `translate(-50%, ${y})` }
+}
+
 /** Sötét vonal-grafikon (Crextio „Test Statistics”, a Statisztikák bevétel-részlete): sárga = most, szaggatott fehér =
  *  előző / átlag, a kijelölt ponton fehér karika és fehér címke-pill; alul a tengely-feliratok, a kijelölt pillben.
  *  Sötét kártyába való. A Statisztikák (5.x) és a Marketing nyitási arány (13.x) is ez. */
@@ -90,8 +100,8 @@ export function DarkLineChart({ now, prev, sel, label, ticks, selTick, min, max,
           <path d={smooth(now, 100, 100, min, max)} fill="none" stroke="var(--ui-yellow)" strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         </svg>
         <span className={`absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-white bg-ui-dark transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ left: `${x(sel)}%`, top: `${top}%`, ['--d' as string]: '1100ms' }} />
-        {/* a szélső pontoknál befelé fordul, hogy ne lógjon ki a kártyából */}
-        <span className={`absolute transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ ['--d' as string]: '1250ms', left: `${x(sel)}%`, top: `${top}%`, transform: `translate(${x(sel) <= 15 ? '-12%' : x(sel) >= 85 ? '-88%' : '-50%'}, calc(-100% - 14px))` }}><Pill tone="white" size="md" className="gap-2"><span className="h-1.5 w-1.5 rounded-full bg-ui-yellow" />{label}</Pill></span>
+        {/* a szélső pontoknál a grafikon széléhez igazodik, hogy ne lógjon ki a kártyából */}
+        <span className={`absolute whitespace-nowrap transition-[top,left] duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ ['--d' as string]: '1250ms', ...tipStyle(x(sel), top, 14) }}><Pill tone="white" size="md" className="gap-2"><span className="h-1.5 w-1.5 rounded-full bg-ui-yellow" />{label}</Pill></span>
       </div>
       <div className="mt-4 flex items-center justify-between text-ui-meta text-white/45">
         {ticks.map((w, i) => i === selTick ? <Pill key={i} tone="onDark" size="sm">{w}</Pill> : <span key={i}>{w}</span>)}

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { X, ArrowUpRight, CalendarDays, Check, ChevronDown, Clock, FileText, MessageSquare, Minus, MoreHorizontal, Pencil, Phone, Plus, Sparkles, Upload, UserRound, Wallet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
-import { Legend, smooth } from './charts'
+import { Legend, smooth, tipStyle } from './charts'
 import { Switch } from '@/components/ui/toggle-switch'
 import { UploadTile, type UploadState } from './upload'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
@@ -384,7 +384,7 @@ export function StaffSummary({ avatar = false, half = false, name = 'Viktória',
               </svg>
               <span className="absolute transition-all duration-200 border-l border-dashed border-ui-dark/50" style={{ left: `${x(sel)}%`, top: `${y(me[sel] ?? 0)}%`, bottom: 0 }} />
               <span className="absolute transition-all duration-200 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-ui-dark bg-ui-yellow" style={{ left: `${x(sel)}%`, top: `${y(me[sel] ?? 0)}%` }} />
-              <span className={`absolute transition-all duration-200 -translate-y-[calc(100%+12px)] ${sel === 0 ? '' : sel === me.length - 1 ? '-translate-x-full' : '-translate-x-1/2'}`} style={{ left: `${x(sel)}%`, top: `${y(me[sel] ?? 0)}%` }}>
+              <span className="absolute whitespace-nowrap transition-[top,left] duration-200" style={tipStyle(x(sel), y(me[sel] ?? 0), 12)}>
                 <Pill tone="dark" size="sm"><span className="h-1.5 w-1.5 rounded-full bg-ui-yellow" />{me[sel] ?? 0} {chart.unit} <span className="text-white/50">· átlag {avg[sel] ?? 0}</span></Pill>
               </span>
             </div>

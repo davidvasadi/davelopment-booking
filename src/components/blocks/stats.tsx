@@ -3,7 +3,7 @@
 import { Fragment, useState } from 'react'
 import { ArrowUpRight, Briefcase, CalendarDays, Clock, Coins, Megaphone, Wallet, X } from 'lucide-react'
 import { Avatar, Button, Card, CardTitle, IconButton, IconCircle, Kpi, ListRow, Meta, Note, Panel, Pill, SegmentBar, Segmented, SheetHandle, StatusPill, MarqueeText } from '@/components/ui-kit'
-import { DarkLineChart, Legend, Ring, ShareRow, smooth, WeekBars, type WeekBar } from './charts'
+import { DarkLineChart, Legend, Ring, ShareRow, smooth, tipStyle, WeekBars, type WeekBar } from './charts'
 import type { StatsVM, Strip } from '@/lib/statsTypes'
 
 /* Statisztikák (design 5.1–5.4): a kártyák és a részletes lapok. Az élő oldal (StatsView) és a /design, a landing
@@ -146,22 +146,28 @@ export function StatHoursCard({ hours = SAMPLE_STATS.hours, onOpen, animate = fa
 }
 
 /** A Vendégforrás oszlopai (online / telefon / beeső) — a kártya és a részletes lap is ezt rajzolja. */
-function SourceBars({ source, fixed = false }: { source: StatsVM['source']; /** a részletes lapon: mindig fix magas (ott nincs, ami kinyújtsa) */ fixed?: boolean }) {
+/** Három (vagy több) álló oszlop százalékkal (a Vendégforrás oszlopai) — más kártyák is ezt használják (pl. Backstage e-mailek). */
+export function StandBars({ bars, fixed = false, compact = false, className = '' }: { bars: { l: string; v: number; tone: 'dark' | 'yellow' | 'hatch' }[]; /** fix magas (ahol nincs, ami kinyújtsa) */ fixed?: boolean; /** kis kártyán: alacsonyabb alapmagasság, a maradék helyet tölti ki */ compact?: boolean; className?: string }) {
+  const cls = { dark: 'bg-ui-dark text-white', yellow: 'bg-ui-yellow text-ui-dark', hatch: 'ui-hatch text-ui-text' }
   return (
-          <div className={`mt-4 flex h-[220px] gap-2 ${fixed ? '' : 'lg:h-auto lg:min-h-[220px] lg:flex-1'}`}>
-            {[{ l: 'Online', v: source.online, cls: 'bg-ui-dark text-white' }, { l: 'Telefon', v: source.phone, cls: 'bg-ui-yellow text-ui-dark' }, { l: 'Beeső', v: source.walkIn, cls: 'ui-hatch text-ui-text' }].map((g) => {
+          <div className={`mt-4 flex gap-2 ${compact ? 'h-[140px] lg:h-auto lg:min-h-[96px] lg:flex-1' : `h-[220px] ${fixed ? '' : 'lg:h-auto lg:min-h-[220px] lg:flex-1'}`} ${className}`}>
+            {bars.map((g) => {
               // százalékos magasság helyett arány: az üres rész és a sáv osztozik a magasságon (minden böngészőben, mobilon is)
               const h = Math.max(18, g.v)
               return (
                 <div key={g.l} className="flex flex-1 flex-col">
                   <div style={{ flexGrow: 100 - h }} />
-                  <div className={`flex min-h-[44px] flex-col items-center justify-start rounded-ui-inner pt-3 text-ui-body ${g.cls}`} style={{ flexGrow: h, flexBasis: 0 }}>{g.v}%</div>
+                  <div className={`flex min-h-[44px] flex-col items-center justify-start rounded-ui-inner pt-3 text-ui-body ${cls[g.tone]}`} style={{ flexGrow: h, flexBasis: 0 }}>{g.v}%</div>
                   <div className="mt-2 text-center text-ui-meta text-ui-muted">{g.l}</div>
                 </div>
               )
             })}
           </div>
   )
+}
+
+function SourceBars({ source, fixed = false }: { source: StatsVM['source']; /** a részletes lapon: mindig fix magas (ott nincs, ami kinyújtsa) */ fixed?: boolean }) {
+  return <StandBars fixed={fixed} bars={[{ l: 'Online', v: source.online, tone: 'dark' }, { l: 'Telefon', v: source.phone, tone: 'yellow' }, { l: 'Beeső', v: source.walkIn, tone: 'hatch' }]} />
 }
 
 /** Vendégforrás: online / telefon / beeső oszlopokban; alatta az előrefoglalás, átlagérték (étteremnél asztal-idő), lemondás. */
@@ -198,8 +204,6 @@ function RevenueChart({ revenue, unit = 'Ft', drawIn = false, className = '' }: 
   const x = (i: number) => (i / (now.length - 1)) * 100
   const yy = (v: number) => 100 - (v / top) * 100
   const pick = (e: React.PointerEvent<HTMLDivElement>) => { const r = e.currentTarget.getBoundingClientRect(); setHover(Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (now.length - 1))) }
-  // a buborék a szélén befelé fordul, hogy ne lógjon ki a kártyából
-  const tx = sel <= now.length * 0.15 ? '-15%' : sel >= now.length * 0.85 ? '-85%' : '-50%'
   return (
     <div className={`flex flex-1 flex-col ${className}`}>
       <div className="mt-4 flex min-h-[200px] flex-1 gap-2">
@@ -213,7 +217,8 @@ function RevenueChart({ revenue, unit = 'Ft', drawIn = false, className = '' }: 
               <path d={smooth(now, 100, 100, 0, top)} fill="none" stroke="var(--ui-yellow)" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
             </svg>
             <span className={`absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-ui-dark bg-ui-yellow transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ left: `${x(sel)}%`, top: `${yy(now[sel])}%`, ['--d' as string]: '1100ms' }} />
-            <span className={`absolute transition-all duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ ['--d' as string]: '1250ms', left: `${x(sel)}%`, top: `${yy(now[sel])}%`, transform: `translate(${tx}, calc(-100% - 12px))` }}>
+            {/* a szélső pontoknál a grafikon széléhez igazodik — nem lóg ki, nem bújik a szomszéd kártya mögé */}
+            <span className={`absolute whitespace-nowrap transition-[top,left] duration-200 ${drawIn ? 'ui-fade-up' : ''}`} style={{ ['--d' as string]: '1250ms', ...tipStyle(x(sel), yy(now[sel]), 12) }}>
               <Pill tone="dark" size="sm">{nf(now[sel])} {unit} <span className="text-white/50">· {revenue.points[sel] ?? ''}</span></Pill>
             </span>
           </div>
