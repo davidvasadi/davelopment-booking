@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { getCachedGoogleRating } from '@/lib/google-rating'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
-import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, industryPageJsonLd, SITE_URL } from '@/lib/publicSeo'
+import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, industryPageJsonLd, SITE_URL } from '@/lib/publicSeo'
 import { getReviewSummary } from '@/lib/reviews'
 import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
 import { getPayloadClient } from '@/lib/payload'
@@ -17,7 +17,6 @@ import { INDUSTRY_PAGES } from '@/lib/industryPages'
 import { IndustryPageK2 } from '@/components/blocks/landing-industry'
 import { CookieBanner } from '@/components/landing/CookieBanner'
 import { LandingClickTracker } from '@/components/landing/LandingClickTracker'
-import HomeClient from '../HomeClient'
 import type { Media } from '@/payload/payload-types'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicView'
@@ -93,19 +92,6 @@ export default async function SalonPublicPage({
         <IndustryPageK2 page={industryPage} trialDays={pricing.trial_days} />
         <CookieBanner />
         <LandingClickTracker />
-      </>
-    )
-  }
-  const landing = INDUSTRY_LANDINGS[slug]
-  if (landing) {
-    const pricing = await getPricing()
-    return (
-      <>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing, landing.faqItems, await getCachedGoogleRating())) }}
-        />
-        <HomeClient pricing={pricing} industry={landing} />
       </>
     )
   }

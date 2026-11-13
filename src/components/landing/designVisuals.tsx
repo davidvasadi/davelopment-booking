@@ -17,7 +17,8 @@ import { StatGuestsCard, StatHoursCard, StatUtilCard, StatWeekCard } from '@/com
 import { NotificationsPanel } from '@/components/blocks/notify'
 import { BusinessTypeStep, ReadyCard } from '@/components/blocks/onboarding'
 import { Avatar, Card } from '@/components/ui-kit'
-import type { SegmentVisuals } from '@/components/landing/sections/SegmentToggle'
+/** a régi „Látod mi történik” szekció képhelyei (a szekció 2026-11-14-én kikerült; a design-oldal saját példánya használja) */
+export type SegmentVisuals = Partial<Record<'salonCalendar' | 'salonDayOff' | 'salonNotify' | 'salonApp' | 'salonOverview' | 'restoNotify' | 'restoTimeline' | 'restoApp' | 'restoGuests' | 'restoOverview', React.ReactNode>>
 
 /* A landing funkció-oldalainak képei: a /design konkrét KÁRTYÁI (src/components/blocks), eredeti méretben —
  * ugyanúgy, mint a Foglalás oldalon. Szakasz → design-kártya: lásd a megjegyzéseket. */
