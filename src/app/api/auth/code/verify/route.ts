@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { verifyCode } from '@/lib/authCodes'
+import { loginEmailWhere } from '@/lib/loginEmail'
 import { createAccount, type AccountInput } from '@/lib/createAccount'
 import { homeFor, startSession } from '@/lib/authLogin'
 import { clientIp, rateLimit } from '@/lib/rateLimit'
@@ -23,9 +24,11 @@ export async function POST(req: NextRequest) {
 
   const r = await verifyCode(email, code)
   if (!r.ok) return NextResponse.json({ error: r.reason, left: r.left ?? 0 }, { status: 400 })
+  // a másodlagos cím megerősítő kódja nem belépési kód (azt az /api/auth/secondary-email használja)
+  if (r.purpose === 'secondary') return NextResponse.json({ error: 'expired' }, { status: 400 })
 
   const payload = await getPayloadClient()
-  const found = await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true, depth: 0 })
+  const found = await payload.find({ collection: 'users', where: loginEmailWhere(email), limit: 1, overrideAccess: true, depth: 0 })
   let user = found.docs[0] as { id: number | string; email: string; role?: string | null; _verified?: boolean | null } | undefined
   let created: { kind: string; placeId: number | string | null } | null = null
 

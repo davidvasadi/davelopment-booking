@@ -3,6 +3,7 @@ import { isLocalRequest } from '@/lib/localRequest'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { issueCode } from '@/lib/authCodes'
+import { loginEmailWhere } from '@/lib/loginEmail'
 import { loginCodeEmail } from '@/lib/loginCodeEmail'
 import { clientIp, rateLimit } from '@/lib/rateLimit'
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (!a.allowed || !b.allowed) return NextResponse.json({ error: 'rate_limited', retryAfter: Math.max(a.retryAfter, b.retryAfter) }, { status: 429 })
 
   const payload = await getPayloadClient()
-  const found = await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true, depth: 0 })
+  const found = await payload.find({ collection: 'users', where: loginEmailWhere(email), limit: 1, overrideAccess: true, depth: 0 })
   const user = found.docs[0] as { status?: string | null; role?: string | null } | undefined
 
   if (purpose === 'register') {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const code = await issueCode(email, purpose, purpose === 'register' ? { ...parsed.data.account, email } : undefined)
-  const mail = loginCodeEmail(code, purpose)
+  const mail = loginCodeEmail(code, purpose, email)
   // Helyi fejlesztés (a kérés a localhost-ról jön): nem küldünk levelet — a helyi .env élő Resend-kulccsal fut, és a
   // domain ott nincs is hitelesítve —, a kód a szerver termináljába kerül. (A Host fejlécből — lásd lib/localRequest.)
   if (isLocalRequest(req.headers)) {

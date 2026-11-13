@@ -15,6 +15,7 @@
  * - Új OAuth-user random 32-byte jelszót kap (nem használja, csak a séma kötelezi).
  */
 
+import { loginEmailWhere } from '@/lib/loginEmail'
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import crypto from 'crypto'
@@ -63,9 +64,10 @@ async function findOrCreatePayloadUser(
   const emailLc = email.toLowerCase()
   const payload = await getPayloadClient()
 
+  // az elsődleges VAGY a megerősített másodlagos cím (lib/loginEmail)
   const existing = await payload.find({
     collection: 'users',
-    where: { email: { equals: emailLc } },
+    where: loginEmailWhere(emailLc),
     limit: 1,
     overrideAccess: true,
   })

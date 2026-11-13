@@ -2,7 +2,6 @@ import { CollectionConfig } from 'payload'
 import type { SelectFieldSingleValidation, Where } from 'payload'
 import { BRAND_NAME } from '@/lib/brand'
 import { emailLayout, COLORS } from '@/lib/emailLayout'
-import { generateVerifyEmailSubject, generateVerifyEmailHTML } from '@/lib/verifyEmailTemplate'
 import { cascadeDeleteUserBusinesses } from '@/lib/cascadeDeleteUserBusinesses'
 
 export const Users: CollectionConfig = {
@@ -28,21 +27,10 @@ export const Users: CollectionConfig = {
     // biztonságot ez adja (a támadót célozza), nem a rövid session.
     maxLoginAttempts: 5,
     lockTime: 10 * 60 * 1000,
-    // Email-tulajdonlás igazolása: jelszavas regisztrációnál bárki beírhatna egy IDEGEN
-    // domainű email-t (pl. valaki@davelopment.hu), és a fiók a link megerősítése nélkül is
-    // azonnal használható lenne — ez lehetővé tenné, hogy valaki egy másik cég domainjével
-    // hiteles-kinézetű, de valójában nem-hozzá-tartozó fiókot hozzon létre. A `verify: true`
-    // ezt zárja be: bejelentkezés csak a linkre kattintás UTÁN engedélyezett. Google-bejelent-
-    // kezésnél nem kell (a Google már igazolta az emailt) — lásd auth.ts `_verified: true`.
-    // A regisztrációs wizard (`/api/auth/register`) NEM erre a Payload-automatikára támaszkodik
-    // (`disableVerificationEmail: true`-val hoz létre) — egy Resend-hiba (rossz cím, rate-limit)
-    // ott nem vihetné el a teljes user-létrehozást. Ez a config csak a fallback/dokumentáció:
-    // ha valaha máshonnan (pl. admin) jönne létre auth-usert Payload sima create-jével
-    // verify-email-lel, ugyanezt a sablont kapja — lásd src/lib/verifyEmailTemplate.ts.
-    verify: {
-      generateEmailSubject: () => generateVerifyEmailSubject(),
-      generateEmailHTML: (args?: { token?: string }) => generateVerifyEmailHTML(args?.token ?? ''),
-    },
+    // Email-tulajdonlás: a `_verified` mező (és vele a Payload-zár: igazolatlan fiók jelszóval nem léphet be) marad, de
+    // megerősítő LEVÉL nem megy — minden fióklétrehozás `disableVerificationEmail: true`-val fut, a címet a belépési /
+    // regisztrációs kód (vagy a Google) igazolja. A régi /verify-email oldal és sablon 2026-11-ben kikerült.
+    verify: true,
     forgotPassword: {
       generateEmailSubject: () => `Jelszó visszaállítás — ${BRAND_NAME}`,
       generateEmailHTML: (args?: { token?: string }) => {
@@ -108,6 +96,10 @@ export const Users: CollectionConfig = {
       required: true,
       label: 'Teljes név',
     },
+    // Másodlagos belépési e-mail — csak az /api/auth/secondary-email állítja (kóddal megerősítve), a Payload REST-en
+    // nem írható (különben megerősítés nélkül be lehetne írni valaki más címét).
+    { name: 'secondary_email', type: 'email', label: 'Másodlagos e-mail', access: { create: () => false, update: () => false } },
+    { name: 'secondary_email_verified_at', type: 'date', label: 'Másodlagos e-mail megerősítve', admin: { readOnly: true }, access: { create: () => false, update: () => false } },
     {
       // a legutóbbi sikeres bejelentkezés (a /api/auth/finalize írja) — Beállítások › Csapat „Utolsó belépés”
       name: 'last_login_at',

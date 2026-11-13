@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Button, FIELD, FieldRow } from '@/components/ui-kit'
+import { Button, CodeInput, FIELD, Field, FieldRow, Input } from '@/components/ui-kit'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { SelfProfilePage, type DeviceRow, type SelfProfileValue } from '@/components/blocks/settings'
 
@@ -16,6 +16,8 @@ import { SelfProfilePage, type DeviceRow, type SelfProfileValue } from '@/compon
 export type SelfProfileData = {
   name: string; email: string; avatarUrl: string | null
   phone: string | null; address: string | null; birthday: string | null; emergency: string | null
+  /** megerősített másodlagos belépési cím (Belépés) */
+  secondaryEmail?: string | null
   roles: { name: string; role: string }[]
 }
 
@@ -103,6 +105,7 @@ export function SelfProfileView({ data, onDirtyChange, registerApi }: {
           <FieldRow label="Belépés módja" hint="jelszó nincs — minden belépésnél kódot küldünk az e-mail-címedre"><span className="text-ui-body text-ui-text">E-mailes kód vagy Google</span></FieldRow>
           <FieldRow label="Munkamenet" hint="7 napig él ezen az eszközön"><Button variant="cell" size="sm" onClick={() => void logout()}>Kijelentkezés</Button></FieldRow>
         </>}
+        secondaryEmail={<SecondaryEmailField current={data.secondaryEmail ?? null} onChanged={() => router.refresh()} />}
         devices={devices} onRevoke={(id) => void revoke(`id=${encodeURIComponent(id)}`, 'Eszköz kijelentkeztetve')} onRevokeOthers={() => void revoke('others=1', 'Minden más eszköz kijelentkeztetve')}
         birthdayPicker={
           <DatePickerPopover value={value.birthday || '1990-01-01'} onChange={(d) => setValue({ ...value, birthday: d })} yearRange={[1930, new Date().getFullYear()]}
@@ -112,5 +115,78 @@ export function SelfProfileView({ data, onDirtyChange, registerApi }: {
         } />
 
     </>
+  )
+}
+
+/**
+ * Másodlagos belépési e-mail (/api/auth/secondary-email) — mező az E-mail mellett: beírod → „Kód küldése” a mezőben →
+ * a kód a mező helyén (6 négyzet, a 6. számjegynél magától megerősít). Megadva: a cím, alatta halványan a műveletek
+ * (elsődlegessé tétel, ha az elsődleges cím megszűnik; törlés). Minden változásról értesítő megy.
+ */
+function SecondaryEmailField({ current, onChanged }: { current: string | null; onChanged: () => void }) {
+  const [email, setEmail] = useState('')
+  const [codeStep, setCodeStep] = useState(false)
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const valid = /^\S+@\S+\.\S+$/.test(email.trim())
+  const call = async (method: string, body?: unknown) => {
+    setBusy(true); setError(null)
+    try {
+      const r = await fetch('/api/auth/secondary-email', { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setError(j.error ?? 'Nem sikerült — próbáld újra.'); return false }
+      return true
+    } catch { setError('Nem sikerült — próbáld újra.'); return false } finally { setBusy(false) }
+  }
+  const sendCode = async () => { if (valid && await call('POST', { email: email.trim() })) { setCode(''); setCodeStep(true) } }
+  const confirm = async (v = code) => {
+    if (v.length < 6) return
+    if (await call('PUT', { email: email.trim(), code: v })) { toast.success('Másodlagos e-mail hozzáadva'); setCodeStep(false); setEmail(''); onChanged() } else setCode('')
+  }
+  const promote = async () => {
+    if (!window.confirm(`A(z) ${current} lesz az elsődleges címed — ide mennek a levelek. A mostani cím másodlagosként megmarad. Folytatod?`)) return
+    if (await call('PATCH', { action: 'promote' })) { toast.success('Elsődleges e-mail megváltoztatva'); onChanged() }
+  }
+  const remove = async () => {
+    if (!window.confirm(`Törlöd a(z) ${current} címet? Ezzel már nem lehet belépni.`)) return
+    if (await call('DELETE')) { toast.success('Másodlagos e-mail törölve'); onChanged() }
+  }
+  const link = 'underline-offset-2 outline-none transition-colors hover:underline disabled:opacity-50'
+
+  if (current) {
+    return (
+      <Field label="Másodlagos e-mail" error={error} hint={<>
+        ezzel is be tudsz lépni ·{' '}
+        <button type="button" disabled={busy} onClick={() => void promote()} className={`${link} text-ui-text`}>legyen ez az elsődleges</button> ·{' '}
+        <button type="button" disabled={busy} onClick={() => void remove()} className={`${link} text-ui-bad`}>törlés</button>
+      </>}>
+        <Input value={current} readOnly />
+      </Field>
+    )
+  }
+  if (codeStep) {
+    return (
+      <Field label="Másodlagos e-mail" error={error} hint={<>
+        kódot küldtünk ide: <b className="font-medium text-ui-text">{email.trim()}</b> ·{' '}
+        <button type="button" disabled={busy} onClick={() => void sendCode()} className={`${link} text-ui-text`}>új kód</button> ·{' '}
+        <button type="button" onClick={() => { setCodeStep(false); setCode(''); setError(null) }} className={`${link} text-ui-text`}>mégse</button>
+      </>}>
+        <CodeInput value={code} onChange={(v) => { setCode(v); setError(null) }} onComplete={(v) => void confirm(v)} autoFocus error={!!error} />
+      </Field>
+    )
+  }
+  return (
+    <Field label="Másodlagos e-mail" error={error} hint="nem kötelező — ezzel is be tudsz lépni, ha az elsődleges címed megszűnik">
+      <span className="relative block">
+        <Input type="email" autoComplete="email" inputMode="email" placeholder="masik@cim.hu" value={email}
+          onChange={(e) => { setEmail(e.target.value); setError(null) }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void sendCode() } }}
+          className={valid ? 'pr-32' : undefined} />
+        {valid && (
+          <Button type="button" variant="dark" size="sm" loading={busy} onClick={() => void sendCode()} className="absolute right-1 top-1/2 -translate-y-1/2">Kód küldése</Button>
+        )}
+      </span>
+    </Field>
   )
 }

@@ -39,13 +39,26 @@ export async function sessionValid(sid: string, userId: number | string): Promis
   return true
 }
 
-export type SessionRow = { id: string; device: string | null; ip: string | null; created_at: string; last_seen_at: string }
+export type SessionRow = { id: string; ids: string[]; device: string | null; ip: string | null; created_at: string; last_seen_at: string }
+/** Az élő munkamenetek eszközönként: ugyanaz az eszköz-név + IP egy sor (a legutóbbi), hogy ugyanaz a gép / telefon ne
+ *  szerepeljen többször, ha közben elveszett a böngésző-azonosító süti (pl. törölt sütik, helyi hálózati cím). */
 export async function listSessions(userId: number | string): Promise<SessionRow[]> {
-  return authQuery<SessionRow>(sql`SELECT id, device, ip, created_at, last_seen_at FROM auth_sessions
+  const rows = await authQuery<Omit<SessionRow, 'ids'>>(sql`SELECT id, device, ip, created_at, last_seen_at FROM auth_sessions
     WHERE user_id = ${Number(userId)} AND revoked_at IS NULL AND expires_at > now() ORDER BY last_seen_at DESC`)
+  const groups = new Map<string, SessionRow>()
+  for (const r of rows) {
+    const key = `${r.device ?? ''}|${r.ip ?? ''}`
+    const g = groups.get(key)
+    if (g) g.ids.push(r.id)
+    else groups.set(key, { ...r, ids: [r.id] })
+  }
+  return [...groups.values()]
 }
-export async function revokeSession(userId: number | string, sid: string): Promise<void> {
-  await authQuery(sql`UPDATE auth_sessions SET revoked_at = now() WHERE id = ${sid} AND user_id = ${Number(userId)}`)
+/** Egy eszköz kijelentkeztetése — a csoport minden munkamenetével együtt (`ids`). */
+export async function revokeSession(userId: number | string, sid: string | string[]): Promise<void> {
+  const ids = (Array.isArray(sid) ? sid : [sid]).filter(Boolean)
+  if (!ids.length) return
+  await authQuery(sql`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = ${Number(userId)} AND id IN (${sql.join(ids.map((v) => sql`${v}`), sql`, `)})`)
 }
 export async function revokeOtherSessions(userId: number | string, keep: string | null): Promise<void> {
   await authQuery(sql`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = ${Number(userId)} AND revoked_at IS NULL AND id <> ${keep ?? ''}`)

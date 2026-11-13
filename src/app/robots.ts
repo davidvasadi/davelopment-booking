@@ -19,7 +19,6 @@ export default function robots(): MetadataRoute.Robots {
         '/register-restaurant',
         '/forgot-password',
         '/reset-password',
-        '/verify-email',
         '/team/',
         '/admin/', // Payload admin
         '/*/book', // a foglaló wizard (noindex is védi)

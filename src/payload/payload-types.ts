@@ -840,6 +840,8 @@ export interface User {
   name: string
   email: string
   avatar_url?: string | null
+  secondary_email?: string | null
+  secondary_email_verified_at?: string | null
   last_login_at?: string | null
   /** Tulajdonos fiók-szintű adatlapja (nincs membershipje) — a HiringView szerkeszti /api/user/profile-on. */
   phone?: string | null

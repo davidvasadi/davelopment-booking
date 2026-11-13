@@ -239,6 +239,7 @@ export default async function SettingsPage() {
           address: (user as { address?: string | null }).address ?? null,
           birthday: (user as { birthday?: string | null }).birthday ?? null,
           emergency: (user as { emergency_contact?: string | null }).emergency_contact ?? null,
+          secondaryEmail: (user as { secondary_email_verified_at?: string | null }).secondary_email_verified_at ? ((user as { secondary_email?: string | null }).secondary_email ?? null) : null,
           roles: businesses.map((b) => ({ name: b.name, role: b.roleName })),
         }}
         apiBase="/api/salon/settings"

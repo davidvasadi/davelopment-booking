@@ -96,6 +96,7 @@ import * as migration_20261108_100000_customer_country from './20261108_100000_c
 import * as migration_20261108_110000_vat_at_redemption from './20261108_110000_vat_at_redemption';
 import * as migration_20261108_120000_brand_icon from './20261108_120000_brand_icon';
 import * as migration_20261113_100000_customer_postal_code from './20261113_100000_customer_postal_code';
+import * as migration_20261113_200000_users_secondary_email from './20261113_200000_users_secondary_email';
 
 export const migrations = [
   {
@@ -587,5 +588,10 @@ export const migrations = [
     up: migration_20261113_100000_customer_postal_code.up,
     down: migration_20261113_100000_customer_postal_code.down,
     name: '20261113_100000_customer_postal_code',
+  },
+  {
+    up: migration_20261113_200000_users_secondary_email.up,
+    down: migration_20261113_200000_users_secondary_email.down,
+    name: '20261113_200000_users_secondary_email',
   },
 ];

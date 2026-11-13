@@ -17,7 +17,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
   const [errorMsg, setErrorMsg] = useState('')
   // Inline regisztráció a needsAuth állapotban (ha a meghívottnak még nincs fiókja).
   const [regName, setRegName] = useState('')
-  const [regPassword, setRegPassword] = useState('')
+  const [regExists, setRegExists] = useState(false)
   const [regBusy, setRegBusy] = useState(false)
   const [regError, setRegError] = useState('')
   const [logoutBusy, setLogoutBusy] = useState(false)
@@ -78,42 +78,21 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
     }
   }
 
-  // Meghívott: fiók létrehozása (a meghívott emaillel) → bejelentkezés → meghívó elfogadása.
-  // A `/api/team/register` a sima `/api/users`-től eltérően `_verified: true`-val hozza létre
-  // a usert (a meghívó-token maga igazolja az email-tulajdonlást) — enélkül a rögtöni
-  // bejelentkezés MINDIG `UnverifiedEmail`-lel bukott volna (lásd a route doc-kommentjét).
-  // Ha a meghívottnak MÁR van fiókja (pl. másik üzlet tulaja/tagja ugyanezzel az emaillel),
-  // a create 409-cel elbukik ("már regisztrált email"). Ilyenkor NEM hiba: a beírt jelszóval
-  // megpróbálunk bejelentkezni, és a meglévő fiókhoz kötjük a meghívót. Így egy email
-  // több üzlethez is tartozhat, és nem ragad be a regisztrációs képernyőn.
+  // Meghívott, akinek még nincs fiókja: fiók létrehozása jelszó nélkül (a meghívó-link igazolja az e-mailt), a route
+  // be is léptet → meghívó elfogadása. Ha az e-mailhez már van fiók: kódos belépés, onnan vissza ide.
+  const loginHref = `/login?email=${encodeURIComponent(info.email ?? '')}&from=${encodeURIComponent(`/team/accept/${token}`)}`
   const register = async () => {
-    if (regPassword.length < 6) { setRegError('A jelszó legalább 6 karakter legyen.'); return }
     if (!info.email) { setRegError('Hiányzó email.'); return }
     setRegBusy(true); setRegError('')
     try {
       const cRes = await fetch('/api/team/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ token, name: regName.trim() || info.email, password: regPassword }),
+        body: JSON.stringify({ token, name: regName.trim() || info.email }),
       })
-      // A már létező email nem végzetes: ilyenkor bejelentkezéssel folytatjuk (lásd lentebb).
-      const alreadyExists = !cRes.ok && cRes.status === 409
-
-      const lRes = await fetch('/api/users/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ email: info.email, password: regPassword }),
-      })
-      if (!lRes.ok) {
-        // Ha a create nem "már létezik" miatt bukott, azt a hibát mutatjuk; egyébként a bejelentkezés
-        // bukott meg — a meglévő fiókhoz nem stimmelt a jelszó.
-        if (!cRes.ok && !alreadyExists) {
-          const j = await cRes.json().catch(() => ({}))
-          throw new Error(j?.error || 'A fiók létrehozása sikertelen.')
-        }
-        throw new Error(
-          alreadyExists
-            ? 'Ehhez az emailhez már tartozik fiók, de a jelszó nem stimmel. Add meg a meglévő jelszavad, vagy jelentkezz be.'
-            : 'Bejelentkezés sikertelen a regisztráció után.',
-        )
+      if (cRes.status === 409) { setRegExists(true); return }
+      if (!cRes.ok) {
+        const j = await cRes.json().catch(() => ({}))
+        throw new Error(j?.error || 'A fiók létrehozása sikertelen.')
       }
       const aRes = await fetch(`/api/team/accept/${token}`, { method: 'POST', credentials: 'include' })
       if (!aRes.ok) {
@@ -176,7 +155,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
             </div>
             <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">Hozd létre a fiókod</h1>
             <p className="text-zinc-500 dark:text-white/50 mb-6">
-              Csatlakozz a(z) <b className="text-zinc-900 dark:text-white">{info.businessName || 'üzlet'}</b> csapatához. Állíts be egy jelszót ehhez az emailhez.
+              Csatlakozz a(z) <b className="text-zinc-900 dark:text-white">{info.businessName || 'üzlet'}</b> csapatához. Jelszó nem kell — később minden belépésnél egy kódot küldünk erre a címre.
             </p>
             <div className="space-y-3 text-left">
               <input
@@ -193,17 +172,14 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
                 autoComplete="name"
                 className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 text-[16px] lg:text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
               />
-              <input
-                type="password"
-                value={regPassword}
-                onChange={(e) => setRegPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !regBusy && register()}
-                placeholder="Jelszó (min. 6 karakter)"
-                autoComplete="new-password"
-                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 text-[16px] lg:text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
-              />
             </div>
             {regError && <p className="mt-3 text-sm text-red-500">{regError}</p>}
+            {regExists && (
+              <p className="mt-3 text-sm text-zinc-500 dark:text-white/50">
+                Ehhez az e-mailhez már van fiókod —{' '}
+                <Link href={loginHref} className="font-semibold text-zinc-900 underline underline-offset-2 dark:text-white">lépj be kóddal</Link>, és utána elfogadhatod a meghívót.
+              </p>
+            )}
             <button
               onClick={register}
               disabled={regBusy}
@@ -213,7 +189,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
             </button>
             <p className="mt-4 text-sm text-zinc-400">
               Van már fiókod?{' '}
-              <Link href={`/login?redirect=/team/accept/${token}`} className="font-semibold text-zinc-700 dark:text-white/80 hover:underline">
+              <Link href={loginHref} className="font-semibold text-zinc-700 dark:text-white/80 hover:underline">
                 Bejelentkezés
               </Link>
             </p>
@@ -238,7 +214,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
             </button>
             <p className="mt-4 text-sm text-zinc-400">
               Van már fiókod ezzel az emaillel?{' '}
-              <Link href={`/login?redirect=/team/accept/${token}`} className="font-semibold text-zinc-700 dark:text-white/80 hover:underline">
+              <Link href={loginHref} className="font-semibold text-zinc-700 dark:text-white/80 hover:underline">
                 Bejelentkezés
               </Link>
             </p>

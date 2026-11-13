@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
   if (!sid) await startSession(req, res, { id: user.id, email: user.email, role: user.role })
   const rows = await listSessions(user.id)
   const current = sid ?? rows[0]?.id ?? null
-  const body = { sessions: rows.map((r) => ({ id: r.id, device: r.device ?? 'Böngésző', lastSeen: r.last_seen_at, created: r.created_at, current: r.id === current })) }
+  // eszközönként egy sor; az `id` a csoport összes munkamenete (vesszővel) — a kijelentkeztetés mindet lezárja
+  const body = { sessions: rows.map((r) => ({ id: r.ids.join(','), device: r.device ?? 'Böngésző', lastSeen: r.last_seen_at, created: r.created_at, current: !!current && r.ids.includes(current) })) }
   return NextResponse.json(body, { headers: res.headers })
 }
 
@@ -28,7 +29,11 @@ export async function DELETE(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const id = req.nextUrl.searchParams.get('id')
   if (req.nextUrl.searchParams.get('others') === '1') await revokeOtherSessions(user.id, await currentSessionId())
-  else if (id) await revokeSession(user.id, id)
+  else if (id) {
+    // a mostani munkamenetet itt nem zárjuk le (arra a Kijelentkezés való)
+    const cur = await currentSessionId()
+    await revokeSession(user.id, id.split(',').map((v) => v.trim()).filter((v) => v && v !== cur).slice(0, 50))
+  }
   else return NextResponse.json({ error: 'invalid' }, { status: 400 })
   return NextResponse.json({ ok: true })
 }

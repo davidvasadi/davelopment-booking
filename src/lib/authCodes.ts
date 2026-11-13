@@ -8,7 +8,7 @@ import { authQuery, sql } from './authDb'
  */
 export const CODE_TTL_MINUTES = 10
 export const MAX_ATTEMPTS = 5
-export type CodePurpose = 'login' | 'register'
+export type CodePurpose = 'login' | 'register' | 'secondary'
 
 const hashCode = (email: string, code: string) =>
   crypto.createHmac('sha256', process.env.PAYLOAD_SECRET ?? 'dev-secret').update(`${email.toLowerCase()}:${code}`).digest('hex')

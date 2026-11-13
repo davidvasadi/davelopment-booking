@@ -1,5 +1,5 @@
 import { SHEET_ROW } from './assets'
-import { ArrowRight, ArrowUpRight, BarChart3, Bell, Building2, Download, Pencil, Briefcase, CalendarDays, Check, ChevronDown, Lock, Clock, CreditCard, FileText, Gift, Globe as Globe2, Link2, Mail, Megaphone, Monitor, MoreHorizontal, Plus, QrCode, Send, Settings, ShieldCheck, Smartphone, Star, UserRound, Users, X, Undo2, Trash2 } from 'lucide-react'
+import { ArrowRight, LogOut, ArrowUpRight, BarChart3, Bell, Building2, Download, Pencil, Briefcase, CalendarDays, Check, ChevronDown, Lock, Clock, CreditCard, FileText, Gift, Globe as Globe2, Link2, Mail, Megaphone, Monitor, MoreHorizontal, Plus, QrCode, Send, Settings, ShieldCheck, Smartphone, Star, UserRound, Users, X, Undo2, Trash2 } from 'lucide-react'
 import { Avatar, BigNumber, Button, Card, CardTitle, NavItem, SearchField, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Marquee, MarqueeText, Meta, Meter, Modal, OptionCard, Pill, RowCheck, SegmentBar, StatusPill, Segmented, Note, Table, Td, Th, Tr, UploadBox } from '@/components/ui-kit'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { DarkLineChart, WeekBars, type WeekBar } from './charts'
@@ -1058,12 +1058,14 @@ export type SelfProfileValue = { name: string; phone: string; birthday: string; 
  *  mellette a szerepeid. Élőben `value` + `onChange`, `email`, `avatar` + `onPhoto` / `onRemovePhoto` (`photoBusy`),
  *  `roles`, `login` (a Belépés csoport sorai — ami ma ténylegesen van), `extra` (további csoport, pl. a saját napi
  *  szünet), `save={false}` (a hub közös mentés-sávja); nélkülük a minta (az aktív eszközök és a nyelv csak a mintában). */
-export function SelfProfilePage({ value, onChange, email = 'david@fodraszat.hu', avatar = '/landing/funkciok/csapat/avatar/dave.webp', onPhoto, onRemovePhoto, photoBusy = false, roles = [['Fodrászat Budapest', 'Tulajdonos'], ['Bistro Andrássy', 'Tulajdonos']], birthdayPicker, login, devices = SAMPLE_DEVICES, onRevoke, onRevokeOthers, extra, save = true }: {
+export function SelfProfilePage({ value, onChange, email = 'david@fodraszat.hu', avatar = '/landing/funkciok/csapat/avatar/dave.webp', onPhoto, onRemovePhoto, photoBusy = false, roles = [['Fodrászat Budapest', 'Tulajdonos'], ['Bistro Andrássy', 'Tulajdonos']], birthdayPicker, login, secondaryEmail, devices = SAMPLE_DEVICES, onRevoke, onRevokeOthers, extra, save = true }: {
   value?: SelfProfileValue; onChange?: (v: SelfProfileValue) => void; email?: string; avatar?: string | null
   onPhoto?: () => void; onRemovePhoto?: () => void; photoBusy?: boolean; roles?: readonly (readonly [string, string])[]
   /** élőben a közös dátumválasztó (nem a böngésző sajátja) */
   birthdayPicker?: React.ReactNode
   login?: React.ReactNode
+  /** élőben a másodlagos belépési e-mail mezője (az E-mail mellett) */
+  secondaryEmail?: React.ReactNode
   /** Aktív eszközök (lib/authSessions): hol vagy bejelentkezve — `onRevoke` egy eszközt, `onRevokeOthers` az összes többit kijelentkezteti */
   devices?: DeviceRow[] | null; onRevoke?: (id: string) => void; onRevokeOthers?: () => void
   extra?: React.ReactNode; save?: boolean
@@ -1086,7 +1088,7 @@ export function SelfProfilePage({ value, onChange, email = 'david@fodraszat.hu',
           {devices.length === 0 && <Meta className="px-2 py-2 text-ui-label">Betöltés…</Meta>}
           {devices.map((d) => (
             <ListRow key={d.id} leading={<IconCircle tone="cell" size="sm" icon={d.mobile ? Smartphone : Monitor} />} title={d.device} meta={d.current ? `ez az eszköz · ${d.meta}` : d.meta}
-              trailing={d.current ? undefined : <Button variant="cell" size="sm" onClick={onRevoke ? () => onRevoke(d.id) : undefined}>Kijelentkeztet</Button>} />
+              trailing={d.current ? undefined : <IconButton icon={LogOut} variant="ghost" size="sm" className="text-ui-bad" label="Kijelentkeztetés erről az eszközről" onClick={onRevoke ? () => onRevoke(d.id) : undefined} />} />
           ))}
           {devices.filter((d) => !d.current).length > 1 && <div className="px-2 pb-1 pt-2"><Button variant="ghost" size="sm" onClick={onRevokeOthers}>Kijelentkezés mindenhol máshol</Button></div>}
         </Card>
@@ -1103,11 +1105,12 @@ export function SelfProfilePage({ value, onChange, email = 'david@fodraszat.hu',
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {field('name', 'Név', { defaultValue: 'Vasadi Dávid' }, { autoComplete: 'name' })}
-          <Field label="E-mail" hint="ezzel lépsz be"><Input {...(v ? { value: email, readOnly: true } : { defaultValue: email })} /></Field>
           {field('phone', 'Telefon', { defaultValue: '+36 30 123 4567' }, { type: 'tel', autoComplete: 'tel' })}
+          <Field label="E-mail" hint="ezzel lépsz be — ide mennek a levelek"><Input {...(v ? { value: email, readOnly: true } : { defaultValue: email })} /></Field>
+          {secondaryEmail ?? <Field label="Másodlagos e-mail" hint="nem kötelező — ezzel is be tudsz lépni"><Input placeholder="masik@cim.hu" /></Field>}
           {v && birthdayPicker ? <Field label="Születésnap">{birthdayPicker}</Field> : field('birthday', 'Születésnap', { defaultValue: '1994. 06. 21.' })}
           {field('emergency', 'Vészhelyzeti kontakt', { placeholder: 'Név · telefon' })}
-          {field('address', 'Cím', { placeholder: 'Irányítószám, város, utca' }, { autoComplete: 'street-address' })}
+          <div className="sm:col-span-2">{field('address', 'Cím', { placeholder: 'Irányítószám, város, utca' }, { autoComplete: 'street-address' })}</div>
         </div>
       </SettingsGroup>
       <SettingsGroup icon={ShieldCheck} title="Belépés">

@@ -39,6 +39,19 @@ export function LoginForm() {
     up(); mq.addEventListener('change', up)
     return () => mq.removeEventListener('change', up)
   }, [])
+  // a kódos levél „Belépés” gombja: /login?email=…&code=… → a kód-lépés kitöltve, egy koppintás a belépés (nem lép be
+  // magától — a levelezők linkellenőrzői előre megnyitják a linket). A címsorból azonnal eltűnik a kód.
+  useEffect(() => {
+    const e = params.get('email'), c = params.get('code')
+    if (!e) return
+    setEmail(e)
+    // csak e-mail (pl. a csapat-meghívóról): az e-mail-lépés kitöltve, a kód-kérés egy koppintás
+    if (!c || !/^\d{6}$/.test(c)) { setStep('email'); return }
+    setCode(c); setStep('code')
+    const from = params.get('from')
+    window.history.replaceState(null, '', from ? `/login?from=${encodeURIComponent(from)}` : '/login')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (resendIn <= 0) return
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000)

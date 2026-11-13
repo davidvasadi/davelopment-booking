@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { loginEmailWhere } from '@/lib/loginEmail'
 import { getPayloadClient } from '@/lib/payload'
 import { slugify } from '@/payload/lib/slugify'
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   if (type === 'email') {
     const res = await payload.find({
       collection: 'users',
-      where: { email: { equals: value.toLowerCase() } },
+      where: loginEmailWhere(value),
       limit: 1,
       depth: 0,
       overrideAccess: true,

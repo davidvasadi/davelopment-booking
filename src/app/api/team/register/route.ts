@@ -1,28 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
+import { startSession } from '@/lib/authLogin'
 import { getPayloadClient } from '@/lib/payload'
 import type { Membership } from '@/payload/payload-types'
 
 /**
- * POST /api/team/register — fiók létrehozása egy csapat-meghívó elfogadásához.
+ * POST /api/team/register — új fiók egy csapat-meghívó elfogadásához, JELSZÓ NÉLKÜL (2026-11: a belépés mindenhol
+ * kóddal megy, csak a backstage jelszavas).
  *
- * A `team/accept/[token]` oldal korábban a sima `POST /api/users`-t hívta, majd rögtön
- * bejelentkezést próbált — ez a Users collection `verify: true`-ja miatt MINDIG elbukott
- * (`UnverifiedEmail`), mert egy frissen létrehozott userrel a megerősítő email linkjére
- * kattintás nélkül nem lehet bejelentkezni (lásd `Users.ts` `auth.verify` kommentje, és az
- * `/api/auth/register` route ugyanerről). A meghívott ilyenkor beragadt: a fiók létrejött, de
- * a `POST /api/team/accept/[token]` sosem futott le, így a membership `invited` maradt — a
- * user később, sikeres bejelentkezés után `getActiveBusiness()`-ben üzlet nélkül találta
- * magát, és a `/register` oldalra irányította.
- *
- * A meghívó-token maga már igazolja az email-tulajdonlást (a linket erre a címre küldtük ki),
- * ezért itt — az Auth.js Google-bejelentkezéshez hasonlóan (lásd `Users.ts` `_verified: true`
- * megjegyzése) — `_verified: true`-val hozzuk létre a usert: nincs értelme egy MÁSODIK
- * megerősítést kérni ugyanahhoz az emailhez.
+ * A meghívó-token igazolja az e-mail-tulajdonlást (a linket erre a címre küldtük ki), ezért a fiók `_verified: true`-val
+ * jön létre, és rögtön be is lép (munkamenet + süti) — utána a kliens elfogadja a meghívót (`POST /api/team/accept`).
+ * A jelszó egy véletlen, soha ki nem adott érték (a Payload auth-gyűjteménye megköveteli).
+ * Ha az e-mailhez már van fiók: 409 — a meghívott ilyenkor kóddal lép be (`/login?email=…&from=/team/accept/…`).
  */
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => null)) as { token?: string; name?: string; password?: string } | null
-  if (!body?.token || !body.password) return NextResponse.json({ error: 'Hiányzó adatok' }, { status: 400 })
-  if (body.password.length < 6) return NextResponse.json({ error: 'A jelszó legalább 6 karakter legyen.' }, { status: 400 })
+  const body = (await req.json().catch(() => null)) as { token?: string; name?: string } | null
+  if (!body?.token) return NextResponse.json({ error: 'Hiányzó adatok' }, { status: 400 })
 
   const payload = await getPayloadClient()
 
@@ -47,19 +40,19 @@ export async function POST(req: NextRequest) {
     overrideAccess: true,
   })
   if (existing.docs.length > 0) {
-    // Már van fiók ezzel az emaillel — a kliens ilyenkor a beírt jelszóval bejelentkezést
-    // próbál a meglévő fiókkal (lásd team/accept/[token]/page.tsx `register()`).
+    // Már van fiók ezzel az emaillel — a kliens a kódos belépésre küldi, onnan vissza a meghívóhoz.
     return NextResponse.json({ error: 'already_registered' }, { status: 409 })
   }
 
   const role = membership.restaurant ? 'restaurant_owner' : 'salon_owner'
+  let user: { id: number | string; email: string; role?: string | null }
   try {
-    await payload.create({
+    user = await payload.create({
       collection: 'users',
       data: {
         name: body.name?.trim() || email,
         email,
-        password: body.password,
+        password: crypto.randomBytes(24).toString('base64url'),
         role,
         // A meghívó-token maga az email-tulajdonlás igazolása — nincs szükség egy MÁSODIK,
         // Payload-generálta megerősítő emailre ugyanahhoz a címhez.
@@ -67,11 +60,13 @@ export async function POST(req: NextRequest) {
       },
       overrideAccess: true,
       disableVerificationEmail: true,
-    })
+    }) as unknown as typeof user
   } catch (e) {
     console.error('[team/register] user create error:', e)
     return NextResponse.json({ error: 'A fiók létrehozása sikertelen.' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  const out = NextResponse.json({ ok: true })
+  await startSession(req, out, { id: user.id, email: user.email, role: user.role })
+  return out
 }
