@@ -245,6 +245,7 @@ export function SalonScheduleView({
           date={String(opened.date).slice(0, 10)}
           canManage={canManage}
           onsite={onsite}
+          services={services}
           onClose={() => setOpened(null)}
           onEdit={() => { const b = opened; setOpened(null); setTarget({ booking: b }) }}
         />

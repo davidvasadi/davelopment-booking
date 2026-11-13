@@ -803,6 +803,8 @@ export const PAY_METHODS = [
   /** online, Stripe-on át: QR-kód a pultnál vagy e-mailben küldött link — fizetés után magától lezárul */
   { key: 'link', label: 'Fizetési link', icon: Link2 },
 ] as const
+// a fizetési mód-kártyák oszlopszáma a látható módok számához (Tailwind-osztály, ezért kiírva)
+const PAY_COLS: Record<number, string> = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4' }
 export type PayMethod = (typeof PAY_METHODS)[number]['key']
 
 const ft = (n: number) => `${n < 0 ? '−' : ''}${Math.abs(n).toLocaleString('hu-HU')} Ft`
@@ -821,9 +823,16 @@ const SAMPLE_CHECKOUT: CheckoutLine[] = [
  * „Számla” kapcsoló, magánszemély / cég, a vevő adatai — a számla a bekötött számlázóból megy, az előleget levonja.
  * Lezárás nélkül is befejezhető („Fizetés nélkül zárom”). Étteremnél nincs: ott a POS / pénztárgép számláz.
  */
-export function CheckoutModal({ title = 'Fizetés és lezárás', subtitle = 'Juhász Hanna · ma 13:30–16:00', lines = SAMPLE_CHECKOUT, method = 'card', onMethod, mode = 'invoice', invoice = true, onInvoice, buyer = 'company', onBuyer, buyerFields, payLink = 'https://pay.davelopment.hu/p/7K2QM9', stripe = true, onCopyLink, onSendLink, onAddLine, onLineAmount, onLineName, methods, onSkip, onSubmit, onClose, busy = false, stack = false, offHref = '#' }: {
+export function CheckoutModal({ title = 'Fizetés és lezárás', subtitle = 'Juhász Hanna · ma 13:30–16:00', lines = SAMPLE_CHECKOUT, method = 'card', onMethod, mode = 'invoice', invoice = true, onInvoice, buyer = 'company', onBuyer, buyerFields, payLink = 'https://pay.davelopment.hu/p/7K2QM9', stripe = true, onCopyLink, onSendLink, onAddLine, onLineAmount, onLineName, serviceOptions, pickerOpen = false, onTogglePicker, onPickService, onRemoveLine, methods, onSkip, onSubmit, onClose, busy = false, stack = false, offHref = '#' }: {
   /** élőben: a tétel összege / (hozzáadott tételnél) neve átírható */
   onLineAmount?: (key: string, amount: number) => void; onLineName?: (key: string, name: string) => void
+  /** „+ Tétel”: a meglévő szolgáltatások menüje (csak ezekből választható) — a kiválasztott ugyanolyan sorként kerül be,
+   *  mint a foglalás saját szolgáltatása; a menü nyitott állapotát a hívó kezeli (ez a fájl nem kliens-komponens) */
+  serviceOptions?: { name: string; price: number; meta?: string }[]
+  pickerOpen?: boolean; onTogglePicker?: (open: boolean) => void
+  onPickService?: (o: { name: string; price: number; meta?: string }) => void
+  /** a hozzáadott tétel törlése (a foglalás saját szolgáltatása nem törölhető) */
+  onRemoveLine?: (key: string) => void
   /** a beállításban engedélyezett fizetési módok (nélküle mind) */
   methods?: PayMethod[]
   /** a beállítás (Fizetés a helyszínen) — „nem kérek ilyet” kiút az ablak aljáról; null: nincs */
@@ -856,14 +865,31 @@ export function CheckoutModal({ title = 'Fizetés és lezárás', subtitle = 'Ju
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
             <span className="text-ui-meta font-medium text-ui-muted">Tételek</span>
-            <Button variant="cell" size="sm" icon={Plus} onClick={onAddLine}>Tétel</Button>
+            {serviceOptions?.length && onPickService ? (
+              <Button variant={pickerOpen ? 'dark' : 'cell'} size="sm" icon={pickerOpen ? X : Plus} onClick={() => onTogglePicker?.(!pickerOpen)} aria-expanded={pickerOpen}>{pickerOpen ? 'Mégse' : 'Tétel'}</Button>
+            ) : <Button variant="cell" size="sm" icon={Plus} onClick={onAddLine}>Tétel</Button>}
           </div>
+          {pickerOpen && serviceOptions?.length && onPickService ? (
+            <div data-lenis-prevent className="mb-2 max-h-60 overflow-y-auto rounded-ui-inner border border-black/5 bg-white p-1.5 shadow-ui-popup">
+              {serviceOptions.map((o) => (
+                <button key={o.name} type="button" className="flex w-full items-center justify-between gap-3 rounded-ui-inner px-3 py-2.5 text-left transition-colors hover:bg-ui-cell"
+                  onClick={() => { onPickService(o); onTogglePicker?.(false) }}>
+                  <span className="min-w-0"><span className="block truncate text-ui-body text-ui-text">{o.name}</span>{o.meta && <span className="block text-ui-label text-ui-muted">{o.meta}</span>}</span>
+                  <span className="shrink-0 text-ui-meta text-ui-muted">{ft(o.price)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {items.map((l) => (
             <ListRow key={l.key} className="px-0"
-              title={onLineName && l.kind === 'product' ? <Input size="sm" value={l.name} onChange={(e) => onLineName(l.key, e.target.value)} placeholder="Tétel neve" aria-label="Tétel neve" className="max-w-[220px]" /> : l.name} meta={l.meta}
-              trailing={<span className="flex items-center gap-1.5">{onLineAmount
+              title={onLineName && l.kind === 'product' && !onPickService ? <Input size="sm" value={l.name} onChange={(e) => onLineName(l.key, e.target.value)} placeholder="Tétel neve" aria-label="Tétel neve" className="max-w-[220px]" /> : l.name} meta={l.meta}
+              trailing={<span className="flex items-center gap-1.5">{onPickService
+                // élőben (szolgáltatás-lista): az ár a szolgáltatásé, nem írható át
+                ? <span className="text-ui-body font-medium text-ui-text">{ft(l.amount)}</span>
+                : onLineAmount
                 ? <Input size="sm" inputMode="numeric" value={l.amount ? l.amount.toLocaleString('hu-HU') : ''} onChange={(e) => onLineAmount(l.key, Number(e.target.value.replace(/\D/g, '')) || 0)} placeholder="0" aria-label={`${l.name} ára`} hug className="text-right" />
-                : <Input size="sm" defaultValue={l.amount.toLocaleString('hu-HU')} aria-label={`${l.name} ára`} hug className="text-right" />}<Meta>Ft</Meta></span>} />
+                : <Input size="sm" defaultValue={l.amount.toLocaleString('hu-HU')} aria-label={`${l.name} ára`} hug className="text-right" />}{!onPickService && <Meta>Ft</Meta>}
+                {onRemoveLine && l.kind === 'product' && <button type="button" aria-label="Tétel törlése" title="Tétel törlése" className="ui-press ml-1 p-1 text-ui-bad transition-opacity hover:opacity-70" onClick={() => onRemoveLine(l.key)}><X className="h-4 w-4" strokeWidth={2} /></button>}</span>} />
           ))}
           {deducts.length > 0 && <>
             <div className="mb-1 mt-4 text-ui-meta font-medium text-ui-muted">Levonás</div>
@@ -873,7 +899,8 @@ export function CheckoutModal({ title = 'Fizetés és lezárás', subtitle = 'Ju
             ))}
           </>}
           <div className="mb-1.5 mt-4 text-ui-meta font-medium text-ui-muted">Fizetési mód{due === 0 && ' — nincs mit fizetni'}</div>
-          <div className={stack ? 'grid grid-cols-2 gap-1.5' : 'grid grid-cols-2 gap-1.5 sm:grid-cols-4'}>
+          {/* annyi oszlop, ahány mód látszik — fix 4 oszlopnál 3 módnál keskenyek lettek, és levágták a feliratot */}
+          <div className={stack ? 'grid grid-cols-2 gap-1.5' : `grid grid-cols-2 gap-1.5 ${PAY_COLS[Math.min(4, PAY_METHODS.filter((m) => !methods || methods.includes(m.key)).length)] ?? 'sm:grid-cols-4'}`}>
             {PAY_METHODS.filter((m) => !methods || methods.includes(m.key)).map((m) => {
               const off = due === 0 || (m.key === 'link' && !stripe)
               return (

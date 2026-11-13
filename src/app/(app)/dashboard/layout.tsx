@@ -5,6 +5,7 @@ export const viewport: Viewport = { themeColor: '#E3E5E6' }
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { autoCompleteBookings } from '@/lib/autoComplete'
+import { onsiteSettingsOf } from '@/lib/onsiteSettings'
 import { expireOneTrial } from '@/lib/subscriptionSync'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
@@ -32,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // a keretnek csak ennyi kell (név, slug, logó, tulaj, utalvány / hírlevél be-ki) — a teljes adatlap 14–20 al-táblát
     // töltene minden oldalbetöltésnél (sebesség, docs/audit/2026-11-05_1921)
     depth: 1,
-    select: { name: true, slug: true, logo: true, owner: true, voucher_settings: true, newsletter_settings: true },
+    select: { name: true, slug: true, logo: true, owner: true, voucher_settings: true, newsletter_settings: true, onsite_payment: true },
     overrideAccess: true,
   })) as Salon
 
@@ -44,7 +45,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let subscription: Subscription | null = ownerId ? await findAccountSubscription({ payload }, ownerId) : null
   subscription = await expireOneTrial(subscription)
 
-  autoCompleteBookings(salon.id).catch(() => null)
+  // Helyszíni fizetésnél a véget ért foglalás NEM záródik le magától: „Fizetésre vár” marad, amíg a Fizetés (vagy
+  // a „Nem jött el”) gombbal le nem zárják — különben a Fizetés gomb el sem jelenne meg (csak Megerősítettnél van).
+  if (!onsiteSettingsOf(salon).enabled) autoCompleteBookings(salon.id).catch(() => null)
 
   const sub = subscription
     ? { plan: subscription.plan, status: subscription.status, trial_ends_at: subscription.trial_ends_at, current_period_end: subscription.current_period_end, setup_done: !!subscription.stripe_subscription_id }

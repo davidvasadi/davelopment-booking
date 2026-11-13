@@ -22,6 +22,7 @@ import { PhoneCountryInput } from '@/components/booking/PhoneInputs'
 import { COUNTRIES } from '@/components/booking/phoneCountries'
 import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
+import { paidMethod } from '@/lib/paidLabel'
 import { useGuestLookup, GuestSuggestList, type GuestSuggestion } from '@/components/shared/GuestLookup'
 
 /** Ma (helyi idő) és a mostani óra:perc — az alap-kijelölés ma az első ez utáni szabad időpont. */
@@ -87,6 +88,8 @@ function splitLocalPhone(full: string | null | undefined, fallbackCountry: strin
 
 /** A nézetekből érkező "ál-foglalás" lehet lokális vázlat (__draft jelölővel). */
 type MaybeDraft = Booking & { __draft?: true; draftId?: string }
+// a lezárt fizetés javítható módjai (a fizetési link online, utólag nem állítható be kézzel)
+const PAY_FIX_OPTIONS = [{ value: 'cash', label: 'Készpénz' }, { value: 'card', label: 'Bankkártya' }, { value: 'transfer', label: 'Átutalás' }]
 function draftIdOf(b: Booking | null): string | null {
   const d = b as MaybeDraft | null
   return d?.__draft ? (d.draftId ?? null) : null
@@ -158,6 +161,9 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
 
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  // a lezárt fizetés módjának javítása (ha rossz módot nyomtak) — PATCH /api/salon/booking-checkout
+  const [payFix, setPayFix] = useState<{ method: string | null; paid: boolean } | null>(null)
+  const [payBusy, setPayBusy] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const initSigRef = useRef<string>('')
 
@@ -234,6 +240,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     setNotes(b?.notes ?? '')
     setStatus(initStatus)
     setStatusTouched(false)
+    setPayFix(null)
     setSource(b?.source ?? 'phone')
     // Szerkesztésnél és preset-szakemberrel induló új foglalásnál (rácsban egy adott
     // oszlopra/sávra kattintva) a szakember már EXPLICIT választás — ne írja felül az
@@ -470,6 +477,32 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   }
 
   // Végleges törlés — nem státuszváltás, a rekord ténylegesen kikerül az adatbázisból.
+  // az összegzés „Fizetés” sora — a szerkesztőben javított mód azonnal látszik
+  const summaryPay = payFix ? (payFix.paid ? paidMethod({ paid_at: 'javítva', pay_method: payFix.method }) : null) : paidMethod(target?.booking)
+
+  const fixPayment = async (method: string) => {
+    const id = target?.booking?.id
+    if (!id || payBusy) return
+    if (method === (payFix?.method ?? target?.booking?.pay_method)) return
+    setPayBusy(true)
+    try {
+      const res = await fetch('/api/salon/booking-checkout', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ bookingId: id, method }),
+      })
+      const j = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(j?.error ?? `HTTP ${res.status}`)
+      setPayFix({ method, paid: true })
+      toast.success('Fizetési mód javítva')
+      markLocalMutation()
+      router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Nem sikerült')
+    } finally {
+      setPayBusy(false)
+    }
+  }
+
   const deleteBooking = async () => {
     if (!booking) return
     setSaving(true)
@@ -557,6 +590,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
               ['Szolgáltatás', selectedService?.name ?? '—'],
               ['Munkatárs', st?.name ?? '—'],
               ['Forrás', sourceLabelOf[source ?? ''] ?? '—'],
+              ...(summaryPay ? [['Fizetés', summaryPay] as [string, string]] : []),
               ...(notes.trim() ? [['Megjegyzés', notes.trim()] as [string, string]] : []),
             ]}
             total={price}
@@ -681,6 +715,15 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
         <StepRow label="Státusz">
           <ChoicePills options={statusOptions.map((o) => ({ value: o.value, label: o.label }))} value={status} onPick={(v) => { setStatus(v as Booking['status']); setStatusTouched(true) }} />
         </StepRow>
+        {isEdit && (payFix ? payFix.paid : !!target?.booking?.paid_at) && (
+          <StepRow label="Fizetés">
+            {target?.booking?.pay_receipt === 'invoice' ? (
+              <Meta>Számlával zárva — a javításhoz a számlát a Számlák között sztornózd.</Meta>
+            ) : (
+              <ChoicePills options={PAY_FIX_OPTIONS} value={payFix?.method ?? target?.booking?.pay_method ?? null} onPick={(v) => void fixPayment(v)} />
+            )}
+          </StepRow>
+        )}
       </PopupModal>
 
       <ConfirmDialog

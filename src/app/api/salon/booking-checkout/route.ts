@@ -60,3 +60,37 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, due, receipt })
 }
+
+/**
+ * PATCH /api/salon/booking-checkout — a lezárt fizetés módjának javítása (2026-11), ha a lezáráskor véletlenül rossz
+ * módot nyomtak (készpénz / bankkártya / átutalás). Ha a lezáráskor a rendszer számlát állított ki
+ * (`pay_receipt: 'invoice'`), nem engedett — a számlát a Számlák között kell sztornózni, különben eltérne.
+ */
+const fixSchema = z.object({
+  bookingId: z.union([z.string(), z.number()]),
+  method: z.enum(['cash', 'card', 'transfer']),
+})
+
+export async function PATCH(req: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
+  const parsed = fixSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
+  const b = parsed.data
+
+  const { active } = await getActiveBusiness(user)
+  if (!active || active.type !== 'salon') return NextResponse.json({ error: 'Nincs aktív szalon' }, { status: 404 })
+  const denied = await assertCapability(user.id, 'salon', active.id, 'bookings.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
+
+  const payload = await getPayloadClient()
+  const booking = (await payload.findByID({ collection: 'bookings', id: b.bookingId, depth: 0, overrideAccess: true }).catch(() => null)) as Booking | null
+  const salonId = booking && (typeof booking.salon === 'object' ? booking.salon.id : booking.salon)
+  if (!booking || String(salonId) !== String(active.id)) return NextResponse.json({ error: 'A foglalás nem található' }, { status: 404 })
+  if (!booking.paid_at) return NextResponse.json({ error: 'Ez a foglalás nincs fizetéssel lezárva' }, { status: 400 })
+  if (booking.pay_receipt === 'invoice') {
+    return NextResponse.json({ error: 'Ehhez a fizetéshez már számla ment ki — előbb sztornózd a Számlák között.' }, { status: 409 })
+  }
+  await payload.update({ collection: 'bookings', id: booking.id, overrideAccess: true, user, data: { pay_method: b.method } })
+  return NextResponse.json({ ok: true })
+}

@@ -24,6 +24,7 @@ import { BookingEditSheet, type EditTarget } from '@/components/dashboard/Bookin
 import { getDrafts, subscribeDrafts, type SalonBookingDraft } from '@/lib/salonBookingDrafts'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
 import { BookingCheckout, type OnsiteSettings } from './BookingCheckout'
+import { paidMethod } from '@/lib/paidLabel'
 import { AttentionPill } from '@/components/blocks/booking'
 
 type ViewMode = 'list' | 'timeline'
@@ -332,6 +333,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
           canManage={canManage}
           consentEnabled={consentEnabled}
           onsite={onsite}
+          services={services}
           onClose={() => setOpened(null)}
           onEdit={() => { const b = opened; setOpened(null); setTarget({ booking: b }) }}
         />
@@ -646,7 +648,7 @@ const SOURCE_LABEL: Record<string, string> = { online: 'Online · foglalóoldal'
 
 /** A megnyitott szalon-foglalás (design 6.7) tartalma és gyors műveletei: függőnél jóváhagyás / elutasítás, késésnél
  *  megérkezett / nem jött el, mindig hívás és áthelyezés (a szerkesztő), megerősítettnél lemondás (6.10 ablakkal). */
-export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false, onsite, onClose, onEdit }: { b: Booking; date: string; canManage: boolean; /** Fizetés a helyszínen (design 6.7.1) — bekapcsolva a megkezdett foglalás első gombja a „Fizetés” */ onsite?: OnsiteSettings | null; /** a nyilatkozat be van kapcsolva — ha a vendég még nem írta alá, helyszíni aláíratás */ consentEnabled?: boolean; onClose: () => void; onEdit: () => void }) {
+export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false, onsite, services = [], onClose, onEdit }: { b: Booking; date: string; canManage: boolean; /** a fizetéskor „+ Tétel”-ként választható szolgáltatások */ services?: Service[]; /** Fizetés a helyszínen (design 6.7.1) — bekapcsolva a megkezdett foglalás első gombja a „Fizetés” */ onsite?: OnsiteSettings | null; /** a nyilatkozat be van kapcsolva — ha a vendég még nem írta alá, helyszíni aláíratás */ consentEnabled?: boolean; onClose: () => void; onEdit: () => void }) {
   const router = useRouter()
   const nowMin = useNowMinutes(date)
   const [busy, setBusy] = useState(false)
@@ -677,7 +679,8 @@ export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false,
   }
   // a foglalás elkezdődött (vagy múltbeli) és még nincs lezárva fizetéssel → „Fizetés” (ha a szalonnál be van kapcsolva)
   const started = date < today || (date === today && nowMin != null && nowMin >= hhmmToMinutes(b.start_time))
-  const canCheckout = canManage && !!onsite?.enabled && b.status === 'confirmed' && started && !b.paid_at
+  // a már Befejezett, de ki nem fizetett foglalás is lezárható fizetéssel (pl. a helyszíni fizetés bekapcsolása előttiek)
+  const canCheckout = canManage && !!onsite?.enabled && (b.status === 'confirmed' || b.status === 'completed') && started && !b.paid_at
   const call = b.customer_phone ? { label: 'Hívás', icon: Phone, href: `tel:${b.customer_phone.replace(/\s/g, '')}` } : null
   const move = { label: 'Áthelyezés', onClick: onEdit }
   const pay: DrawerAction = { label: 'Fizetés', icon: Wallet, variant: 'dark', onClick: () => setCheckout(true), disabled: busy }
@@ -718,7 +721,7 @@ export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false,
             ['Forrás', SOURCE_LABEL[b.source ?? ''] ?? b.source],
             ['Sorozat', b.series_id ? 'Ismétlődő foglalás' : null],
             ['Előleg', b.payment_status === 'paid' ? 'fizetve' : b.payment_status === 'failed' ? 'sikertelen fizetés' : null],
-            ['Helyben fizetve', b.paid_at ? `${Math.round(Number(b.paid_amount_huf ?? 0)).toLocaleString('hu-HU')} Ft · ${({ cash: 'készpénz', card: 'bankkártya', transfer: 'átutalás', link: 'fizetési link' } as Record<string, string>)[b.pay_method ?? ''] ?? '—'}${b.pay_receipt === 'manual' ? ' · végszámla kézzel' : b.pay_receipt === 'register' ? ' · pénztárgép' : ''}` : null],
+            ['Fizetés', paidMethod(b)],
             ['Fizetés', b.voucher_code ? `Utalvánnyal · ${b.voucher_code}` : null],
             ['Megjegyzés', b.notes],
             // a beleegyező nyilatkozat (ha a szalonnál be van kapcsolva): elfogadva — hol és mikor, különben „még nincs”
@@ -735,6 +738,7 @@ export function SalonBookingDrawer({ b, date, canManage, consentEnabled = false,
             when, service: { name: svc?.name ?? 'Szolgáltatás', meta: [`${durationOf(b)} perc`, st?.name].filter(Boolean).join(' · '), price: Math.round(Number(price ?? 0)) },
             deposit: b.payment_status === 'paid' ? Math.round(Number(b.deposit_amount_huf ?? 0)) : 0, depositInvoice: b.invoice_number,
             voucher: Math.round(Number(b.voucher_discount_huf ?? 0)), voucherCode: b.voucher_code,
+            services: services.filter((s) => s?.name).map((s) => ({ name: s.name, price: Math.round(Number(s.price ?? 0)), meta: s.duration_minutes ? `${s.duration_minutes} perc` : undefined })),
           }} />
       )}
       <ConfirmDialog

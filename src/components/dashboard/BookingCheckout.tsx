@@ -14,6 +14,8 @@ type Booked = {
   id: string | number; customerName: string; customerEmail?: string | null; customerCity?: string | null; customerAddress?: string | null
   when: string; service: { name: string; meta?: string; price: number }
   deposit: number; depositInvoice?: string | null; voucher: number; voucherCode?: string | null
+  /** a „+ Tétel”-hez választható szolgáltatások (név, ár) */
+  services?: { name: string; price: number; meta?: string }[]
 }
 
 /**
@@ -32,6 +34,7 @@ export function BookingCheckout({ open, onClose, onDone, booking, settings, sett
   const [buyerKind, setBuyerKind] = useState<'person' | 'company'>('person')
   const [buyer, setBuyer] = useState({ name: booking.customerName, taxNumber: '', zip: '', city: booking.customerCity ?? '', address: booking.customerAddress ?? '', email: booking.customerEmail ?? '' })
   const [busy, setBusy] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [payLink, setPayLink] = useState<string | null>(null)
 
   // fizetési link (design 6.7.1): a mód kiválasztásakor elkészül a link és a QR-kód — a vendég a pultnál beolvassa,
@@ -94,7 +97,12 @@ export function BookingCheckout({ open, onClose, onDone, booking, settings, sett
         onSendLink={() => void makeLink(true)}
         onAddLine={() => setItems((xs) => [...xs, { key: `p${Date.now()}`, name: '', amount: 0, kind: 'product' }])}
         onLineAmount={(k, a) => setItems((xs) => xs.map((l) => (l.key === k ? { ...l, amount: a } : l)))}
+        serviceOptions={booking.services}
+        pickerOpen={pickerOpen} onTogglePicker={setPickerOpen}
+        // a kiválasztott szolgáltatás ugyanolyan sorként kerül be, mint a foglalásé (név, időtartam, ár — az ár átírható)
+        onPickService={(o) => setItems((xs) => [...xs, { key: `p${Date.now()}`, name: o.name, meta: o.meta, amount: o.price, kind: 'product' }])}
         onLineName={(k, n) => setItems((xs) => xs.map((l) => (l.key === k ? { ...l, name: n } : l)))}
+        onRemoveLine={(k) => setItems((xs) => xs.filter((l) => l.key !== k))}
         onSkip={() => void send(true)} onSubmit={() => void send(false)} onClose={onClose} busy={busy} />
     } />
   )
