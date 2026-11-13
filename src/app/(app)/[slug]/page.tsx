@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { getCachedGoogleRating } from '@/lib/google-rating'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
-import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL } from '@/lib/publicSeo'
+import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, industryPageJsonLd, SITE_URL } from '@/lib/publicSeo'
 import { getReviewSummary } from '@/lib/reviews'
 import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
 import { getPayloadClient } from '@/lib/payload'
@@ -13,6 +13,10 @@ import { isBusinessLocked } from '@/lib/businessLock'
 import { after } from 'next/server'
 import { getPricing } from '@/lib/pricing'
 import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
+import { INDUSTRY_PAGES } from '@/lib/industryPages'
+import { IndustryPageK2 } from '@/components/blocks/landing-industry'
+import { CookieBanner } from '@/components/landing/CookieBanner'
+import { LandingClickTracker } from '@/components/landing/LandingClickTracker'
 import HomeClient from '../HomeClient'
 import type { Media } from '@/payload/payload-types'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
@@ -35,12 +39,15 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   // Iparág-specifikus SEO landing (pl. /fodrasz-idopontfoglalas) — a szűkebb, fenntartott
   // listával ellenőrizzük ELŐSZÖR, hogy ne fussunk le két felesleges DB-lekérdezést (szalon +
   // étterem keresés) minden landing-oldal-kérésnél.
-  const landing = INDUSTRY_LANDINGS[slug]
+  const np = INDUSTRY_PAGES[slug]
+  const landing = np ? { ...INDUSTRY_LANDINGS[slug], seoTitle: np.seoTitle, seoDescription: np.seoDescription, heroTitle: np.h1 } : INDUSTRY_LANDINGS[slug]
   if (landing) {
     const url = `${SITE_URL}/${slug}`
     const ogImage = `${SITE_URL}/api/og/landing?title=${encodeURIComponent(landing.heroTitle)}`
     return {
-      title: landing.seoTitle,
+      // `absolute`: a seoTitle már tartalmazza a márkanevet — a layout `%s — davelopment booking` sablonja különben
+      // még egyszer hozzáfűzné („| davelopment booking — davelopment booking”, ~98 karakter)
+      title: { absolute: landing.seoTitle },
       description: landing.seoDescription,
       alternates: { canonical: url },
       openGraph: {
@@ -76,6 +83,19 @@ export default async function SalonPublicPage({
 }) {
   const { slug } = await params
 
+  // iparági oldal — új felépítés (lib/industryPages), ha a slug már át van állítva; különben a régi
+  const industryPage = INDUSTRY_PAGES[slug]
+  if (industryPage) {
+    const pricing = await getPricing()
+    return (
+      <>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(industryPageJsonLd(industryPage, pricing, await getCachedGoogleRating())) }} />
+        <IndustryPageK2 page={industryPage} trialDays={pricing.trial_days} />
+        <CookieBanner />
+        <LandingClickTracker />
+      </>
+    )
+  }
   const landing = INDUSTRY_LANDINGS[slug]
   if (landing) {
     const pricing = await getPricing()

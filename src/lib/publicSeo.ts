@@ -187,6 +187,28 @@ export function siteJsonLd(pricing: Pricing, extraFaqItems?: { q: string; a: str
   }
 }
 
+/** Iparági („Kinek”) oldal (2026-11, új felépítés): a cég + a szoftver (mint a főoldalon), a WebPage, morzsamenü és a
+ *  GYIK — CSAK az oldalon látható kérdésekkel (a strukturált adat a látható tartalommal egyezzen). */
+export function industryPageJsonLd(page: { slug: string; label: string; h1: string; seoDescription: string; faq: { q: string; a: string }[] }, pricing: Pricing, rating?: RatingData): Record<string, unknown> {
+  const url = `${SITE_URL}/${page.slug}`
+  const site = siteJsonLd(pricing, [], rating) as { '@graph': Record<string, unknown>[] }
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      ...site['@graph'].filter((n) => n['@type'] !== 'FAQPage'),
+      { '@type': 'WebPage', '@id': `${url}#webpage`, url, name: page.h1, description: page.seoDescription, inLanguage: 'hu' },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Főoldal', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: page.label, item: url },
+        ],
+      },
+      { '@type': 'FAQPage', mainEntity: page.faq.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) },
+    ],
+  }
+}
+
 /** schema.org JSON-LD a rich-resulthoz (LocalBusiness / Restaurant / HairSalon). */
 /** Payload `day_of_week` ('monday'…) → schema.org napnév ('Monday'…). */
 function capitalizeDay(day: string): string {
